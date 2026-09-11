@@ -169,8 +169,16 @@ closure for private-key and age-identity markers.
 
 Every check ran on 2026-09-11 on the rootless host described in
 `ARCHITECTURE.md` (KVM, `sandbox = false`, see the note under Slice (b) and
-in the test files for why). The full `nix flake check -L` is recorded in the
-commit that lands this file.
+in the test files for why).
+
+`nix flake check -L` as one process does not finish on this host: the
+evaluator reached 50 GB of resident memory while evaluating the checks in
+one go and was killed by the kernel (Nix 2.20, every check evaluates its own
+NixOS systems). The gate was therefore run as the equivalent loop, one
+process per output: `nix build .#checks.x86_64-linux.<name>` for each of the
+24 checks below, plus `nix eval` of the derivation path of every package,
+every media test and the site template. The loop is in the shell history of
+the verification session; its summary is the table.
 
 | check | result |
 |---|---|

@@ -60,6 +60,7 @@ let
       n: u: lib.hasPrefix "nixie-" n && lib.hasSuffix ".service" n && (u.enable or true)
     ) sys.config.systemd.units;
   documentedExposure = [
+    "nixie-fetch"
     "nixie-setup"
     "nixie-tailscale-serve"
     "nixie-oath-users"
@@ -106,7 +107,8 @@ in
   '';
 
   # The platform holds no hardware facts; the brief, the examples' generated
-  # hardware files and tests are the only places they may appear.
+  # hardware files and tests are the only places they may appear. The
+  # discovery script is code that enumerates by-id to write hardware.nix.
   no-hardware-facts =
     pkgs.runCommand "no-hardware-facts"
       {
@@ -125,7 +127,7 @@ in
         for p in $patterns; do
           if grep -rEn --exclude-dir=tests --exclude-dir=.git \
               --exclude=NIXIE_PLATFORM_BRIEF.md --exclude=hardware.nix \
-              --exclude=design-tokens.md -- "$p" .; then
+              --exclude=design-tokens.md --exclude=discover.sh -- "$p" .; then
             echo "hardware fact matching '$p' outside tests/ or hardware.nix" >&2
             status=1
           fi
@@ -229,7 +231,8 @@ in
         status=0
         while read -r p; do
           case "$p" in *-source|*-linux-*|*-kernel*|*-firmware*|*-go-*|*-openssl-*|*-gnupg-*|*-python3*|*-perl*|*-nss-*|*-cacert*|*-ca-certificates*|*-testing*|*-tpm2-*|*-openssh-*|*-git-*|*-systemd-*|*-curl-*|*-nix-*|*-glibc*|*-chromium*|*-qemu*|*-mesa*|*-gcc*|*-llvm*|*-rust*) continue ;; esac
-          if grep -rIlE -- '-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----|AGE-SECRET-KEY-1' "$p" 2>/dev/null | grep -v '/share/doc/' | head -1 | grep .; then
+          # Upstream packages ship fixture keys with their installed tests.
+          if grep -rIlE -- '-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----|AGE-SECRET-KEY-1' "$p" 2>/dev/null | grep -v -e '/share/doc/' -e '/installed-tests/' | head -1 | grep .; then
             echo "key-like material in $p" >&2; status=1
           fi
         done < "$closure/store-paths"
