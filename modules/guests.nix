@@ -74,10 +74,10 @@ let
           description = "Host paths included in backups for this guest.";
         };
         expose.tailnet = mkOption {
-          type = t.listOf t.str;
+          type = t.listOf t.port;
           default = [ ];
-          example = [ "https://web:8080" ];
-          description = "Services published on the tailnet through `tailscale serve`.";
+          example = [ 8080 ];
+          description = "Ports published on the tailnet through `tailscale serve`, at /<guest> (and /<guest>-<port> when several). Needs a fixed address.";
         };
         expose.lan = mkOption {
           type = t.listOf t.port;
@@ -112,6 +112,11 @@ let
           type = t.nullOr t.path;
           default = null;
           description = "cloud-init user-data for \"image\" and \"vm\" guests.";
+        };
+        firewall = mkOption {
+          type = t.lines;
+          default = "";
+          description = "Extra nftables rules (bridge family) applied to frames from this guest's port, before the default accept.";
         };
         extraConfig = mkOption {
           type = t.attrsOf t.str;

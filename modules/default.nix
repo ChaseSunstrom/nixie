@@ -1,6 +1,6 @@
 # The whole `nixie.*` option tree. Each file below owns one concern and is a
 # plain NixOS module a site can override.
-{ inputs }:
+{ inputs, self }:
 {
   imports = [
     inputs.disko.nixosModules.disko
@@ -14,7 +14,7 @@
     ./disks.nix
     ./security
     ./network
-    ./incus.nix
+    (import ./incus.nix { inherit (inputs) terranix; })
     ./guests.nix
     ./data.nix
     ./backups.nix
@@ -23,7 +23,8 @@
     ./secrets.nix
     ./site.nix
     ./host-ui.nix
-    ./setup.nix
+    ./console.nix
+    (import ./setup.nix { inherit inputs self; })
     ./desktop
   ];
 }

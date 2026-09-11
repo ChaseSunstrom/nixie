@@ -86,6 +86,11 @@ let
       name = "dpool";
       device = dataPart;
     };
+  # Incus manages its own children under this dataset.
+  incusDataset.incus = {
+    type = "zfs_fs";
+    options.mountpoint = "none";
+  };
   layout = {
     inherit (cfg) system data;
     luks = luksDevices;
@@ -213,7 +218,8 @@ in
             mountpoint = "/home";
           };
         }
-        // lib.optionalAttrs (!hasDataDisk) dataDatasets;
+        // lib.optionalAttrs (!hasDataDisk) dataDatasets
+        // lib.optionalAttrs (config.nixie.incus.enable && !hasDataDisk) incusDataset;
       };
       zpool.dpool = lib.mkIf hasDataDisk {
         type = "zpool";
@@ -224,7 +230,7 @@ in
           xattr = "sa";
           mountpoint = "none";
         };
-        datasets = dataDatasets;
+        datasets = dataDatasets // lib.optionalAttrs config.nixie.incus.enable incusDataset;
       };
     };
   };

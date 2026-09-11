@@ -391,6 +391,13 @@ tty1 and the front panel moves to tty2. The kiosk's client certificate is
 made at setup, trusted by incusd, and loaded into the kiosk browser's NSS
 store with an auto-select policy for the panel URL.
 
+### 4.10 showcase (change request, the last slice)
+
+`packages.media` regenerates `docs/media/` from real VM runs only, with a
+`SHOTLIST.md` naming the command and commit behind every asset; the README
+is written last and its commands, option names and feature claims are
+checked by `checks.readme`. Nothing in it may be mocked.
+
 ## 5. The site contract
 
 `site.nix` is data:
@@ -674,6 +681,39 @@ and runs `nixie apply`.
   adding it to the site would change the built closure mid-setup. The bundle
   is encrypted with `age` to the host's key and every recipient in
   `.sops.yaml`, which is what "a sops key" is in this platform.
+- **D11 Secrets are read from the site checkout at runtime.** `nixie.secrets.file`
+  resolves to the same path under `nixie.site.path` and `sops.validateSopsFiles`
+  is off, so no sops file enters the store and setup can extend it (phase 2
+  adds Secure Boot keys and the TOTP secret) without rebuilding. Tests share
+  the example site into the VM at that path.
+- **D12 Two nftables families.** Per-guest chains keyed on `veth-<name>` and
+  the catch-all `guest-undeclared` live in the `bridge` family, where a
+  bridge port name is visible; the egress policy (tunnel only under
+  exit-node) is enforced in the `inet` forward hook keyed on the bridge,
+  which is where routed guest traffic actually passes. Exit-node egress
+  requires the managed-nat bridge mode, because on an unmanaged LAN bridge
+  guest frames never enter the host's IP stack.
+- **D13 NixOS guest images are built inside the host closure**
+  (`nixie.build.guestImages`), so `nixos-rebuild switch` on the host builds
+  them and `nixie apply` only imports by alias. `mkSite` re-exports them as
+  `<host>-guest-<name>`.
+- **D14 Changed NixOS guests are replaced, not switched in place.** The image
+  alias carries the store hash; tofu replaces the instance and the state in
+  mounts is untouched. In-place `nixos-rebuild` inside the guest is not done.
+- **D15 Long history and Grafana are reached through `tailscale serve`**
+  (`/prometheus`, `/grafana` on the host's tailnet name) rather than by
+  exposing plain-HTTP ports next to the TLS control panel; without Tailscale
+  the panel keeps its in-browser rolling history.
+- **D16 Declare from the control panel is wired to `nixie.json.declareUrl`**
+  but no endpoint provides it yet: incusd cannot run host commands and the
+  brief defers a host agent. Export works everywhere; Declare stays disabled
+  until an agent exists. `nixie.ui.allowSiteEdits` is honoured by the UI.
+- **D17 The kiosk lock page checks the password through `su`** and the TOTP
+  code against the same secret the host page uses; it binds to loopback only.
+- **D18 The system disk in tests is a plain device path** (`/dev/vda`,
+  overridden with `mkForce`), because the test framework's virtio drive has
+  no serial and so no by-id link. The ISO test driver attaches the disk with
+  a serial so `hardware.nix` there holds a by-id path.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the

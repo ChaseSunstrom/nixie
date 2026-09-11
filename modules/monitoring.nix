@@ -1,6 +1,27 @@
-{ lib, ... }:
+# Prometheus for host, guest and GPU metrics, Grafana by option, dashboards
+# shipped as JSON. Scrape targets and dashboard variables come from the guest
+# attrset through the Incus metrics endpoint's labels.
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   inherit (import ../lib/option.nix lib) mkOption;
+  cfg = config.nixie.monitoring;
+  gpu = config.nixie.hardware.gpu == "nvidia";
+  metricsPort = 8444;
+  # A dashboard's only site-specific number is the GPU power cap, so it is
+  # substituted here rather than typed into JSON by hand.
+  shipped = pkgs.runCommand "nixie-dashboards" { } ''
+    mkdir -p $out
+    cp ${../dashboards}/*.json $out/
+    sed -i 's/"__GPU_POWER_CAP__"/${
+      if cfg.gpuPowerCap == null then "null" else toString cfg.gpuPowerCap
+    }/' $out/gpu.json
+    ${lib.concatStringsSep "\n" (lib.mapAttrsToList (n: f: "cp ${f} $out/${n}.json") cfg.dashboards)}
+  '';
 in
 {
   options.nixie.monitoring = {
@@ -20,6 +41,11 @@ in
       type = lib.types.str;
       default = "30d";
       description = "How long metrics are kept.";
+    };
+    port = mkOption {
+      type = lib.types.port;
+      default = 9090;
+      description = "Port Prometheus listens on, on this host only.";
     };
     grafana.enable = mkOption {
       type = lib.types.bool;
@@ -49,6 +75,98 @@ in
       type = lib.types.attrsOf lib.types.path;
       default = { };
       description = "Extra dashboards, name to JSON file.";
+    };
+    dashboardsDir = mkOption {
+      type = lib.types.package;
+      default = shipped;
+      readOnly = true;
+      description = "Internal: the provisioned dashboards, for the control panel to import.";
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    systemd.services.grafana.preStart = lib.mkIf cfg.grafana.enable (
+      lib.mkBefore ''
+        if [ ! -s /var/lib/grafana/nixie-secret-key ]; then
+          (umask 077; ${pkgs.openssl}/bin/openssl rand -hex 32 >/var/lib/grafana/nixie-secret-key)
+        fi
+      ''
+    );
+    services.prometheus = {
+      enable = true;
+      inherit (cfg) port;
+      listenAddress = "127.0.0.1";
+      retentionTime = cfg.retention;
+      exporters.node = {
+        enable = true;
+        listenAddress = "127.0.0.1";
+        enabledCollectors = [ "systemd" ];
+      };
+      exporters.nvidia-gpu = lib.mkIf gpu {
+        enable = true;
+        listenAddress = "127.0.0.1";
+      };
+      scrapeConfigs = [
+        {
+          job_name = "node";
+          static_configs = [
+            { targets = [ "127.0.0.1:${toString config.services.prometheus.exporters.node.port}" ]; }
+          ];
+        }
+      ]
+      ++ lib.optional config.nixie.incus.enable {
+        job_name = "incus";
+        metrics_path = "/1.0/metrics";
+        scheme = "https";
+        tls_config.insecure_skip_verify = true;
+        static_configs = [ { targets = [ "127.0.0.1:${toString metricsPort}" ]; } ];
+      }
+      ++ lib.optional gpu {
+        job_name = "gpu";
+        static_configs = [
+          { targets = [ "127.0.0.1:${toString config.services.prometheus.exporters.nvidia-gpu.port}" ]; }
+        ];
+      }
+      ++ cfg.extraScrapeConfigs;
+    };
+
+    # The metrics endpoint is bound to this host only and read by the local
+    # Prometheus, so the certificate dance would protect nothing.
+    virtualisation.incus.preseed.config = lib.mkIf config.nixie.incus.enable {
+      "core.metrics_address" = "127.0.0.1:${toString metricsPort}";
+      "core.metrics_authentication" = false;
+    };
+
+    services.grafana = lib.mkIf cfg.grafana.enable {
+      enable = true;
+      settings.server = {
+        http_addr = "127.0.0.1";
+        http_port = cfg.grafana.port;
+        # Published under /grafana by tailscale serve when Tailscale is on.
+        root_url = "%(protocol)s://%(domain)s/grafana/";
+        serve_from_sub_path = true;
+      };
+      # Grafana wants its own secret key; it is made on first start and never
+      # enters the store or the site.
+      settings.security.secret_key = "$__file{/var/lib/grafana/nixie-secret-key}";
+      provision = {
+        enable = true;
+        datasources.settings.datasources = [
+          {
+            name = "Prometheus";
+            uid = "nixie-prometheus";
+            type = "prometheus";
+            url = "http://127.0.0.1:${toString cfg.port}";
+            isDefault = true;
+          }
+        ];
+        dashboards.settings.providers = [
+          {
+            name = "nixie";
+            options.path = shipped;
+          }
+        ];
+      };
     };
   };
 }

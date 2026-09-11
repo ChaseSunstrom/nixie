@@ -17,12 +17,16 @@ in
     description = ''
       The sops file holding this host's secrets: the administrator password
       hash and whatever the enabled features need. Encrypted in git,
-      decrypted on the host with its own key.
+      decrypted on the host with its own key. It is read from the site
+      checkout on the host at activation, never copied into the Nix store.
     '';
   };
 
   config = lib.mkIf (cfg.file != null) {
     sops.defaultSopsFile = cfg.file;
+    # The file lives in the checkout, not the store, so it cannot be inspected
+    # at build time and setup may extend it without rebuilding.
+    sops.validateSopsFiles = false;
     # One identity per host, made by the installer (phase 2) and independent
     # of whether SSH is enabled, so desktops and servers work the same way.
     sops.age.keyFile = "/var/lib/nixie/age.key";

@@ -1,0 +1,5 @@
+#cloud-config
+packages:
+  - curl
+runcmd:
+  - [ sh, -c, "echo ready > /etc/motd" ]

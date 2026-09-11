@@ -30,3 +30,122 @@ not applied (the test framework supplies its own disk); a real install is the
 subject of slice (b). The `nix why-depends` form of the profile check is
 replaced by a pure closure grep (`closureInfo`); the equivalent manual
 command is `nix why-depends .#checks.x86_64-linux.vm-boot-plain.driver nixpkgs#cage`.
+
+## Slice (b): encryption
+
+`vm-encryption` installs the example server from an installer VM onto a blank
+disk with every boot-time feature on (encryption, TPM + PIN, attestation,
+duress, remote unlock, Secure Boot) under OVMF (Secure Boot capable, Setup
+Mode) with swtpm, then boots the disk and walks phases 4 to 7 through the
+same scripts a front end calls: remote unlock over SSH from a client VM,
+Secure Boot enrolment by systemd-boot from Setup Mode, TPM enrolment with a
+PIN and a recovery key, attestation init, header-backup bundle, the
+verification reboot with the attestation code on the console, and finally
+the duress passphrase wiping every key slot. Result: see the table at the end
+of this file (filled after the final run).
+
+Lockdown (`nixie.security.lockdown = "integrity"`) is evaluated by the
+`eval-matrix` check only; it rebuilds the kernel and is documented in
+ARCHITECTURE D4 rather than booted.
+
+## Slice (c): network
+
+`vm-egress`: under exit-node egress a declared guest (`veth-web`) and an
+undeclared one (`veth-scratch`) reach only the tunnel side and not the LAN;
+guests cannot reach the host's SSH while the LAN can; under direct egress
+both reach the LAN through the host. Passed on 2026-09-11
+("test script finished in 25.02s").
+
+## Slice (d): guests
+
+`vm-guests`: `nixie apply --yes --skip-host` imports the NixOS image built
+with the host and creates the declared guest through tofu; the guest serves
+from its mounted state; a scratch instance is left alone by a second apply;
+deleting the guest and applying recreates it with state intact; `nixie export`
+emits a `guests.nix` entry. Passed on 2026-09-11 ("test script finished in
+45.07s").
+
+## Slice (e): examples
+
+`examples/site/guests.nix` declares one guest per capability; the whole site
+evaluates and its NixOS guest images build as part of the host closure
+(`eval-matrix`, `vm-boot-plain`, and the `server-guest-*` packages of the
+site). Foreign images and the VM are pinned by fingerprint and evaluated;
+they are not started in tests because that needs the network and nested
+virtualisation.
+
+## Slice (f): data
+
+`vm-data`: `nixie fetch` fills `cache/http/dataset` from a mirror VM and is
+idempotent; deleting `cache/` and fetching restores it; a restic backup of
+`state/` and `nixie restore latest` bring a deleted file back; `cache/` is
+absent from the snapshot. Passed on 2026-09-11 ("test script finished in
+23.96s").
+
+## Slice (g): monitoring
+
+`vm-monitoring`: every Prometheus target (node, incus) is up; the three
+shipped dashboards are provisioned in Grafana with the GPU power cap
+substituted. Passed on 2026-09-11 ("test script finished in 33.00s").
+
+## Slice (h): control panel
+
+`vm-ui`: incusd serves the bundle under `/ui/` with this host's `nixie.json`
+(finish, links, declared guests), the bundle contains the command palette,
+fonts are served, and the daemon answers "untrusted" on the same origin
+without a client certificate. Passed on 2026-09-11 ("test script finished in
+15.55s"). The panel's screens are exercised by the `panel` media run with a
+trusted client certificate.
+
+## Slice (i): installer
+
+`vm-installer-lan`: the installer system (the ISO's configuration) runs the
+setup service and the kiosk; the kiosk screen shows the wizard (OCR); a
+client VM pairs with the single-use code (a second use is refused), reads
+hardware and option metadata, configures, plans (the generated `hardware.nix`
+and `site.nix` are checked textually), installs through phases 1 to 3, and the
+installed disk boots into the setup generation where the continuation
+service answers on the same port and phases 4 to 7 run over the API. The ISO
+image itself is built by `packages.nixie-iso`; `nix run .#test-iso` boots it
+in QEMU with OVMF and swtpm and drives the same API from outside.
+
+## Slice (j): desktop
+
+`vm-desktop`: greetd with the token-styled greeter comes up, a login lands in
+a Hyprland session with the shell bar; one token source reaches Hyprland,
+kitty, neovim and the shell; local.conf is sourced last; switching finish
+through a specialisation takes effect after `switch-to-configuration test`
+without a reboot.
+
+## Slice (k): host page
+
+`vm-host-ui`: Cockpit answers on its port with Nixie branding; login with the
+administrator password and a valid TOTP code succeeds, a wrong code is
+refused; logins reach the journal.
+
+## Console
+
+`vm-console`: tty1 shows the front panel (OCR finds the wordmark and the
+prompt), any key opens login; with the kiosk on, the local display shows the
+lock page, the gate accepts the administrator password and refuses a wrong
+one, the control panel renders, and the front panel moves to tty2.
+`profile-server-kiosk-only` proves the kiosk closure contains no Hyprland,
+Firefox, Quickshell or greeter.
+
+## Profiles
+
+`profile-server-has-no-desktop`, `profile-desktop-has-no-server` and
+`profile-server-kiosk-only` grep the built closures (`closureInfo`) for the
+forbidden package names; all three pass on every full check run.
+
+## Units and secrets
+
+`systemd-security` analyses every `nixie-*` unit of a fully enabled server
+and the desktop offline with `systemd-analyze security --threshold=3`; units
+above "OK" must be in the documented list and their module must carry an
+`# exposure:` comment. `no-secrets-in-store` greps the fully enabled server
+closure for private-key and age-identity markers.
+
+## Final run
+
+Filled in by the last `nix flake check -L` before the release commit.

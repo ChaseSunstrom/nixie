@@ -29,7 +29,7 @@
       nixieLib = import ./lib { inherit inputs self; };
     in
     {
-      nixosModules.nixie = import ./modules { inherit inputs; };
+      nixosModules.nixie = import ./modules { inherit inputs self; };
       lib = {
         inherit (nixieLib) mkSite;
       };
@@ -39,6 +39,8 @@
       };
       packages.${system} = import ./packages { inherit pkgs self inputs; };
       checks.${system} = import ./tests { inherit pkgs self inputs; };
+      # Slow media runs; see packages.media.
+      mediaTests.${system} = import ./tests/media { inherit pkgs self inputs; };
       formatter.${system} = pkgs.nixfmt;
     };
 }

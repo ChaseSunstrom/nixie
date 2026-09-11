@@ -1,0 +1,152 @@
+{
+  "uid": "nixie-guest",
+  "title": "Guest",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "CPU",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "nixie-prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(incus_cpu_seconds_total{name=~\"$guest\"}[5m])",
+          "legendFormat": "{{name}} {{cpu}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Memory",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "nixie-prometheus"
+      },
+      "targets": [
+        {
+          "expr": "incus_memory_Usage_bytes{name=~\"$guest\"}",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Network",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "nixie-prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(incus_network_receive_bytes_total{name=~\"$guest\"}[5m])",
+          "legendFormat": "{{name}} {{device}} rx",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Disk",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "nixie-prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(incus_disk_read_bytes_total{name=~\"$guest\"}[5m]) + rate(incus_disk_written_bytes_total{name=~\"$guest\"}[5m])",
+          "legendFormat": "{{name}} {{device}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "guest",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "nixie-prometheus"
+        },
+        "query": "label_values(incus_cpu_seconds_total, name)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "tags": [
+    "nixie"
+  ]
+}
