@@ -1,0 +1,9 @@
+# The private half of this key is tests/keys/example-host.age in the platform
+# repo; it exists only so the examples can be booted in tests.
+keys:
+  - &host age17yuj3hju36s7m70gngdlxfkgrxg8g4vp6kwv6ntgvvg0yu629v7q9x4kml
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - *host

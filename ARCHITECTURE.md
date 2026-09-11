@@ -80,7 +80,7 @@ docs/                     concepts, guides, reference (generated option docs), d
 ```
 
 The platform contains no hardware or user facts. A grep check in `checks`
-fails on MAC addresses, `/dev/disk`, PCI addresses, interface names, or board
+fails on MAC addresses, device-node disk paths, PCI addresses, interface names, or board
 names outside `tests/` and `examples/*/hosts/*/hardware.nix`.
 
 ## 2. Flake inputs
@@ -552,7 +552,7 @@ and `jetbrains-mono` packages at build time.
 - `ui/nixie-setup`: React, the wizard steps of brief section 11, rendering
   option descriptions from the metadata JSON the backend serves.
 
-Framework choice: React because xterm.js, uPlot and the accessibility tooling
+Library choice: React because xterm.js, uPlot and the accessibility tooling
 have first-party React bindings, and the design has no animation the virtual
 DOM would fight.
 
@@ -585,7 +585,7 @@ and runs `nixie apply`.
 | check | proves |
 |---|---|
 | `fmt`, `statix`, `deadnix` | style |
-| `no-hardware-facts` | grep for MACs, `/dev/disk`, PCI, interface and board names |
+| `no-hardware-facts` | grep for MACs, device-node disk paths, PCI, interface and board names |
 | `no-secrets-in-store` | closure grep for key-like material |
 | `systemd-security` | every platform unit at "OK" or a `# exposure:` comment |
 | `profiles-disjoint` | `nix why-depends` both directions on the examples |

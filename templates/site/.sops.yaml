@@ -1,0 +1,8 @@
+# Recipients: the host's own key (printed by the installer) and yours.
+keys:
+  - &example age1REPLACEME
+creation_rules:
+  - path_regex: secrets/example\.yaml$
+    key_groups:
+      - age:
+          - *example

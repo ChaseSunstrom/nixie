@@ -1,0 +1,64 @@
+{
+  config,
+  lib,
+  ...
+}:
+let
+  inherit (import ../../lib/option.nix lib) mkOption;
+  cfg = config.nixie.security.secureBoot;
+  pki = "/var/lib/sbctl";
+  keyFiles =
+    lib.concatMap
+      (k: [
+        "${k}/${k}.key"
+        "${k}/${k}.pem"
+      ])
+      [
+        "PK"
+        "KEK"
+        "db"
+      ];
+in
+{
+  options.nixie.security.secureBoot.enable = mkOption {
+    type = lib.types.bool;
+    default = false;
+    description = ''
+      Sign the boot chain with your own keys so the firmware refuses to start
+      anything else. Setup walks you through putting the firmware into Setup
+      Mode. The keys live in the site's secrets.
+    '';
+    nixieUi = {
+      section = "security";
+      order = 3;
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    boot.lanzaboote = {
+      enable = true;
+      pkiBundle = pki;
+      # systemd-boot enrols the keys itself when the firmware is in Setup
+      # Mode, which is what phase 5 asks the person to arrange.
+      autoEnrollKeys.enable = true;
+    };
+    # The keys are made once by setup (phase 2) and kept in the site's sops
+    # file so a reinstall does not need re-enrolment.
+    sops.secrets =
+      lib.listToAttrs (
+        map (f: {
+          name = "secureboot/${f}";
+          value = {
+            path = "${pki}/keys/${f}";
+            mode = "0400";
+          };
+        }) keyFiles
+      )
+      // {
+        "secureboot/GUID" = {
+          path = "${pki}/GUID";
+          mode = "0400";
+        };
+      };
+  };
+}

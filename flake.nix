@@ -1,0 +1,44 @@
+{
+  description = "Nixie: one installer, a hardened Incus server profile and a Hyprland desktop profile";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.1.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    terranix = {
+      url = "github:terranix/terranix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs =
+    inputs@{ self, nixpkgs, ... }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+      nixieLib = import ./lib { inherit inputs self; };
+    in
+    {
+      nixosModules.nixie = import ./modules { inherit inputs; };
+      lib = {
+        inherit (nixieLib) mkSite;
+      };
+      templates.site = {
+        path = ./templates/site;
+        description = "A Nixie site: hosts, guests, data manifest and secrets";
+      };
+      packages.${system} = import ./packages { inherit pkgs self inputs; };
+      checks.${system} = import ./tests { inherit pkgs self inputs; };
+      formatter.${system} = pkgs.nixfmt;
+    };
+}

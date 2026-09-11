@@ -1,0 +1,2 @@
+# Dotted keys are the NixOS module idiom; folding them hides structure.
+disabled = ["repeated_keys"]
