@@ -67,7 +67,8 @@ pkgs.testers.runNixOSTest {
     with subtest("backup of state/ and restore of a deleted file"):
         host.succeed("mkdir -p /data/state/web && echo precious > /data/state/web/index.html")
         host.succeed("systemctl start restic-backups-nixie.service")
-        host.succeed("restic-nixie snapshots | grep -q /data/state")
+        # grep reads everything: -q would close the pipe on restic (SIGPIPE, 141).
+        host.succeed("restic-nixie snapshots | grep /data/state >/dev/null")
         host.succeed("unlink /data/state/web/index.html")
         host.succeed("nixie restore latest >&2")
         host.succeed("grep -q precious /data/state/web/index.html")

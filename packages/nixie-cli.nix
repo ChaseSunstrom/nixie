@@ -34,9 +34,13 @@ pkgs.writeShellApplication {
             echo "nixie apply: nixie.security.encryption.enable cannot be changed on an installed system; reinstall from the ISO to change it." >&2
             exit 3
           fi
+          # Local history first: ZFS snapshots of state/ (kept: last five).
+          label="$(date +%Y%m%d-%H%M%S)-$(git -C "$site" rev-parse --short HEAD 2>/dev/null || echo nosite)"
+          if command -v nixie-snapshot >/dev/null; then nixie-snapshot pre-apply "$label"; fi
           # Step 1: the host, so every derived piece exists before a guest has an interface.
           nixos-rebuild switch --flake "$site#$host"
         fi
+        : "''${label:=$(date +%Y%m%d-%H%M%S)}"
         [ -e /run/current-system/etc/nixie/tofu/config.tf.json ] || { echo "no guests to manage on this host"; exit 0; }
         # Step 2: NixOS guest images, built with the host, imported by alias.
         while IFS=$'\t' read -r name alias path; do
@@ -51,7 +55,17 @@ pkgs.writeShellApplication {
         mkdir -p /var/lib/nixie/tofu && cd /var/lib/nixie/tofu
         cp -f /run/current-system/etc/nixie/tofu/config.tf.json config.tf.json
         tofu init -input=false >/dev/null
-        tofu plan -input=false -out=plan.bin
+        set +e; tofu plan -input=false -detailed-exitcode -out=plan.bin; prc=$?; set -e
+        [ "$prc" != 1 ] || exit 1
+        if [ "$prc" = 2 ]; then
+          # The plan changes instances: snapshot every declared one that exists
+          # before tofu touches it, keeping the last five per guest.
+          for g in $(jq -r '.declared | keys[]' /run/current-system/etc/nixie/guests.json); do
+            incus info "$g" >/dev/null 2>&1 || continue
+            incus snapshot create "$g" "pre-apply-$label"
+            incus snapshot list "$g" -f csv -c n | grep '^pre-apply-' | sort | head -n -5 | while read -r sn; do incus snapshot delete "$g" "$sn"; done
+          done
+        fi
         if [ "$yes" = 1 ]; then tofu apply -input=false plan.bin; else
           read -r -p "apply this plan? [y/N] " ans; [ "$ans" = y ] && tofu apply -input=false plan.bin
         fi ;;
@@ -99,6 +113,12 @@ pkgs.writeShellApplication {
             [ "$st" = RUNNING ] || rc=1
           done
         fi
+        if command -v nixie-backup >/dev/null; then
+          if [ -e /var/lib/nixie/backup-check.json ]; then
+            if [ "$(jq -r .ok /var/lib/nixie/backup-check.json)" = true ]; then say "backup check" "ok ($(jq -r .time /var/lib/nixie/backup-check.json))"
+            else say "backup check" "FAILED; run nixie backup verify"; rc=1; fi
+          else say "backup check" "not run yet"; fi
+        fi
         free=$(df --output=pcent / | tail -1 | tr -dc 0-9)
         if [ "$free" -ge 90 ]; then say "disk" "root $free% full"; rc=1; else say "disk" "root $free% used"; fi
         exit $rc ;;
@@ -115,8 +135,11 @@ pkgs.writeShellApplication {
       restore)
         command -v nixie-restore >/dev/null || { echo "backups are off on this host" >&2; exit 2; }
         exec nixie-restore "$@" ;;
+      backup)
+        command -v nixie-backup >/dev/null || { echo "backups are off on this host" >&2; exit 2; }
+        exec nixie-backup "$@" ;;
       *)
-        echo "usage: nixie apply [--yes] [--skip-host] | export <instance> | fetch | restore | reseal | doctor | menu" >&2; exit 2 ;;
+        echo "usage: nixie apply [--yes] [--skip-host] | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | doctor | menu" >&2; exit 2 ;;
     esac
   '';
 }

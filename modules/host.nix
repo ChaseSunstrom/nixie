@@ -22,5 +22,11 @@ in
         order = 1;
       };
     };
+    siteRevision = mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      internal = true;
+      description = "Internal: the site repository commit this system was built from; it labels generations and snapshots.";
+    };
   };
 }

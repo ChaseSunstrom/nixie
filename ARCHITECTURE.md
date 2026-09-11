@@ -450,8 +450,8 @@ Snapshots and backups (section 6):
   backups of both layers, the host's sops age key, the restic password and
   environment, a freshly enrolled recovery key, and `README.txt` with the
   rebuild steps. `nixie restore <snapshot> [--path <p>] [--to <dir>]`
-  restores in place or beside (default: beside, under
-  `<root>/state/.restore/<snapshot>`).
+  restores in place (the default, as before) or beside the live data under
+  `--to <dir>`.
 
 Rollback (section 11):
 

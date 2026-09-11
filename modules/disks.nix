@@ -61,6 +61,8 @@ let
     "data/state" = {
       type = "zfs_fs";
       mountpoint = "${dataRoot}/state";
+      # zfs-auto-snapshot (nixie.backups.snapshots) picks datasets by this property.
+      options."com.sun:auto-snapshot" = "true";
     };
     "data/cache" = {
       type = "zfs_fs";

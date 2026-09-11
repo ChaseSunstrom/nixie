@@ -60,6 +60,7 @@ let
       n: u: lib.hasPrefix "nixie-" n && lib.hasSuffix ".service" n && (u.enable or true)
     ) sys.config.systemd.units;
   documentedExposure = [
+    "nixie-backup-check"
     "nixie-fetch"
     "nixie-setup"
     "nixie-tailscale-serve"
@@ -230,7 +231,7 @@ in
       ''
         status=0
         while read -r p; do
-          case "$p" in *-source|*-linux-*|*-kernel*|*-firmware*|*-go-*|*-openssl-*|*-gnupg-*|*-python3*|*-perl*|*-nss-*|*-cacert*|*-ca-certificates*|*-testing*|*-tpm2-*|*-openssh-*|*-git-*|*-systemd-*|*-curl-*|*-nix-*|*-glibc*|*-chromium*|*-qemu*|*-mesa*|*-gcc*|*-llvm*|*-rust*) continue ;; esac
+          case "$p" in *-source|*-linux-*|*-kernel*|*-firmware*|*-go-*|*-openssl-*|*-gnupg-*|*-python3*|*-perl*|*-ruby-*|*-nss-*|*-cacert*|*-ca-certificates*|*-testing*|*-tpm2-*|*-openssh-*|*-git-*|*-systemd-*|*-curl-*|*-nix-*|*-glibc*|*-chromium*|*-qemu*|*-mesa*|*-gcc*|*-llvm*|*-rust*) continue ;; esac
           # Upstream packages ship fixture keys with their installed tests.
           if grep -rIlE -- '-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----|AGE-SECRET-KEY-1' "$p" 2>/dev/null | grep -v -e '/share/doc/' -e '/installed-tests/' | head -1 | grep .; then
             echo "key-like material in $p" >&2; status=1
@@ -292,6 +293,10 @@ in
     nixieCli = self.packages.x86_64-linux.nixie-cli;
   };
 
+  vm-backup = import ./vm/backup.nix {
+    inherit pkgs nixieLib exampleSite;
+    nixieCli = self.packages.x86_64-linux.nixie-cli;
+  };
   vm-guests = import ./vm/guests.nix {
     inherit pkgs nixieLib exampleSite;
     nixieCli = self.packages.x86_64-linux.nixie-cli;

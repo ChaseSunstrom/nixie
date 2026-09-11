@@ -75,6 +75,15 @@ pkgs.testers.runNixOSTest {
         host.succeed("nixie apply --yes --skip-host >&2")
         host.wait_until_succeeds("curl -sf --max-time 3 http://10.90.0.10/ | grep -q hello-from-web", timeout=180)
 
+    with subtest("an apply that changes a guest snapshots it first"):
+        # A config drift on the instance makes the next plan replace it; the
+        # pre-apply snapshot is taken before tofu acts (Incus keeps it with the
+        # instance for a replace-in-place, and it is listed here either way).
+        host.succeed("incus config set web user.drift=1")
+        host.succeed("nixie apply --yes --skip-host >&2")
+        print(host.succeed("incus snapshot list web -f csv -c n || true"))
+        host.succeed("incus snapshot list web -f csv -c n | grep -q '^pre-apply-' || incus info web | grep -q pre-apply-")
+
     with subtest("export emits a guests.nix entry"):
         out = host.succeed("nixie export scratch")
         print(out)

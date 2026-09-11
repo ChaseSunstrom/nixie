@@ -48,6 +48,12 @@ for a desktop.
 
 Internal: the enrolled authenticator secret when the second factor is "totp".
 
+## `nixie.backups.check`
+
+*null or string*, default: `"weekly"`.
+
+How often to run `restic check` over the repository; `nixie doctor` and `nixie backup verify` show the last result. Null turns it off.
+
 ## `nixie.backups.enable`
 
 *boolean*, default: `false`. Wizard section: services.
@@ -91,6 +97,12 @@ Weekly snapshots to keep.
 
 File holding the repository password.
 
+## `nixie.backups.rcloneConfigFile`
+
+*null or absolute path*, default: `null`.
+
+An rclone configuration file for "rclone:" repositories (S3, B2 and friends).
+
 ## `nixie.backups.repository`
 
 *string*, default: `""`. Wizard section: services.
@@ -102,6 +114,24 @@ Where backups go, as a restic repository URL.
 *string*, default: `"daily"`. Wizard section: services.
 
 How often to back up.
+
+## `nixie.backups.snapshots.daily`
+
+*signed integer*, default: `7`.
+
+Daily ZFS snapshots of state/ to keep.
+
+## `nixie.backups.snapshots.hourly`
+
+*signed integer*, default: `24`.
+
+Hourly ZFS snapshots of state/ to keep on the disk itself. They are not a backup against losing the disk.
+
+## `nixie.backups.snapshots.weekly`
+
+*signed integer*, default: `4`.
+
+Weekly ZFS snapshots of state/ to keep.
 
 ## `nixie.console.frontPanel.enable`
 
@@ -390,6 +420,12 @@ need one.
 *string matching the pattern ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$*, required. Wizard section: network.
 
 The machine's name on the network and in the site repo. Lowercase letters, digits and dashes.
+
+## `nixie.host.siteRevision`
+
+*null or string*, default: `null`.
+
+Internal: the site repository commit this system was built from; it labels generations and snapshots.
 
 ## `nixie.host.timezone`
 

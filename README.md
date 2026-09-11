@@ -153,11 +153,33 @@ grep -q 'gpu = true' guests.nix
 |---|---|
 | `nixie apply [--yes]` | host switch, guest images by hash, `tofu apply`; shows a plan first ([VERIFICATION.md#guests](VERIFICATION.md#guests)) |
 | `nixie fetch` | fills `cache/` from `data.nix`; idempotent ([VERIFICATION.md#data](VERIFICATION.md#data)) |
-| `nixie restore [snapshot]` | puts `state/` back from the restic repository |
+| `nixie backup now\|list\|verify\|kit <file>` | run a backup, list snapshots, check the repository, write the disaster kit ([VERIFICATION.md#slice-m-backups](VERIFICATION.md#slice-m-backups)) |
+| `nixie restore <snapshot> [--path <p>] [--to <dir>]` | puts `state/` (or one path) back in place, or beside the live data with `--to` |
 | `nixie reseal` | reseals attestation to the running boot chain |
 | `nixie doctor` | TPM, attestation, Secure Boot, key slots, guests, disk space |
 | `nixie export <instance>` | a `guests.nix` entry for a scratch instance |
 | `nixie menu` | the desktop menu: finish, wallpaper, packages, update, keybinds |
+
+## Rebuild from nothing
+
+What the kit plus the site repository give back, and the order:
+
+1. Install from the ISO (either quick start) with the site repository;
+   when the wizard asks for the host's age key, give it `age.key` from the
+   kit so the site's secrets decrypt for this machine.
+2. Put `restic-password` (and `restic-env` or `rclone.conf` if the kit has
+   them) back as the site's sops secrets for `nixie.backups`.
+3. On the new machine: `nixie apply`, then `nixie restore latest`. Guests
+   come back from `guests.nix` with their restored `state/`; `cache/` is
+   refetched with `nixie fetch`.
+4. `headers/` in the kit restores a damaged LUKS header
+   (`cryptsetup luksHeaderRestore <device> --header-backup-file <name>.header`);
+   `recovery-key.txt` opens the TPM layer when the TPM cannot.
+
+`nixie backup kit <file>` writes the kit, encrypted with a passphrase you
+type; keep it offline. Local ZFS snapshots (`nixie.backups.snapshots`, and
+one before every `apply`) cover mistakes on a healthy disk; restic covers
+losing the disk.
 
 ## Console and kiosk
 
@@ -195,7 +217,7 @@ Version 0.1.0, unreleased. By section of the brief:
 | 3 platform flake, site flake, template | done |
 | 4 option tree | done ([VERIFICATION.md#slice-a](VERIFICATION.md#slice-a)) |
 | 5 guests: schema, derivations, declared/scratch, Export | done; Declare from the panel waits for a host agent |
-| 6 data and manifest, backups, restore | done |
+| 6 data and manifest, backups, restore | done; change request: local snapshots, verify, kit, restore beside ([VERIFICATION.md#slice-m-backups](VERIFICATION.md#slice-m-backups)) |
 | 7 security features | done; lockdown integrity is an option that rebuilds the kernel and is documented, not runtime-verified |
 | 8 networking, exit-node egress | done for managed-nat; exit-node needs managed-nat by design |
 | 9 monitoring and backups | done |

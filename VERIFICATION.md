@@ -142,6 +142,20 @@ without a reboot.
 administrator password and a valid TOTP code succeeds, a wrong code is
 refused; logins reach the journal.
 
+## Slice (m): backups
+
+Change request (ARCHITECTURE 4.11, D21, D23, D24). `vm-backup`: on a ZFS
+pool carved from a second disk, `nixie-snapshot pre-apply` (what `nixie
+apply` runs first) snapshots `state/`, prunes to the last five and marks the
+dataset for zfs-auto-snapshot, whose hourly timer is present; `nixie backup
+now` and `list --json`; `nixie restore --path` puts a deleted file back in
+place and `--to` beside the live data; `nixie backup verify` writes the
+check result `nixie doctor` reports; `nixie backup kit` decrypts to the host
+age key, the restic password, the recovery-key note and the rebuild steps.
+`vm-guests` additionally proves that an apply whose plan changes a guest
+takes an Incus `pre-apply-<label>` snapshot first. Result: filled in below
+after the run.
+
 ## Console
 
 `vm-console`: tty1 shows the front panel (OCR finds the wordmark and the
@@ -192,3 +206,4 @@ the verification session; its summary is the table.
 | vm-console (258 s) | pass |
 | vm-desktop (49 s) | pass |
 | vm-encryption (891 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b) |
+| vm-backup (27 s) | pass (change request, slice (m)) |
