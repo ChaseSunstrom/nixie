@@ -354,6 +354,43 @@ nixie.desktop.nightLight.enable  bool, default true
 nixie.desktop.overview.enable    bool, default true (hyprspace plugin; see D5)
 ```
 
+### 4.9 console (change request, built as its own slice after the installer)
+
+```
+nixie.console.frontPanel.enable   bool, default true
+  A status screen on the first text console instead of a bare login: host
+  name, addresses, the control panel URL as a QR code, each instance as a
+  lane with its state, GPU temperature and load, pool usage, and anything
+  `nixie doctor` would flag, drawn in the chosen finish. Any key opens the
+  normal login. The other consoles stay ordinary logins.
+nixie.console.kiosk.enable        bool, default false
+  Keep the setup kiosk permanently and point it at the control panel, so the
+  local display shows the full web UI behind a lock page that checks the
+  administrator password and second factor. Costs a compositor and a browser
+  in the server closure.
+nixie.console.kiosk.idleLock      str, default "10m"
+  Re-lock the kiosk after this much inactivity.
+```
+
+The front panel is a `writeShellApplication` (same language as `nixie-cli`)
+reading the Incus socket read-only through `curl` and the same metrics
+endpoint the web UI uses; it is never a second data path. The kiosk is the
+one `installer/kiosk.nix` module the setup generation already uses, with the
+URL and a lock page as parameters. Console rendering: the initrd prompts,
+the attestation code and tty1 must appear on the primary GPU; with the NVIDIA
+driver that means `hardware.nvidia.modesetting.enable` and `nvidia-drm.fbdev=1`.
+An Incus `gpu` device shares the host driver so the console keeps working;
+VFIO passthrough to a VM takes the card away from the host and the console
+goes dark, which `docs/console.md` says plainly.
+
+Proposed resolution of the tty conflict (not yet built, awaiting a nod):
+the setup generation's kiosk owns tty1 while `nixie.setup.pending` is true
+and the front panel is not started then; in the normal generation the front
+panel takes tty1, unless the kiosk is enabled, in which case the kiosk keeps
+tty1 and the front panel moves to tty2. The kiosk's client certificate is
+made at setup, trusted by incusd, and loaded into the kiosk browser's NSS
+store with an auto-select policy for the panel URL.
+
 ## 5. The site contract
 
 `site.nix` is data:
@@ -626,6 +663,17 @@ and runs `nixie apply`.
 - **D6 Second factor enrolment in the wizard is TOTP only** (follows D3).
 - **D7 The setup generation is selected with `bootctl set-default`** rather
   than by rewriting the site between reboots; see section 9.
+- **D9 Closure disjointness check.** Implemented as a pure `closureInfo`
+  grep rather than `nix why-depends`, which cannot run inside a build; the
+  manual command is in `VERIFICATION.md`. With `nixie.console.kiosk.enable`
+  on, the server closure may contain exactly the kiosk stack (cage and the
+  kiosk browser) and nothing else from the desktop list.
+- **D10 TPM lockout password and header-backup encryption.** The lockout
+  password is kept in `/var/lib/nixie/tpm-lockout-auth` on the encrypted root
+  and printed into the header-backup bundle, not written to sops, because
+  adding it to the site would change the built closure mid-setup. The bundle
+  is encrypted with `age` to the host's key and every recipient in
+  `.sops.yaml`, which is what "a sops key" is in this platform.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the
