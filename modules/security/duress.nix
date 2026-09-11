@@ -19,7 +19,6 @@ let
     ];
     text = ''
       devices=(${lib.escapeShellArgs devices})
-      until_unlocked=''${1:-}
       while true; do
         handled=0
         for ask in /run/systemd/ask-password/ask.*; do
@@ -33,7 +32,9 @@ let
           printf '%s ' "$msg"
           IFS= read -rs pw
           echo
-          if [[ $id == cryptsetup:* && $msg == *passphrase* ]]; then
+          # Every cryptsetup prompt, the TPM token's PIN prompt included: the
+          # duress passphrase must work wherever the person is asked to type.
+          if [[ $id == cryptsetup:* ]]; then
             dev=''${id#cryptsetup:}
             out=$(printf '%s' "$pw" | cryptsetup open --test-passphrase --verbose --key-file=- "$dev" 2>&1 || true)
             slot=""
@@ -49,7 +50,9 @@ let
           while [ -e "$ask" ]; do sleep 0.2; done
         done
         if [ "$handled" = 0 ]; then
-          if [ -n "$until_unlocked" ] && systemctl -q is-active initrd-root-fs.target; then exit 0; fi
+          # Nothing pending and the root file system is up: done. Lingering
+          # would hold the initrd's sshd stop job for its whole timeout.
+          if systemctl -q is-active initrd-root-fs.target; then exit 0; fi
           sleep 0.5
         fi
       done
@@ -80,6 +83,9 @@ in
       }
     ];
     boot.initrd.systemd.storePaths = [ agent ];
+    # The initrd copies the agent script but not the tools on its PATH; the
+    # slot probe needs the cryptsetup CLI (systemd-cryptsetup is not enough).
+    boot.initrd.systemd.initrdBin = [ pkgs.cryptsetup ];
     # The minimal initrd systemd omits the standalone reply helper; the agent needs it.
     boot.initrd.systemd.extraBin.systemd-reply-password =
       "${config.boot.initrd.systemd.package}/lib/systemd/systemd-reply-password";

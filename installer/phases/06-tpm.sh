@@ -24,9 +24,9 @@ if feature tpm; then
     NEWPIN=$(cat "$(secret_file pin)") systemd-cryptenroll --unlock-key-file="$pass" \
       --tpm2-device=auto --tpm2-with-pin=yes --tpm2-pcrs="$pcrs" "$outer"
     recovery=$(systemd-cryptenroll --unlock-key-file="$pass" --recovery-key "$outer" | tail -1)
-    # The install passphrase is only a bootstrap for the outer layer; from now
-    # on it opens with the TPM and PIN, or the recovery key.
-    systemd-cryptenroll --unlock-key-file="$pass" --wipe-slot=password "$outer"
+    # The install passphrase (slot 0) is only a bootstrap for the outer layer;
+    # from now on it opens with the TPM and PIN, or the recovery key.
+    systemd-cryptenroll --unlock-key-file="$pass" --wipe-slot=0 "$outer"
     log "outer layer bound to TPM (PCRs $pcrs) with PIN"
   fi
   if [ ! -s /var/lib/nixie/tpm-lockout-auth ]; then

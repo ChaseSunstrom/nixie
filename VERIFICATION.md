@@ -41,8 +41,17 @@ same scripts a front end calls: remote unlock over SSH from a client VM,
 Secure Boot enrolment by systemd-boot from Setup Mode, TPM enrolment with a
 PIN and a recovery key, attestation init, header-backup bundle, the
 verification reboot with the attestation code on the console, and finally
-the duress passphrase wiping every key slot. Result: see the table at the end
-of this file (filled after the final run).
+the duress passphrase wiping every key slot. Passed on 2026-09-11 ("test
+script finished in 891.00s"): install 158 s, first boot with remote unlock,
+signed chain, TPM + PIN enrolment with recovery key and header bundle, the
+TPM + PIN reboot with the attestation code shown and `nixie reseal`, and the
+duress wipe (the target powers itself off 39 s into that boot; the installer
+then finds no key slots left).
+
+Known timing: each boot of the target takes about five minutes in this test
+because the console password agent (`systemd-ask-password-console`) blocks
+on `/dev/console` until its start timeout; the SSH relay answers the prompts
+long before that. Not a correctness problem; noted for a later slice.
 
 Secure Boot: phase 5 detects the firmware's Setup Mode and stages enrolment,
 and `sbverify` confirms lanzaboote signed systemd-boot, the fallback loader
@@ -158,4 +167,20 @@ closure for private-key and age-identity markers.
 
 ## Final run
 
-Filled in by the last `nix flake check -L` before the release commit.
+Every check ran on 2026-09-11 on the rootless host described in
+`ARCHITECTURE.md` (KVM, `sandbox = false`, see the note under Slice (b) and
+in the test files for why). The full `nix flake check -L` is recorded in the
+commit that lands this file.
+
+| check | result |
+|---|---|
+| fmt, statix, deadnix | pass |
+| eval-matrix, option-docs, option-reference, readme | pass |
+| no-hardware-facts, no-secrets-in-store, systemd-security | pass |
+| profile-server-has-no-desktop, profile-desktop-has-no-server, profile-server-kiosk-only | pass |
+| vm-boot-plain (15 s), vm-egress (22 s), vm-guests (44 s), vm-data (25 s), vm-monitoring (38 s), vm-ui (14 s) | pass |
+| vm-host-ui (14 s) | pass |
+| vm-installer-lan (172 s) | pass |
+| vm-console (258 s) | pass |
+| vm-desktop (49 s) | pass |
+| vm-encryption (891 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b) |

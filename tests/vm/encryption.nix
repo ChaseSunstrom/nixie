@@ -140,12 +140,20 @@ pkgs.testers.runNixOSTest {
     import re
 
     keys = "mkdir -p /run/nixie/keys && chmod 700 /run/nixie/keys && printf hunter2 >/run/nixie/keys/passphrase && printf 1234 >/run/nixie/keys/pin && printf wipe-me >/run/nixie/keys/duress && printf nixie >/run/nixie/keys/admin-password"
-    ssh = "ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -i /root/client_ed25519 -p 2222 root@192.168.1.3"
+    # Keepalives: after a duress wipe the peer powers off mid-session and the
+    # relay must notice instead of hanging on the dead connection.
+    ssh = "ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -i /root/client_ed25519 -p 2222 root@192.168.1.3"
 
     def remote_unlock(answers):
-        # The relay shell in the initrd feeds each answer to the pending prompt in order.
+        # The relay shell in the initrd feeds each answer to the pending prompt
+        # in order. The gap must outlast the TPM unseal of the outer layer
+        # (about 15 s) so the session is still open when the inner prompt comes.
+        # A stale neighbour entry from the previous boot makes the port poll
+        # crawl; the initrd panics if the first prompt waits much past 60 s.
+        client.succeed("ip neigh flush all")
         client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=120)
-        client.succeed("(" + "; ".join(f"sleep 2; printf '%s\\n' '{a}'" for a in answers) + "; sleep 3) | " + ssh + " || true")
+        feed = "; ".join(f"sleep {2 if i == 0 else 25}; printf '%s\\n' '{a}'" for i, a in enumerate(answers))
+        client.succeed("timeout 120 sh -c \"(" + feed + "; sleep 5) | " + ssh + "\" || true")
 
     client.start()
     client.succeed("cp ${clientKey} /root/client_ed25519 && chmod 600 /root/client_ed25519")
@@ -232,6 +240,9 @@ pkgs.testers.runNixOSTest {
 
     with subtest("duress passphrase wipes every key slot and powers off"):
         target.start()
+        # The PIN opens the outer layer; the duress passphrase, typed at the
+        # inner layer's prompt where slot 7 holds it, wipes every slot and
+        # powers off.
         remote_unlock(["1234", "wipe-me"])
         target.wait_for_shutdown()
         installer.start()
