@@ -11,7 +11,6 @@
   exampleSite,
 }:
 let
-  inherit (pkgs) lib;
   packages = self.packages.x86_64-linux;
   target = inputs.nixpkgs.lib.nixosSystem {
     system = "x86_64-linux";
@@ -35,8 +34,9 @@ let
     ];
   };
   shared = {
-    system.name = "nixie-lan";
-    virtualisation.diskImage = "./target.qcow2";
+    # Relative paths resolve inside each node's own state directory; one level
+    # up is the driver's directory, which both nodes share.
+    virtualisation.diskImage = "../target.qcow2";
     virtualisation.diskSize = 8 * 1024;
     virtualisation.memorySize = 3072;
     virtualisation.cores = 4;
@@ -70,10 +70,12 @@ pkgs.testers.runNixOSTest {
         target.config.system.build.diskoScript
       ];
       virtualisation.emptyDiskImages = [ 1024 ];
-      # Drive order: target disk, store image, then this empty disk.
-      virtualisation.rootDevice = "/dev/vdc";
+      # Drive order: target disk, then this empty disk.
+      virtualisation.rootDevice = "/dev/vdb";
       virtualisation.fileSystems."/".autoFormat = true;
-      virtualisation.useNixStoreImage = true;
+      # nixos-install copies the closure out of this store by hash, and the
+      # path registration at boot needs the store to be writable.
+      virtualisation.writableStore = true;
       virtualisation.efi.keepVariables = false;
       virtualisation.resolution = {
         x = 1280;
@@ -109,7 +111,7 @@ pkgs.testers.runNixOSTest {
 
     def pair():
         banner = installer.succeed("cat /var/lib/nixie/setup/banner.txt")
-        code = re.search(r"Pairing code: (\d{6})", banner).group(1)
+        code = re.findall(r"Pairing code: (\d{6})", banner)[0]
         assert "Certificate fingerprint" in banner and "https://192.168.1.2:9443" in banner, banner
         assert api("POST", "/api/pair", {"code": code})["ok"]
         client.fail(f"curl -sk -X POST -H 'Content-Type: application/json' -d '{{\"code\": \"{code}\"}}' https://192.168.1.2:9443/api/pair | grep -q ok")  # single use
@@ -149,12 +151,14 @@ pkgs.testers.runNixOSTest {
         target.send_console("hunter2\n")
         target.wait_for_unit("nixie-setup.service")
         target.succeed("test -e /var/lib/nixie/setup/3.done && test -e /var/lib/nixie/age.key")
-        target.succeed("ls /run/current-system/specialisation 2>/dev/null; readlink /run/current-system | grep -q specialisation || test -e /run/booted-system/etc/specialisation")
+        # nixie-setup.service exists only in the setup generation, so being active proves the boot entry.
         target.wait_for_open_port(9443)
         banner = target.succeed("cat /var/lib/nixie/setup/banner.txt")
-        code = re.search(r"Pairing code: (\d{6})", banner).group(1)
+        code = re.findall(r"Pairing code: (\d{6})", banner)[0]
         client.succeed(f"curl -sk -c /tmp/c2 -X POST -H 'Content-Type: application/json' -d '{{\"code\": \"{code}\"}}' https://192.168.1.3:9443/api/pair | grep -q ok")
         for n in (4, 5, 6, 7):
+            if n == 6:  # the wizard asks for the passphrase again before TPM enrolment
+                client.succeed("curl -sk -b /tmp/c2 -X POST -H 'Content-Type: application/json' -d '{\"passphrase\": \"hunter2\"}' https://192.168.1.3:9443/api/secrets")
             out = client.succeed(f"curl -sk -b /tmp/c2 -X POST -H 'Content-Type: application/json' -d '{{}}' https://192.168.1.3:9443/api/phase/{n}")
             assert '"rc": 0' in out, out
         target.succeed("test -e /var/lib/nixie/setup/7.done")

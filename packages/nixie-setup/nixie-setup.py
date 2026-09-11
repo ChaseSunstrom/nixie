@@ -52,18 +52,6 @@ def to_nix(v, indent=0):
     raise TypeError(type(v))
 
 
-def nest(flat):
-    """{"nixie.a.b": v} -> {"nixie": {"a": {"b": v}}}"""
-    out = {}
-    for k, v in flat.items():
-        d = out
-        parts = k.split(".")
-        for p in parts[:-1]:
-            d = d.setdefault(p, {})
-        d[parts[-1]] = v
-    return out
-
-
 # ------------------------------------------------------------------ state
 def state_path():
     return os.path.join(ARGS.state_dir, "state.json")
@@ -158,7 +146,7 @@ def site_new(host, profile, settings, platform):
         f"    secrets = ./secrets/{host}.yaml;\n"
         "    guests = import ./guests.nix;\n    data = import ./data.nix;\n"
         f"    settings = {{\n      imports = [ ./hosts/{host}/setup-pending.nix ];\n"
-        + "".join(f"      {line}\n" for line in to_nix(nest(settings), 3).split("\n")[1:-1])
+        + "".join(f"      {k} = {to_nix(v, 3)};\n" for k, v in sorted(settings.items()))
         + "    };\n  };\n"
     )
     others = ""
@@ -185,9 +173,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     # helpers
-    def send_json(self, obj, status=200):
+    def send_json(self, obj, status=200, session=False):
         body = json.dumps(obj).encode()
         self.send_response(status)
+        if session:
+            self.set_session()
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -305,12 +295,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             b = self.body()
             if PAIR_CODE and hmac.compare_digest(str(b.get("code", "")), PAIR_CODE):
                 PAIR_CODE = None  # single use
-                self.send_response(200)
-                self.set_session()
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"ok": true}')
-                return
+                # Framed with Content-Length: curl over TLS treats an EOF-delimited
+                # body as an unexpected close and fails the request.
+                return self.send_json({"ok": True}, session=True)
             return self.send_json({"error": "wrong or used code"}, 403)
         if not self.session():
             return self.send_json({"error": "not paired"}, 401)
@@ -337,7 +324,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             threading.Timer(1.0, lambda: subprocess.Popen(["systemctl", "reboot"])).start()
             return
         if u.path == "/api/finish":
-            return self.finish()
+            return self.api_finish()
         return self.send_json({"error": "not found"}, 404)
 
     def site(self, b):
@@ -421,7 +408,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
 
-    def finish(self):
+    # Not "finish": socketserver calls a method of that name after every request.
+    def api_finish(self):
         r = subprocess.run(["nixie-finish"], capture_output=True, text=True)
         for f in os.listdir(keys_dir()):
             os.remove(os.path.join(keys_dir(), f))
@@ -431,6 +419,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
+
+    # Send TLS close_notify: an event stream has no length, and without the
+    # close alert curl treats the end of the response as a truncated read.
+    def shutdown_request(self, request):
+        try:
+            request.settimeout(2)
+            request.unwrap()
+        except OSError:
+            pass
+        super().shutdown_request(request)
 
 
 def ensure_cert(d, host):

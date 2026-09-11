@@ -34,6 +34,13 @@ in
   };
 
   config = lib.mkIf cfg.pending {
+    # The loader's default entry is the setup generation until Finish; the
+    # installer also records it in firmware (D7), this keeps the loader file
+    # in step on every activation while pending. Secure Boot installs use
+    # lanzaboote, which has no hook, so they rely on the firmware entry.
+    boot.loader.systemd-boot.extraInstallCommands = lib.mkIf config.boot.loader.systemd-boot.enable ''
+      ${pkgs.gnused}/bin/sed -i 's|^default .*|default nixos-generation-*-specialisation-nixie-setup.conf|' ${config.boot.loader.efi.efiSysMountPoint}/loader/loader.conf
+    '';
     specialisation.nixie-setup.configuration = {
       imports = [ ../installer/kiosk.nix ];
       system.nixos.tags = [ "setup" ];
@@ -61,7 +68,7 @@ in
             ''
           );
       networking.firewall.allowedTCPPorts = [ 9443 ];
-      nixie.network.firewall.extraInputRules = ''iifname "uplink*" tcp dport 9443 accept'';
+      nixie.network.firewall.extraInputRules = ''iifname "${config.nixie.network.firewall.lanInterface}" tcp dport 9443 accept'';
     };
   };
 }

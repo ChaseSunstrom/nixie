@@ -20,7 +20,7 @@ let
           \( -size 3840x2160 xc:none -fill "${t.brand2}" -draw "circle 1850,1000 1850,1040" -draw "circle 1900,1090 1900,1130" -draw "circle 1950,1180 1950,1220" \) -composite \
           -quality 92 $out
       '';
-  shellJson = builtins.toJSON (t // { finish = cfg.finish; });
+  shellJson = builtins.toJSON (t // { inherit (cfg) finish; });
 in
 {
   options.nixie.desktop.wallpaperPath = mkOption {

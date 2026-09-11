@@ -19,16 +19,16 @@ let
     <style>body{margin:0;height:100vh;display:grid;place-items:center;background:#1f2226;color:#eceae5;font:15px Archivo,sans-serif}form{background:#292d33;border:1px solid #383e46;border-radius:6px;padding:24px;display:grid;gap:10px;width:320px}input{background:#181b1e;border:1px solid #383e46;border-radius:3px;color:#eceae5;padding:8px;font:inherit}button{background:#5277c3;border:0;border-radius:3px;color:#fff;padding:8px;font:inherit}</style>
     <form method="post" action="/unlock"><b>nixie</b><span style="color:#9a9ea6">Administrator login</span><input name="password" type="password" placeholder="password" autofocus><input name="code" placeholder="second factor, if enrolled"><button>Unlock</button></form>
   '';
-  # A small local gate: PAM through login(1) semantics is the CLI's job, so
-  # the kiosk checks the password with `unix_chkpwd` via su and, when TOTP is
-  # enrolled, the code against the same file the host page uses.
+  # A small local gate: the kiosk checks the password with `unix_chkpwd`, the
+  # pam_unix helper (it reads the password from stdin, so no terminal is
+  # needed), and, when TOTP is enrolled, the code against the same file the
+  # host page uses.
   gate = pkgs.writeShellApplication {
     name = "nixie-kiosk-gate";
     runtimeInputs = with pkgs; [
       python3
       coreutils
       oath-toolkit
-      shadow
     ];
     text = ''
       exec python3 - "$@" <<'PY'
@@ -47,7 +47,7 @@ let
               n = int(self.headers.get("Content-Length") or 0)
               f = urllib.parse.parse_qs(self.rfile.read(n).decode())
               pw = f.get("password", [""])[0]; code = f.get("code", [""])[0]
-              ok = subprocess.run(["su", "-c", "true", admin], input=pw + "\n", capture_output=True, text=True).returncode == 0
+              ok = subprocess.run(["/run/wrappers/bin/unix_chkpwd", admin, "nullok"], input=pw + "\0", capture_output=True, text=True).returncode == 0
               if ok and os.path.exists("/run/nixie/oath/users"):
                   ok = subprocess.run(["oathtool", "--totp", "-b", "-w", "1", open("/run/nixie/oath/secret").read().strip(), code], capture_output=True).returncode == 0
               if ok:
@@ -139,7 +139,7 @@ in
         wantedBy = [ "multi-user.target" ];
         before = [ "cage-tty1.service" ];
         serviceConfig = {
-          # exposure: checks the admin password through su; local loopback only.
+          # exposure: checks the admin password through unix_chkpwd; loopback only.
           ExecStart = "${lib.getExe gate} ${config.nixie.auth.admin.name} ${
             toString (lib.toInt (lib.removeSuffix "m" cfg.kiosk.idleLock) * 60)
           } https://127.0.0.1:${toString config.nixie.incus.ui.port}/ui/";

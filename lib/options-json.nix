@@ -14,13 +14,7 @@ let
           path = lib.showOption o.loc;
           type = typeName o.type;
           values = enumValues o.type;
-          default =
-            if o ? defaultText then
-              toString o.defaultText
-            else if o ? default then
-              o.default
-            else
-              null;
+          default = if o ? defaultText then toString o.defaultText else o.default or null;
           required = !(o ? default);
           description = o.description or "";
           section = o.nixieUi.section or null;

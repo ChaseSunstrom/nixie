@@ -3,3 +3,5 @@ result-*
 tests/artifacts/*.qcow2
 ui/node_modules
 ui/dist
+__pycache__/
+*.pyc

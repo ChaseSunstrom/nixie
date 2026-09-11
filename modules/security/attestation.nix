@@ -56,7 +56,7 @@ in
       };
       script = ''
         echo
-        if code=$(${pkgs.tpm2-totp}/bin/tpm2-totp show 2>/dev/null); then
+        if code=$(${pkgs.tpm2-totp}/bin/tpm2-totp calculate 2>/dev/null); then
           echo "  Attestation code: $code"
         else
           echo "  ATTESTATION FAILED: the boot chain does not match the sealed measurements."

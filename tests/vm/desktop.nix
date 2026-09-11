@@ -50,12 +50,13 @@ pkgs.testers.runNixOSTest {
         laptop.send_chars("me\n")
         laptop.sleep(2)
         laptop.send_chars("nixie\n")
-        laptop.wait_until_succeeds("pgrep -x Hyprland", timeout=180)
+        laptop.wait_until_succeeds("pgrep -f 'bin/Hyprland'", timeout=180)  # nixpkgs wraps the binary, so match its argv
         laptop.wait_until_succeeds("pgrep -f 'quickshell' ", timeout=180)
         laptop.wait_for_text("(nixie|[0-9]{2}:[0-9]{2})", timeout=180)
         laptop.screenshot("session")
         laptop.succeed("test -L /home/me/.config/hypr/hyprland.conf && test -f /home/me/.config/hypr/local.conf")
-        laptop.succeed("su - me -c 'nixie-shell launcher'")
+        # The shell's IPC socket appears a moment after quickshell starts.
+        laptop.wait_until_succeeds("su - me -c 'XDG_RUNTIME_DIR=/run/user/1000 nixie-shell launcher'", timeout=60)
         laptop.wait_for_text("(apps|matches)", timeout=60)
         laptop.screenshot("launcher")
 

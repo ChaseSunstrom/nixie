@@ -9,7 +9,6 @@
   exampleSite,
 }:
 let
-  inherit (pkgs) lib;
   web = pkgs.writeText "index.html" "hello";
   serve = {
     services.nginx = {

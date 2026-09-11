@@ -50,6 +50,17 @@ in
         label { color: ${t.ink}; }
       '';
     };
+    # regreet runs the login shell unless its cache names a session for the
+    # user; seeding it makes the first login land in Hyprland.
+    systemd.tmpfiles.rules = [
+      "d /var/lib/regreet 0755 greeter greeter -"
+      "C /var/lib/regreet/state.toml 0644 greeter greeter - ${pkgs.writeText "regreet-state.toml" ''
+        last_user = "${cfg.user}"
+
+        [user_to_last_sess]
+        ${cfg.user} = "Hyprland (uwsm-managed)"
+      ''}"
+    ];
     services.pipewire = {
       enable = true;
       alsa.enable = true;

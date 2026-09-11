@@ -56,8 +56,9 @@ let
   );
   siteSrc = lib.cleanSource ../../examples/site;
   shared = {
-    system.name = "nixie-media-boot";
-    virtualisation.diskImage = "./target.qcow2";
+    # Relative paths resolve inside each node's own state directory; one level
+    # up is the driver's directory, which both nodes share.
+    virtualisation.diskImage = "../target.qcow2";
     virtualisation.diskSize = 8 * 1024;
     virtualisation.memorySize = 3072;
     virtualisation.cores = 4;
@@ -75,9 +76,11 @@ pkgs.testers.runNixOSTest {
     installer = {
       imports = [ shared ];
       virtualisation.emptyDiskImages = [ 1024 ];
-      virtualisation.rootDevice = "/dev/vdc";
+      virtualisation.rootDevice = "/dev/vdb";
       virtualisation.fileSystems."/".autoFormat = true;
-      virtualisation.useNixStoreImage = true;
+      # nixos-install copies the closure out of this store by hash, and the
+      # path registration at boot needs the store to be writable.
+      virtualisation.writableStore = true;
       boot.supportedFilesystems.zfs = true;
       networking.hostId = "deadbeef";
       environment.systemPackages = [ nixieInstaller ];

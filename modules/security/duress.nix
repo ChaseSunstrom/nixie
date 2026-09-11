@@ -25,16 +25,19 @@ let
         for ask in /run/systemd/ask-password/ask.*; do
           [ -e "$ask" ] || continue
           handled=1
-          msg=$(sed -n 's/^Message=//p' "$ask")
-          sock=$(sed -n 's/^Socket=//p' "$ask")
-          id=$(sed -n 's/^Id=//p' "$ask")
+          # Only bash builtins: the initrd copies this script, not its PATH.
+          msg=""; sock=""; id=""
+          while IFS='=' read -r k v; do
+            case $k in Message) msg=$v ;; Socket) sock=$v ;; Id) id=$v ;; esac
+          done <"$ask"
           printf '%s ' "$msg"
           IFS= read -rs pw
           echo
           if [[ $id == cryptsetup:* && $msg == *passphrase* ]]; then
             dev=''${id#cryptsetup:}
-            slot=$(printf '%s' "$pw" | cryptsetup open --test-passphrase --verbose --key-file=- "$dev" 2>&1 \
-              | sed -n 's/^Key slot \([0-9]*\) unlocked.*/\1/p' || true)
+            out=$(printf '%s' "$pw" | cryptsetup open --test-passphrase --verbose --key-file=- "$dev" 2>&1 || true)
+            slot=""
+            [[ $out =~ Key\ slot\ ([0-9]+)\ unlocked ]] && slot=''${BASH_REMATCH[1]}
             if [ "$slot" = "7" ]; then
               for d in "''${devices[@]}"; do cryptsetup -q erase "$d" || true; done
               sync
@@ -77,6 +80,9 @@ in
       }
     ];
     boot.initrd.systemd.storePaths = [ agent ];
+    # The minimal initrd systemd omits the standalone reply helper; the agent needs it.
+    boot.initrd.systemd.extraBin.systemd-reply-password =
+      "${config.boot.initrd.systemd.package}/lib/systemd/systemd-reply-password";
     boot.initrd.systemd.services.systemd-ask-password-console.serviceConfig = {
       ExecStart = [
         ""

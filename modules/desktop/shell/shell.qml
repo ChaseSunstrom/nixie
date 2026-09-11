@@ -8,6 +8,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Wayland
 import Quickshell.Services.Notifications
 import Quickshell.Services.Pipewire
 import Quickshell.Services.SystemTray
@@ -50,12 +51,9 @@ ShellRoot {
   Process { id: files; stdout: StdioCollector { onStreamFinished: root.results = text.trim().split("\n").filter(l => l).map(l => ({ label: l, hint: "open", run: () => Quickshell.execDetached(["xdg-open", l]) })) } }
   Process { id: emoji; stdout: StdioCollector { onStreamFinished: root.results = text.trim().split("\n").filter(l => l).map(l => ({ label: l, hint: "copy", run: () => Quickshell.execDetached(["sh", "-c", "printf %s '" + l.split(" ")[0] + "' | wl-copy"]) })) } }
 
-  // `nixie-shell <verb>` talks to this socket.
-  Socket {
-    id: ipc
-    path: Quickshell.env("XDG_RUNTIME_DIR") + "/nixie-shell.sock"
-  }
+  // `nixie-shell <verb>` connects here; the server must be active to bind.
   SocketServer {
+    active: true
     path: Quickshell.env("XDG_RUNTIME_DIR") + "/nixie-shell.sock"
     handler: Socket {
       parser: SplitParser {

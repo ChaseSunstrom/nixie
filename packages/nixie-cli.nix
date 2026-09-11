@@ -88,7 +88,7 @@ pkgs.writeShellApplication {
           if [ -e /dev/tpmrm0 ]; then say "tpm" "present"; else say "tpm" "MISSING"; rc=1; fi
         fi
         if feature attestation; then
-          if tpm2-totp show >/dev/null 2>&1; then say "attestation" "ok"; else say "attestation" "RESEAL NEEDED (run: nixie reseal)"; rc=1; fi
+          if tpm2-totp calculate >/dev/null 2>&1; then say "attestation" "ok"; else say "attestation" "RESEAL NEEDED (run: nixie reseal)"; rc=1; fi
         fi
         if feature secureBoot; then
           if bootctl status 2>/dev/null | grep -qE 'Secure Boot: *enabled'; then say "secure boot" "enabled"; else say "secure boot" "NOT ENABLED"; rc=1; fi
@@ -104,7 +104,8 @@ pkgs.writeShellApplication {
         exit $rc ;;
       reseal)
         feature attestation || { echo "attestation is off; nothing to reseal"; exit 0; }
-        tpm2-totp reseal -p 4,7,8,9 && echo "attestation resealed to the current boot chain" ;;
+        tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery 2>/dev/null)" -p 4,7,8,9 </dev/null \
+          && echo "attestation resealed to the current boot chain" ;;
       menu)
         command -v nixie-menu >/dev/null || { echo "the menu is part of the desktop profile" >&2; exit 2; }
         exec nixie-menu "$@" ;;

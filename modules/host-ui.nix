@@ -11,9 +11,11 @@ let
   inherit (import ../lib/option.nix lib) mkOption;
   cfg = config.nixie.hostUi;
   t = (import ../lib/tokens.nix { inherit lib; }).forFinish config.nixie.ui.theme;
-  branding = pkgs.runCommand "nixie-cockpit-branding" { } ''
-    mkdir -p $out
-    cat >$out/branding.css <<CSS
+  # Joined into /etc/cockpit/share with the package; the lower priority number
+  # lets this branding.css win over the one cockpit ships for NixOS.
+  branding = pkgs.runCommand "nixie-cockpit-branding" { meta.priority = 4; } ''
+    mkdir -p $out/share/cockpit/branding/nixos
+    cat >$out/share/cockpit/branding/nixos/branding.css <<CSS
     :root { --pf-v5-global--BackgroundColor--100: ${t.s1}; --pf-v5-global--BackgroundColor--200: ${t.bg}; --pf-v5-global--BackgroundColor--dark-100: ${t.s2}; --pf-v5-global--Color--100: ${t.ink}; --pf-v5-global--Color--200: ${t.muted}; --pf-v5-global--primary-color--100: ${t.brand}; --pf-v5-global--link--Color: ${t.brand2}; --pf-v5-global--BorderColor--100: ${t.line}; --pf-v5-global--FontFamily--sans-serif: Archivo, sans-serif; --pf-v5-global--FontFamily--monospace: "JetBrains Mono", monospace; }
     body, .pf-v5-c-page { background: ${t.bg}; color: ${t.ink}; }
     .pf-v5-c-page__header, .pf-v5-c-masthead { background: ${t.s1}; border-bottom: 1px solid ${t.line}; }
@@ -23,9 +25,12 @@ let
     #brand { font-family: Archivo, sans-serif; font-weight: 600; letter-spacing: -0.03em; font-size: 20px; color: ${t.ink}; }
     #brand::before { content: "nixie · "; color: ${t.brand2}; }
     CSS
-    printf '%s\n' '{"name":"nixie","display_name":"nixie host"}' > $out/manifest.json
   '';
   port = toString cfg.port;
+  wsDropin = {
+    overrideStrategy = "asDropin";
+    environment.XDG_DATA_DIRS = "/etc/cockpit/share";
+  };
 in
 {
   options.nixie.hostUi = {
@@ -66,9 +71,10 @@ in
     services.cockpit = {
       enable = true;
       inherit (cfg) port;
-      plugins = with pkgs; [
-        cockpit-files
-        cockpit-podman
+      plugins = [
+        branding
+        pkgs.cockpit-files
+        pkgs.cockpit-podman
       ];
       settings = {
         WebService = {
@@ -79,13 +85,10 @@ in
       };
     };
     virtualisation.podman.enable = lib.mkDefault true;
-    environment.etc."cockpit/branding/nixie/branding.css".source = "${branding}/branding.css";
-    # Cockpit picks branding by os-release ID; nixie is the ID it looks for.
-    environment.etc."os-release".text = lib.mkAfter ''
-      ID=nixie
-      ID_LIKE=nixos
-    '';
-    environment.etc."cockpit/branding/nixie/manifest.json".source = "${branding}/manifest.json";
+    # cockpit-ws runs unwrapped and only searches XDG_DATA_DIRS for branding;
+    # a drop-in points it at the joined share tree the module builds.
+    systemd.services."cockpit-wsinstance-https@" = wsDropin;
+    systemd.services.cockpit-wsinstance-http = wsDropin;
 
     # The second factor: TOTP from the enrolled secret, checked by PAM after
     # the password. Every login and privileged action is in the journal.
@@ -99,7 +102,9 @@ in
     systemd.services.nixie-oath-users = lib.mkIf (config.nixie.auth.secondFactor == "totp") {
       description = "Second-factor user file for the host page";
       wantedBy = [ "multi-user.target" ];
-      before = [ "cockpit.socket" ];
+      # The socket starts before basic.target, so ordering before it would be a
+      # cycle; the activated service is what reads the file.
+      before = [ "cockpit.service" ];
       after = [ "sops-nix.service" ];
       serviceConfig = {
         Type = "oneshot";

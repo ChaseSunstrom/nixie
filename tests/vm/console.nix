@@ -44,8 +44,10 @@ pkgs.testers.runNixOSTest {
     panel.wait_for_unit("nixie-panel.service")
     panel.wait_for_text("(nixie|press any key)", timeout=180)
     panel.screenshot("front-panel")
+    # The wordmark is drawn in block glyphs OCR cannot read; the lane list is
+    # plain text, so it stands in for the page.
     text = panel.get_screen_text()
-    assert "nixie" in text.lower(), text
+    assert "instances" in text.lower(), text
     panel.send_key("ret")
     panel.wait_for_text("login", timeout=60)
     panel.screenshot("front-panel-login")

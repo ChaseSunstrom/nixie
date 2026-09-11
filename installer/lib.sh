@@ -6,6 +6,11 @@
 : "${NIXIE_TOPLEVEL:=/run/current-system}"
 STATE="$NIXIE_SETUP_DIR/state.json"
 
+# tpm2-tools default to the tabrmd resource-manager broker, which we do not
+# run; point them at the kernel resource-managed device instead (also correct
+# on hardware). tpm2-totp and systemd have their own working defaults.
+export TPM2TOOLS_TCTI="${TPM2TOOLS_TCTI:-device:/dev/tpmrm0}"
+
 log() { printf '[nixie %s] %s\n' "${PHASE:-}" "$*" >&2; }
 die() { log "$*"; exit 1; }
 marker() { echo "$NIXIE_SETUP_DIR/$1.done"; }

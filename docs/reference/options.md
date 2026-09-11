@@ -774,7 +774,7 @@ Internal: show the continuation wizard on the local display (off on desktops, wh
 
 ## `nixie.setup.packages`
 
-*attribute set*, default: `{"deploy": null, "docs": null, "nixie-cli": null, "nixie-installer": null, "nixie-iso": null, "nixie-panel": null, "nixie-setup": null, "nixie-setup-web": null, "nixie-ui": null, "test-iso": null}`.
+*attribute set*, default: `{"deploy": null, "docs": null, "media": null, "nixie-cli": null, "nixie-installer": null, "nixie-iso": null, "nixie-panel": null, "nixie-setup": null, "nixie-setup-web": null, "nixie-ui": null, "test-iso": null}`.
 
 Internal: the platform packages the setup generation runs.
 

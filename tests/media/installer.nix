@@ -9,7 +9,6 @@
   exampleSite,
 }:
 let
-  inherit (pkgs) lib;
   packages = self.packages.x86_64-linux;
   py = pkgs.python3.withPackages (p: [ p.playwright ]);
   target = inputs.nixpkgs.lib.nixosSystem {
@@ -33,8 +32,9 @@ let
     ];
   };
   shared = {
-    system.name = "nixie-media-install";
-    virtualisation.diskImage = "./target.qcow2";
+    # Relative paths resolve inside each node's own state directory; one level
+    # up is the driver's directory, which both nodes share.
+    virtualisation.diskImage = "../target.qcow2";
     virtualisation.diskSize = 8 * 1024;
     virtualisation.memorySize = 3072;
     virtualisation.cores = 4;
@@ -102,9 +102,11 @@ pkgs.testers.runNixOSTest {
         target.config.system.build.diskoScript
       ];
       virtualisation.emptyDiskImages = [ 1024 ];
-      virtualisation.rootDevice = "/dev/vdc";
+      virtualisation.rootDevice = "/dev/vdb";
       virtualisation.fileSystems."/".autoFormat = true;
-      virtualisation.useNixStoreImage = true;
+      # nixos-install copies the closure out of this store by hash, and the
+      # path registration at boot needs the store to be writable.
+      virtualisation.writableStore = true;
       virtualisation.efi.keepVariables = false;
       virtualisation.resolution = {
         x = 1280;
@@ -136,7 +138,7 @@ pkgs.testers.runNixOSTest {
     installer.screenshot("installer-kiosk-wizard")
     installer.send_key("ctrl-alt-f2"); installer.sleep(3); installer.screenshot("installer-console-banner"); installer.send_key("ctrl-alt-f1")
     banner = installer.succeed("cat /var/lib/nixie/setup/banner.txt")
-    code = re.search(r"Pairing code: (\d{6})", banner).group(1)
+    code = re.findall(r"Pairing code: (\d{6})", banner)[0]
     client.wait_until_succeeds("curl -sk https://192.168.1.2:9443/api/pair | grep -q needsCode", timeout=120)
     client.succeed(f"python3 ${wizard} https://192.168.1.2:9443/ {code} iso >&2")
     client.copy_from_vm("/tmp/media", "media-lan")
@@ -149,7 +151,7 @@ pkgs.testers.runNixOSTest {
     target.wait_for_unit("cage-tty1.service"); target.wait_for_text("(First boot|Finished|nixie)", timeout=300)
     target.screenshot("installer-continuation-kiosk")
     banner = target.succeed("cat /var/lib/nixie/setup/banner.txt")
-    code = re.search(r"Pairing code: (\d{6})", banner).group(1)
+    code = re.findall(r"Pairing code: (\d{6})", banner)[0]
     client.succeed(f"python3 ${wizard} https://192.168.1.3:9443/ {code} continuation >&2")
     client.copy_from_vm("/tmp/media", "media-continuation")
   '';

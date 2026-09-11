@@ -86,7 +86,7 @@ rec {
           backup
           expose
           ;
-        recipe = g.recipe;
+        inherit (g) recipe;
         image =
           if g.kind == "nixos" then images.${name}.alias else "${g.image.remote}:${g.image.fingerprint}";
         imagePath = if g.kind == "nixos" then "${images.${name}.package}" else null;

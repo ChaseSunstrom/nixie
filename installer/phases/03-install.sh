@@ -75,6 +75,10 @@ else
   log "installing $NIXIE_TOPLEVEL"
   nixos-install --system "$NIXIE_TOPLEVEL" --root /mnt --no-root-passwd --no-channel-copy
 fi
+# The next boots land in the setup generation: the firmware remembers the
+# entry across the reboot into the new system.
+entry=$(ls /mnt/boot/loader/entries 2>/dev/null | grep specialisation-nixie-setup | tail -1 || true)
+[ -z "$entry" ] || bootctl --esp-path=/mnt/boot set-default "$entry" 2>/dev/null || log "could not set the default boot entry in firmware"
 phase_finish
 cp -a "$NIXIE_SETUP_DIR"/*.done "$STATE" /mnt/var/lib/nixie/setup/
 

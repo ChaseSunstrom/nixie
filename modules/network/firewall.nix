@@ -61,6 +61,13 @@ let
 in
 {
   options.nixie.network.firewall = {
+    lanInterface = mkOption {
+      type = lib.types.str;
+      default = lanIf;
+      readOnly = true;
+      internal = true;
+      description = "Internal: the nftables interface pattern LAN traffic arrives on (the bridge, or the uplinks under NAT).";
+    };
     extraInputRules = mkOption {
       type = lib.types.lines;
       default = "";

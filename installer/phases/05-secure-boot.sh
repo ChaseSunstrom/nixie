@@ -14,7 +14,7 @@ if printf '%s' "$status" | grep -qE 'Secure Boot: *enabled'; then
   log "Secure Boot is enabled with our keys"
   phase_finish; exit 0
 fi
-if printf '%s' "$status" | grep -qE 'Setup Mode: *setup'; then
+if printf '%s' "$status" | grep -qE 'Setup Mode: *setup|\(setup\)'; then
   log "firmware is in Setup Mode; the keys are staged on the boot partition."
   log "Reboot: systemd-boot will enrol them and Secure Boot turns on."
   exit 10

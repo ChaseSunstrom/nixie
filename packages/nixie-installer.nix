@@ -31,6 +31,8 @@ let
     cp ${../installer/finish.sh} $out/libexec/nixie/finish.sh
     cp ${../installer/phases}/*.sh $out/libexec/nixie/phases/
     chmod +x $out/libexec/nixie/phases/*.sh $out/libexec/nixie/finish.sh
+    # A systemd unit's PATH has no bash, so "env bash" must be resolved now.
+    patchShebangs $out/libexec/nixie
   '';
 in
 pkgs.symlinkJoin {

@@ -54,18 +54,19 @@ pkgs.testers.runNixOSTest {
         code = host.succeed("oathtool --totp -b ${totp}").strip()
         # Cockpit's login is HTTP basic for the first factor; the PAM
         # conversation for the second is answered with the X-Conversation flow.
-        r = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login")
+        r = host.succeed("curl -sk -o /dev/null -w '%{http_code}' -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login")
         assert r in ("401", "200"), r
         conv = host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation' || true")
         print(conv)
         if "x-conversation" in conv.lower():
             import base64, re
-            tok = re.search(r"X-Conversation: (\S+)", conv, re.I).group(1)
+            tok = re.findall(r"X-Conversation: (\S+)", conv, re.I)[0]
             ok = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok} {base64.b64encode(code.encode()).decode()}' https://127.0.0.1:9090/cockpit/login").strip()
             assert ok == "200", ok
-            tok2 = re.search(r"X-Conversation: (\S+)", host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation'"), re.I).group(1)
+            tok2 = re.findall(r"X-Conversation: (\S+)", host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation'"), re.I)[0]
             bad = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok2} {base64.b64encode(b'000000').decode()}' https://127.0.0.1:9090/cockpit/login").strip()
             assert bad == "401", bad
-        host.succeed("journalctl -u cockpit* --no-pager | grep -qi 'admin' || journalctl --no-pager _COMM=cockpit-session | grep -qi 'admin'")
+        # cockpit-session reports each attempt through PAM's audit records.
+        host.succeed("journalctl -b --no-pager | grep -E 'PAM:authentication.*acct=.admin.' | grep -q cockpit-session")
   '';
 }

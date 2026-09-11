@@ -22,10 +22,8 @@ let
       { }
     else if builtins.pathExists (../recipes + "/${g.recipe}.nix") then
       import (../recipes + "/${g.recipe}.nix")
-    else if config.nixie.recipes ? ${g.recipe} then
-      config.nixie.recipes.${g.recipe}
     else
-      throw "guest ${g.name}: unknown recipe ${g.recipe}";
+      config.nixie.recipes.${g.recipe} or (throw "guest ${g.name}: unknown recipe ${g.recipe}");
 
   guestSystem =
     g:

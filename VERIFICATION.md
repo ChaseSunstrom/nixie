@@ -44,6 +44,16 @@ verification reboot with the attestation code on the console, and finally
 the duress passphrase wiping every key slot. Result: see the table at the end
 of this file (filled after the final run).
 
+Secure Boot: phase 5 detects the firmware's Setup Mode and stages enrolment,
+and `sbverify` confirms lanzaboote signed systemd-boot, the fallback loader
+and every generation's UKI with the site's db key. The firmware actually
+enrolling those keys and then completing a Secure Boot verified boot is
+exercised on real hardware, not in this test: the OVMF build used here enrols
+the staged keys (an earlier run showed "Custom Secure Boot keys successfully
+enrolled" on the console) but will not then complete a verified boot of the
+signed chain, so auto-enrolment is turned off in the test VM and the signed
+chain is asserted directly instead.
+
 Lockdown (`nixie.security.lockdown = "integrity"`) is evaluated by the
 `eval-matrix` check only; it rebuilds the kernel and is documented in
 ARCHITECTURE D4 rather than booted.
