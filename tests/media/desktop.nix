@@ -34,7 +34,7 @@ pkgs.testers.runNixOSTest {
     def me(cmd):
         return laptop.succeed(f"su - me -c 'export XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=$(ls /run/user/1000 | grep -m1 wayland-) HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1); {cmd}'")
     laptop.wait_for_unit("greetd.service")
-    laptop.wait_for_text("(me|Password|nixie)", timeout=300)
+    laptop.wait_for_text("(Reboot|Power Off|Hyprland|Password|nixie)", timeout=300)
     laptop.screenshot("desktop-greeter")
     laptop.send_chars("me\n"); laptop.sleep(2); laptop.send_chars("nixie\n")
     laptop.wait_until_succeeds("pgrep -x Hyprland", timeout=180)
@@ -47,12 +47,25 @@ pkgs.testers.runNixOSTest {
         me(f"nixie-shell launcher {mode}"); laptop.sleep(2)
         laptop.screenshot(f"desktop-launcher-{mode}")
         laptop.send_key("esc"); laptop.sleep(1)
-    me("notify-send 'Backup finished' 'state/ and 3 guest paths, 2.1 GB' ; sleep 1")
+    # Double quotes: the su wrapper around every me() is single-quoted.
+    me('notify-send "Backup finished" "state/ and 3 guest paths, 2.1 GB" ; sleep 1')
     laptop.screenshot("desktop-notification")
     me("nixie-shell notifications"); laptop.sleep(2); laptop.screenshot("desktop-notification-center"); laptop.send_key("esc")
     me("nixie-shell osd volume 63"); laptop.sleep(1); laptop.screenshot("desktop-osd-volume")
     me("nixie-shell power"); laptop.sleep(2); laptop.screenshot("desktop-power-menu"); laptop.send_key("esc")
     me("nixie-shell cheatsheet"); laptop.sleep(2); laptop.screenshot("desktop-cheatsheet"); laptop.send_key("esc")
+    me("nixie-shell control"); laptop.sleep(2); laptop.screenshot("desktop-control-center"); laptop.send_key("esc")
+    me("nixie-shell calendar"); laptop.sleep(2); laptop.screenshot("desktop-calendar"); laptop.send_key("esc")
+    me("nixie-shell wallpapers"); laptop.sleep(3); laptop.screenshot("desktop-wallpaper-picker"); laptop.send_key("esc")
+    # runtime finish switch and a wallpaper change, on video: no rebuild
+    me("(wf-recorder -f /home/me/Videos/finish-runtime.mp4 >/dev/null 2>&1 &) ; sleep 2")
+    for f in ["paper", "graphite", "umber"]:
+        me(f"nixie-shell finish {f}; sleep 3")
+        laptop.screenshot(f"desktop-finish-{f}-runtime")
+    me("nixie-shell wallpaper next; sleep 3; nixie-shell wallpaper next; sleep 3")
+    me("pkill -INT -x wf-recorder; sleep 3")
+    laptop.copy_from_vm("/home/me/Videos/finish-runtime.mp4", "media")
+    laptop.screenshot("desktop-wallpaper-next")
     # window motion on video: open, move, workspace switch, overview
     me("mkdir -p /home/me/Videos; (wf-recorder -f /home/me/Videos/motion.mp4 >/dev/null 2>&1 &) ; sleep 2")
     me("hyprctl dispatch exec kitty; sleep 2; hyprctl dispatch exec kitty; sleep 2; hyprctl dispatch movewindow l; sleep 1; hyprctl dispatch workspace 2; sleep 1; hyprctl dispatch exec kitty; sleep 2; hyprctl dispatch workspace 1; sleep 1; hyprctl dispatch overview:toggle; sleep 3; hyprctl dispatch overview:toggle; sleep 1")
@@ -60,7 +73,7 @@ pkgs.testers.runNixOSTest {
     laptop.copy_from_vm("/home/me/Videos/motion.mp4", "media")
     me("hyprctl dispatch overview:toggle"); laptop.sleep(3); laptop.screenshot("desktop-overview"); me("hyprctl dispatch overview:toggle")
     # local.conf override takes effect on reload
-    me("printf 'general { gaps_out = 40 }\n' >> /home/me/.config/hypr/local.conf; hyprctl reload; sleep 2")
+    me('printf "hl.config({ general = { gaps_out = 40 } })\n" >> /home/me/.config/hypr/local.lua; hyprctl reload; sleep 2')
     laptop.screenshot("desktop-local-conf")
     # finish switch: recorded, no reboot
     me("(wf-recorder -f /home/me/Videos/finish.mp4 >/dev/null 2>&1 &) ; sleep 2")

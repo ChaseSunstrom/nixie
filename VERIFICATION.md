@@ -231,6 +231,94 @@ context, which made it build every host's whole build closure (an
 unrelated Python test suite failed there); it now drops the context and is
 the evaluation check it was meant to be.
 
+## Slice (r): desktop rice
+
+Change request (ARCHITECTURE 11.1, D25, D26): the desktop asked for "a full
+riced out implementation, similar to HyDE". A second request followed while the
+slice was open: the **Segment n** mark (design alternate 3) everywhere, the
+dark neutral finish as the default instead of Umber, and the shell brought
+up to HyDE's feature set. `vm-desktop` grew from three assertions to eight
+subtests and now covers every surface. Passed on 2026-09-12: "test script
+finished in 110.30s" (login and bar 14 s, launcher and calculator 10 s,
+notification, OSD, power, calendar, control centre, wallpaper picker and
+cheat-sheet 18 s, networks, devices, mixer, screenshot menu, keep-awake and
+readouts 12 s, runtime finish switch 8 s, wallpaper change 3 s, lock and
+unlock 11 s, site-default finish after an apply 3 s).
+
+What it proves: the greeter comes up themed from the tokens; every finish is
+shipped under `/etc/nixie/desktop/<finish>/` with its tokens, GTK CSS, kitty
+colours, hyprlock configuration and three wallpapers; Archivo and Material
+Symbols are installed; a login lands in Hyprland with the Lua configuration
+linked into the home directory, `hyprctl configerrors` empty, the shell's
+layer on screen and the wallpaper process running; the launcher lists real
+applications with icons (the state file reports ten results); the calculator
+answers `2*21` with 42; a notification reaches the popup and the centre; the
+OSD, power menu, calendar, control centre, wallpaper picker and cheat-sheet
+each open and close; `nixie-shell finish paper` relinks GTK, kitty and
+hyprlock, changes Hyprland's border colour live (`hyprctl getoption`) and
+switches the wallpaper, with no rebuild; `nixie-shell wallpaper next` moves
+to the next image and remembers it; `loginctl lock-sessions` brings up
+hyprlock and the password unlocks it; and switching `nixie.desktop.finish`
+in the site takes effect after an apply without a reboot. Screenshots of
+each surface are in the test output.
+
+The mark: `ui/src/components/ui.tsx`, the favicon in `ui/index.html`, the
+bar's Canvas in `shell.qml`, the wallpaper draw and the terminal greeting in
+`theme.nix` and the record in `docs/design-tokens.md` all draw mark 3 now,
+and `docs/design-tokens.md` keeps mark 1 for reference. The example desktop
+starts on Graphite.
+
+HyDE parity, all asserted in the new subtest: a Wi-Fi list that takes a
+password and joins, the paired Bluetooth devices, a volume slider per
+playing stream, a screenshot menu (region, window, screen, delayed), a
+keep-awake inhibitor, and processor, memory and temperature readouts whose
+numbers the test checks are real. Themes are data: `nixie.desktop.themes`
+adds a finish from a handful of colours (the example site's "midnight" is
+one, and the test switches to it and back), and `lib/hyde-theme.nix` reads a
+HyDE theme directory, mapping its kitty palette and wallpapers into a finish
+while blending the neutral ramp from the theme's own background and
+foreground. Checked against the real Catppuccin Mocha theme: it evaluates to
+a correct palette and a built system offers it as a fourth finish with its
+swatch. `nixie.desktop.hyde.enable` stands every Nixie desktop module down
+for a site that imports hydenix; evaluation shows `nixie.desktop.enable`
+false and Quickshell gone from the closure (D27). The full HyDE session
+itself is not VM-verified here: it is a third-party desktop the platform
+does not depend on.
+
+Three findings worth keeping. **Hyprland 0.55 dropped `dwindle.pseudotile`
+and `misc.vfr`**; both were in the first draft and Hyprland drew "unknown
+config key" over the session until they went. **The wallpaper daemon had to
+change twice**: awww (the renamed swww) aborts with a Rust panic under the
+VM's software renderer, and hyprpaper's IPC socket never answers there, so
+the platform uses swaybg, which draws one image per process. **The shell
+writes its own state** to `$XDG_RUNTIME_DIR/nixie-shell.state`, because the
+bar's 12 px text is below what the test driver's OCR reads reliably; the
+test polls that file and keeps the screenshots for people rather than for
+assertions. Test-harness bugs were mine too: `pgrep -f hyprlock` matched the checking
+command itself (so "still locked" could never fail); nixpkgs wraps `swaybg`,
+so it must be matched by command line rather than by name; and every command
+the test runs as the person goes through `su - me -c '…'`, so a
+single-quoted argument inside it collided with that quoting and delivered a
+truncated notification, which the new assertion caught immediately. Two
+more in the shell: `nixie-shell mixer` collided with the verb that lists
+streams, so the panel never opened (the data verb is `streams` now), and a
+second application-wide Escape shortcut made Qt fire neither, so Escape
+stopped closing the launcher (one shortcut per window, each enabled only
+while its window is up). Keep-awake asked to block sleep, which needs polkit
+authorisation for an ordinary user and failed silently; it holds idle now
+and checks that it really took the lock.
+
+One real defect came out of reading the screenshots rather than the log: the
+notification card showed only the first word of the summary and no body at
+all. A `Row` positioner takes its implicit width from its children, so a
+child whose width is derived from the row's width is a binding loop, and QML
+resolved it to almost nothing. Both the card and the popup now anchor to the
+card instead of deriving a width from the positioner. Because no assertion
+would have caught it, the shell now publishes what the newest card actually
+shows (`notifFirst`) and whether QML had to cut it (`notifTruncated`, from
+the `Text.truncated` property), and the test fails if the summary is
+truncated or the text is not the full "summary / body".
+
 ## Console
 
 `vm-console`: tty1 shows the front panel (OCR finds the wordmark and the
@@ -279,8 +367,8 @@ the verification session; its summary is the table.
 | vm-host-ui (14 s) | pass |
 | vm-installer-lan (172 s) | pass |
 | vm-console (258 s) | pass |
-| vm-desktop (49 s) | pass |
 | vm-encryption (1258 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b); reenroll subtest added in slice (o) |
 | vm-backup (27 s) | pass (change request, slice (m)) |
 | vm-rollback (132 s) | pass (change request, slice (n)) |
 | vm-hardware (29 s) | pass (change request, slice (o)) |
+| vm-desktop (110 s, eight subtests) | pass (change request, slice (r)) |

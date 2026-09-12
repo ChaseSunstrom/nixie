@@ -196,6 +196,12 @@ it from the manifest. They never share a directory.
 
 Pick the accent colour from the wallpaper instead of the finish.
 
+## `nixie.desktop.audioVisualiser.enable`
+
+*boolean*, default: `false`.
+
+Draw a spectrum of whatever is playing in the control centre. Costs a small background process.
+
 ## `nixie.desktop.autostart`
 
 *list of string*, default: `[]`.
@@ -269,6 +275,28 @@ The monospace font (terminal, readouts).
 *string*, default: `"Archivo"`.
 
 The interface font.
+
+## `nixie.desktop.hyde.enable`
+
+*boolean*, default: `false`. Wizard section: desktop.
+
+Hand the desktop to HyDE itself instead of the Nixie one. Nixie stops
+configuring the session, the shell, Hyprland and the theme, and your
+site brings HyDE in (the hydenix flake is the packaged form). The
+rest of the platform is unchanged: the same installer, the same
+security options, the same `nixie` command. Off by default because
+HyDE is a large third-party desktop whose theme tool downloads themes
+at the moment you switch them, which the Nixie desktop never does.
+
+## `nixie.desktop.hyde.themes`
+
+*attribute set of absolute path*, default: `{}`.
+
+HyDE themes to offer alongside the built-in finishes, as a name and
+the theme's own directory. Its colours and wallpapers are read as
+data at build time, so nothing is downloaded or run on the machine.
+Pin the theme repository as a flake input and point at a directory
+inside it.
 
 ## `nixie.desktop.idle.lockAfter`
 
@@ -366,6 +394,12 @@ Icon theme for apps and the shell.
 
 Corner radius of windows, in pixels.
 
+## `nixie.desktop.look.systemReadouts`
+
+*boolean*, default: `true`.
+
+Show processor, memory and temperature readouts in the bar.
+
 ## `nixie.desktop.look.terminalOpacity`
 
 *floating point number*, default: `0.92`.
@@ -461,6 +495,14 @@ What closing the lid does.
 *boolean*, default: `true`.
 
 Show system facts (fastfetch) when a terminal opens.
+
+## `nixie.desktop.themes`
+
+*attribute set of (submodule)*, default: `{}`.
+
+Themes of your own, on top of Graphite, Umber and Paper. Each one
+appears in the control centre and in `nixie-shell finish <name>`,
+and colours the whole desktop the same way the built-in finishes do.
 
 ## `nixie.desktop.user`
 

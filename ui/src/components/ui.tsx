@@ -6,12 +6,9 @@ import { useStore } from "../lib/store";
 
 export const Mark = ({ size = 26 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 72 72" fill="none" aria-hidden="true">
-    <rect x="10" y="10" width="11" height="52" rx="3" fill="#5277c3" />
-    <rect x="51" y="10" width="11" height="52" rx="3" fill="#5277c3" />
-    <circle cx="27" cy="20" r="5" fill="#7ebae4" />
-    <circle cx="33" cy="31" r="5" fill="#7ebae4" />
-    <circle cx="39" cy="42" r="5" fill="#7ebae4" />
-    <circle cx="45" cy="53" r="5" fill="#7ebae4" />
+    <rect x="10" y="18" width="10" height="44" rx="3" fill="#5277c3" />
+    <rect x="10" y="18" width="52" height="10" rx="3" fill="#5277c3" />
+    <rect x="52" y="18" width="10" height="44" rx="3" fill="#7ebae4" />
   </svg>
 );
 

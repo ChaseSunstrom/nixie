@@ -383,6 +383,25 @@ nixie.desktop.idle.screenOffAfter int, default 600
 nixie.desktop.idle.suspendAfter  nullOr int, default null
 nixie.desktop.nightLight.enable  bool, default true
 nixie.desktop.overview.enable    bool, default true (hyprspace plugin; see D5)
+nixie.desktop.look.gaps.inner    int, default 6              (change request, desktop rice)
+nixie.desktop.look.gaps.outer    int, default 14
+nixie.desktop.look.rounding      int, default 12
+nixie.desktop.look.borderSize    int, default 2
+nixie.desktop.look.blur          bool, default true
+nixie.desktop.look.animations    enum full|reduced|none, default full
+nixie.desktop.look.barPosition   enum top|bottom, default top
+nixie.desktop.look.terminalOpacity float 0..1, default 0.92
+nixie.desktop.look.cursor.theme  str, default "Bibata-Modern-Classic" (Bibata-Modern-Ice on paper)
+nixie.desktop.look.cursor.size   int, default 24
+nixie.desktop.look.iconTheme     str, default "Papirus-Dark" ("Papirus" on paper)
+nixie.desktop.fonts.ui           str, default "Archivo"
+nixie.desktop.fonts.mono         str, default "JetBrains Mono"
+nixie.desktop.wallpapers         nullOr path, default null (the generated set: three per finish)
+nixie.desktop.wallpaperCycle     nullOr int minutes, default null
+nixie.desktop.favourites         listOf str (desktop-entry ids), default [ ]
+nixie.desktop.workspaces.labels  listOf str, default [ ] (numbers)
+nixie.desktop.clock.format       str, default "ddd d MMM  HH:mm"
+nixie.desktop.terminal.greeting  bool, default true (fastfetch on a new shell)
 ```
 
 ### 4.9 console (change request, built as its own slice after the installer)
@@ -739,13 +758,91 @@ Layout of the desktop configuration: NixOS-level only. Hyprland's config,
 the Quickshell shell, GTK/Qt themes, terminal and editor colours are
 generated files under `/etc/xdg` and `/etc/nixie/desktop/` from
 `lib/tokens.nix`; the user's `~/.config/nixie/local.conf` and Hyprland
-`local.conf` are sourced last. No home-manager.
+`local.lua` are sourced last. No home-manager.
 
-Components from the pin: Hyprland 0.55.4, hyprlock, hypridle, hyprpaper,
-hyprsunset (night light), grim + slurp + satty (screenshot and annotation),
-wf-recorder, hyprpicker, cliphist, greetd + regreet (greeter themed from
-tokens), PipeWire, NetworkManager, BlueZ, xdg-desktop-portal-hyprland,
-power-profiles-daemon or TLP. Overview: `hyprlandPlugins.hyprspace` (see D2).
+Components from the pin: Hyprland 0.55.4 (Lua configuration, see D25),
+hyprlock, hypridle, swaybg (one process per wallpaper; see the slice (r) verification for why not awww or hyprpaper), hyprsunset (night light), grim + slurp + satty (screenshot and
+annotation), wf-recorder, hyprpicker, cliphist, hyprpolkitagent, greetd +
+regreet (greeter themed from tokens), PipeWire, NetworkManager, BlueZ,
+xdg-desktop-portal-hyprland, power-profiles-daemon or TLP. Overview:
+`hyprlandPlugins.hyprspace` (see D2). Fonts: Archivo (from `google-fonts`,
+the design's UI face), JetBrains Mono, Material Symbols Rounded (the shell's
+icons), Noto. Cursor: Bibata. Icons: Papirus. GTK: adw-gtk3 with per-finish
+CSS.
+
+### 11.1 The desktop rice (change request, 2026-09-11)
+
+The request: a fully featured, modern desktop in the class of HyDE, still
+declarative and still verified in a VM. What changes:
+
+- **Hyprland config is Lua** (`/etc/xdg/hypr/hyprland.lua`, linked into
+  `~/.config/hypr/hyprland.lua`), generated from the options: gaps, rounding,
+  borders, blur with layered translucency, shadows, a curated set of curves
+  and springs, workspace slide, layer fades, performance rules (fullscreen
+  and games drop blur and animation), gestures, per-monitor lines, and the
+  full keybinding scheme. It reads the active finish's palette at load time
+  from `/etc/nixie/desktop/tokens/<finish>.json` (Lua can read a file), so a
+  finish switch is `hyprctl reload`, not a rebuild. `~/.config/hypr/local.lua`
+  is `require`d last when present.
+- **Runtime finish switching, HyDE-style.** Every finish's assets are
+  shipped (`/etc/nixie/desktop/<finish>/`: tokens, GTK CSS, kitty colours,
+  hyprlock, wallpapers). The active finish is `~/.config/nixie/finish`
+  (default: the site option). `nixie-shell finish <name>` writes it, relinks
+  the per-user symlinks (`~/.config/gtk-{3,4}.0/gtk.css`,
+  `~/.config/nixie/kitty.conf`, `~/.config/hypr/hyprlock.conf`), sets the
+  GTK colour scheme, icon and cursor theme through `gsettings` (GTK apps
+  follow live through the settings portal), reloads Hyprland, signals kitty
+  (`SIGUSR1` reloads its config) and switches the wallpaper. The shell watches the file. `nixie.desktop.finish` stays the
+  declared default and `nixie menu` still edits it in the site.
+- **Wallpapers.** Three procedural wallpapers per finish are generated at
+  build (blurred plasma tinted with the finish's palette, one with the
+  Segment n mark), and `nixie.desktop.wallpapers` points at a directory of
+  the person's own. `nixie-shell wallpaper next|prev|<path>` starts a new swaybg
+  behind the old one and remembers the choice in `~/.config/nixie/wallpaper`; the
+  shell has a picker grid; `wallpaperCycle` starts a timer. With
+  `accentFromWallpaper`, the shell quantises the image (Quickshell's
+  `ColorQuantizer`) and writes `~/.config/nixie/accent`, which the Lua config
+  and the shell prefer over the finish's brand colour.
+- **The shell** (Quickshell, one process, QML under
+  `modules/desktop/shell/`): a floating bar (the mark, workspaces with
+  labels and occupancy, the focused window with its icon or the playing
+  track, tray, network, Bluetooth, volume, battery, clock, notification and
+  control-centre buttons); launcher with app icons and a favourites row plus
+  the file, calculator, emoji and clipboard modes; notification centre with
+  do-not-disturb, app groups, images and actions; popups that stack; a
+  control centre with sliders (volume, brightness), toggles (Wi-Fi,
+  Bluetooth, DND, night light), power profiles, media controls, the three
+  finish swatches and the wallpaper button; a calendar on the clock; OSDs
+  with icons; the power menu as tiles with keyboard navigation; the window
+  switcher with icons; the cheat-sheet; the wallpaper picker. For parity
+  with HyDE it also carries processor, memory and temperature readouts in
+  the bar, a Wi-Fi list that takes a password and joins, a list of paired
+  Bluetooth devices, a volume slider per playing application, a screenshot
+  menu (region, window, screen, delayed), a keep-awake inhibitor, and
+  wallbash: with `accentFromWallpaper` the shell quantises the wallpaper
+  (Quickshell's `ColorQuantizer`), writes `~/.config/nixie/accent` and
+  reloads Hyprland, so borders and the shell follow the image. Icons are
+  Material Symbols glyphs (a font, no image assets). IPC stays the socket
+  `nixie-shell <verb>` already speaks.
+- **Terminal.** kitty themed per finish with the chosen opacity, fish with a
+  starship prompt from the tokens, fastfetch with the mark on a new shell
+  (`terminal.greeting`).
+- **Lock screen.** hyprlock with the blurred wallpaper, clock, user, battery
+  and a themed input; per finish.
+
+Verification: `vm-desktop` grows to screenshot and OCR every surface, assert
+`hyprctl configerrors` is empty, list an app in the launcher, show a
+notification, open the control centre, calendar, power menu and wallpaper
+picker, switch the finish at runtime (border colour through
+`hyprctl getoption`, kitty and GTK links, tokens file), change wallpaper
+(the swaybg process), and lock the screen. `media-desktop` records the same for the
+showcase.
+
+Not built (and why): a dock (the bar's favourites row in the launcher covers
+pinned apps; a dock duplicates it), weather (network in a VM test is a
+fixture, and the brief does not ask), and a wallpaper-derived full palette
+(matugen): the three finishes are the design system; the accent is the one
+wallpaper-derived colour that keeps them recognisable.
 
 `nixie menu`: a `gum` script in a terminal window (launcher entry) that edits
 `site.nix` values through `nix-instantiate --eval` round trips, shows a diff,
@@ -770,7 +867,7 @@ and runs `nixie apply`.
 | `vm-data` | delete cache/, fetch restores (http kind against a test server); restore brings back state/ |
 | `vm-monitoring` | scrape targets up, dashboards provisioned |
 | `vm-installer-lan` | second VM's browser drives the wizard |
-| `vm-desktop` | greeter, Hyprland session, finish switch after apply |
+| `vm-desktop` | greeter, Hyprland session, no config errors, every shell surface by screenshot and OCR, runtime finish switch, wallpaper change, lock screen, finish switch after apply |
 | `vm-host-ui` | Cockpit reachable with the admin login and TOTP; the History page lists generations and snapshots |
 | `vm-backup` (change request) | pre-apply ZFS and Incus snapshots exist and are pruned; `nixie backup now\|list\|verify`; a deleted state file comes back with `nixie restore --path`; the kit decrypts with its passphrase and holds headers, age key, restic secrets and a recovery key |
 | `vm-rollback` (change request) | a broken UI in a new generation is undone from the front panel; `apply --confirm-within` with no confirmation reverts host and guests; a guest snapshot restore leaves its `/data/state` untouched |
@@ -871,6 +968,30 @@ and runs `nixie apply`.
 - **D24 Local snapshots use `services.zfs.autoSnapshot`** with the counts
   mapped from `nixie.backups.snapshots`, rather than a hand-rolled timer;
   state is always a ZFS dataset (on the data pool or on root).
+- **D25 Hyprland is configured in Lua, not `hyprland.conf`.** The pinned
+  Hyprland (0.55.4) reads `hyprland.lua` first and treats the `.conf`
+  format as legacy (its parser prints deprecation warnings on screen for
+  `windowrulev2`, and the one-line `{ a = b; c = d }` blocks the old file
+  used are not valid there). The Lua file also lets a finish switch happen
+  at `hyprctl reload` time without a rebuild. The user override file is
+  therefore `~/.config/hypr/local.lua` (the brief's "Hyprland `local.conf`").
+- **D27 HyDE is supported two ways, neither of which is a flake input of
+  the platform.** `nixie.desktop.hyde.themes` reads a HyDE theme directory
+  as data at build time (its kitty palette and its wallpapers) and turns it
+  into an ordinary Nixie finish, so all of HyDE's themes work with the Nixie
+  shell, pinned and offline. `nixie.desktop.hyde.enable` stands every Nixie
+  desktop module down so a site that imports hydenix gets the real HyDE
+  desktop instead. The platform takes no dependency either way: adding
+  hydenix as an input would pull home-manager and a large third-party tree
+  into every evaluation, including servers that will never have a desktop,
+  and HyDE's theme switcher fetches from the network at use, which the
+  platform's own desktop never does.
+- **D26 The active finish can be changed at runtime.** The brief says
+  "changing finish is one option and an apply"; that stays the declared
+  default, and the site is still the record. The runtime choice in
+  `~/.config/nixie/finish` is a per-user preference like the wallpaper,
+  the same class of thing as `local.conf`, and is what makes the desktop
+  feel like a rice rather than a rebuild.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the
@@ -903,3 +1024,6 @@ After the console and showcase slices, in this order, one commit each with
   doctor drift; `vm-hardware`.
 - (q) history: `packages.nixie-cockpit` page and the panel's snapshots view;
   `vm-host-ui` extension.
+- (r) desktop rice (section 11.1, D25, D26): Lua Hyprland config, runtime
+  finish switching, wallpapers and accent, the full shell, terminal and lock
+  screen; `vm-desktop` and `media-desktop` extended.

@@ -34,7 +34,7 @@ let
       while true; do
         c=$(gum choose --header "nixie menu" "Finish" "Wallpaper" "Packages" "Update" "Keybinds" "System info" "Quit")
         case "$c" in
-          Finish) fin=$(gum choose --header "Finish (now: ${cfg.finish})" graphite umber paper); setopt nixie.desktop.finish "\"$fin\""; applyChanges "finish $fin" ;;
+          Finish) fin=$(gum choose --header "Default finish in the site (now: ${cfg.finish}); Super+T switches for this session only" graphite umber paper); setopt nixie.desktop.finish "\"$fin\""; applyChanges "finish $fin" ;;
           Wallpaper) w=$(gum file "$HOME" --file); setopt nixie.desktop.wallpaper "$w"; applyChanges "wallpaper" ;;
           Packages) cat=$(gum choose browsers terminals editors media office communication gaming creative); cur=$(grep -oE "nixie.desktop.packages.categories.$cat = \[[^]]*\]" "$f" | sed -E 's/.*\[(.*)\]/\1/' || true)
             gum style "current: ''${cur:-(defaults)}"; new=$(gum input --placeholder "package names, space separated" --value "$cur")

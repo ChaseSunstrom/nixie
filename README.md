@@ -12,7 +12,9 @@ anyone.
 
 Every image and video in `docs/media/` comes from a real run in a VM,
 regenerated with `nix run .#media`; `docs/media/SHOTLIST.md` names the run
-and commit behind each file. The gallery is filled in by that command; until
+and commit behind each file. The gallery is kept under 100 MB, with each
+video under 8 MB, so it is committed as ordinary files with no large-file
+storage; `nix run .#media` fails rather than exceed that. The gallery is filled in by that command; until
 it has run at a release, this section lists what it produces.
 
 - Installer: ISO console with the URL, QR and pairing code; the kiosk wizard
@@ -203,17 +205,29 @@ The desktop profile is a complete Hyprland rice, declared in the site and
 switchable at runtime ([docs/desktop.md](docs/desktop.md),
 [VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)):
 a floating bar (mark, workspaces, focused window or playing track, tray,
-network, Bluetooth, volume, battery, clock), a launcher with app icons and
-favourites plus file, calculator, emoji and clipboard modes, a notification
-centre with do-not-disturb, a control centre (sliders, toggles, media, the
-three finish swatches, wallpaper), a calendar, OSDs, a tiled power menu, a
-window switcher, a wallpaper picker, a keybind cheat-sheet, a themed lock
-screen, kitty with a starship prompt and fastfetch. Hyprland is configured
+processor, memory and temperature readouts, network, Bluetooth, volume,
+battery, clock), a launcher with app icons and favourites plus file,
+calculator, emoji and clipboard modes, a notification centre with
+do-not-disturb, a control centre (sliders, toggles, media, the finish
+swatches, wallpaper), lists that join a Wi-Fi network, connect a paired
+device and set the volume of each playing app, a screenshot menu, a
+keep-awake inhibitor, a calendar, OSDs, a tiled power menu, a window
+switcher, a wallpaper picker, a keybind cheat-sheet, a themed lock screen,
+kitty with a starship prompt and fastfetch. Hyprland is configured
 in Lua from `nixie.desktop.*` (`look.gaps`, `look.rounding`, `look.blur`,
 `look.animations`, `fonts.ui`, `favourites`, `workspaces.labels` and the
 rest); `~/.config/hypr/local.lua` is loaded last. `Super+T` cycles the
 finish and `Super+W` the wallpaper for the session with no rebuild;
 `nixie.desktop.finish` stays the declared default.
+
+Themes are data. `nixie.desktop.themes` adds finishes of your own from a
+handful of colours, and `nixie.desktop.hyde.themes` imports a HyDE theme
+directory straight from its own files, so HyDE's themes and wallpapers work
+with the Nixie shell, pinned and offline. With `accentFromWallpaper` the
+accent follows the wallpaper. If you would rather run HyDE itself,
+`nixie.desktop.hyde.enable` stands the Nixie desktop down so a site that
+imports hydenix owns the session and keeps the same installer, security
+options and `nixie` command.
 
 ## Host page
 
@@ -253,7 +267,7 @@ Version 0.1.0, unreleased. By section of the brief:
 | 10 control panel | done for every screen the brief lists; screens the design does not draw follow its recipes |
 | 11 installer: kiosk, LAN, headless, setup generation | done; the headless path is verified through the same phase scripts, not a full kexec run |
 | 12.1 server host page | done (TOTP; no passkeys, see ARCHITECTURE D3) |
-| 12.2 desktop | done; overview through hyprspace; change request: the full rice, Lua config, runtime finish and wallpaper switching ([VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)) |
+| 12.2 desktop | done; overview through hyprspace; change request: the full rice, Lua config, runtime finish and wallpaper switching, network, device, volume and screenshot menus, system readouts, keep-awake, wallpaper-derived accent, site and HyDE themes ([VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)) |
 | 13 extension points | done |
 | 14 docs, examples | done; media gallery generated per release |
 | console slice | done |

@@ -54,5 +54,20 @@ in
   config = lib.mkIf cfg.enable {
     environment.systemPackages = map resolve (lib.unique chosen) ++ cfg.packages.extra;
     programs.fish.enable = lib.mkIf (lib.elem "fish" chosen) true;
+    programs.starship = {
+      enable = true;
+      settings = { };
+    };
+    # The prompt and the greeting read the finish's colours from /etc/xdg.
+    environment.variables.STARSHIP_CONFIG = "/etc/xdg/starship.toml";
+    programs.fish.interactiveShellInit = lib.mkIf cfg.terminal.greeting ''
+      set -g fish_greeting
+      if status is-interactive; and test -z "$NIXIE_NO_GREETING"
+        fastfetch --config /etc/xdg/fastfetch/config.jsonc
+      end
+    '';
+    programs.bash.interactiveShellInit = lib.mkIf cfg.terminal.greeting ''
+      [ -n "$NIXIE_NO_GREETING" ] || [ ! -t 1 ] || fastfetch --config /etc/xdg/fastfetch/config.jsonc
+    '';
   };
 }

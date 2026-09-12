@@ -16,6 +16,9 @@
   ];
   config = lib.mkIf (config.nixie.profile == "desktop") {
     networking.networkmanager.enable = true;
-    nixie.desktop.enable = true;
+    # With nixie.desktop.hyde.enable the site's own HyDE owns the session, so
+    # every Nixie desktop module stands down; nothing else about the host
+    # changes.
+    nixie.desktop.enable = !config.nixie.desktop.hyde.enable;
   };
 }

@@ -181,9 +181,16 @@ Pages Images, Profiles, Networks, Storage, Operations, Settings are named but no
 
 ## 5. Logo mark and wordmark
 
-Chosen mark is "1 · Cathode N" ("Refined: mark 1 in the NixOS pair — electrodes in #5277C3, discharge in #7EBAE4"). Note the canvas serialises `viewBox` as `sc-camel-view-box`; restore it to `viewBox` in real HTML.
+Chosen mark (changed 2026-09-11 at the user's request) is **"3 · Segment n"**: a lowercase n drawn as two stems under a bar, the right stem lit in the lighter blue. Mark 1 "Cathode N" was the first choice and is kept below for reference. Note the canvas serialises `viewBox` as `sc-camel-view-box`; restore it to `viewBox` in real HTML.
 
 **Mark (canonical, 72 viewBox):**
+```html
+<svg width="72" height="72" viewBox="0 0 72 72" fill="none"><rect x="10" y="18" width="10" height="44" rx="3" fill="#5277c3"></rect><rect x="10" y="18" width="52" height="10" rx="3" fill="#5277c3"></rect><rect x="52" y="18" width="10" height="44" rx="3" fill="#7ebae4"></rect></svg>
+```
+Every surface draws this: the control panel and wizard (`ui/src/components/ui.tsx`), the favicon (`ui/index.html`, white stems on the blue tile with the right stem in `#7ebae4`), the desktop bar (a Canvas in `modules/desktop/shell/shell.qml`), the generated wallpapers and the terminal greeting (`modules/desktop/theme.nix`).
+
+### 5.1 The previous mark, for reference
+
 ```html
 <svg width="72" height="72" viewBox="0 0 72 72" fill="none"><rect x="10" y="10" width="11" height="52" rx="3" fill="#5277c3"></rect><rect x="51" y="10" width="11" height="52" rx="3" fill="#5277c3"></rect><circle cx="27" cy="20" r="4.5" fill="#7ebae4"></circle><circle cx="33" cy="31" r="4.5" fill="#7ebae4"></circle><circle cx="39" cy="42" r="4.5" fill="#7ebae4"></circle><circle cx="45" cy="53" r="4.5" fill="#7ebae4"></circle></svg>
 ```
