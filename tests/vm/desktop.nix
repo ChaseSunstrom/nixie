@@ -168,6 +168,31 @@ pkgs.testers.runNixOSTest {
         st = wait_state(lambda st: st["mem"] > 0, "the system readouts", 30)
         assert 0 <= st["cpu"] <= 100 and 0 < st["mem"] <= 100, st
 
+    with subtest("the overview key shows every window, and the screen can be recorded"):
+        # Hyprland 0.55 reaches dispatchers through Lua, and a plugin that
+        # registers only a legacy dispatcher cannot be called from there
+        # (D29), so the overview is the shell's own panel: it lists windows
+        # from every workspace, which a plugin overview cannot be asked for.
+        # A detached window with its pipes closed: `kitty &` alone keeps the
+        # command output open and the driver waits for EOF forever.
+        me("(kitty >/dev/null 2>&1 &) ; sleep 3")
+        laptop.succeed("test -z \"$(pgrep -f [h]yprspace)\"")
+        clients = json.loads(me("hyprctl clients -j"))
+        assert clients, "no window for the switcher to show"
+        me("nixie-shell switcher")
+        wait_state(lambda st: st["mode"] == "switcher", "the window switcher")
+        laptop.sleep(2)
+        laptop.screenshot("switcher")
+        me("nixie-shell close")
+        wait_state(lambda st: st["mode"] == "", "closed")
+        # wf-recorder is what the record keybind runs; under a software
+        # renderer screen copy is the part that can quietly not work.
+        me("mkdir -p /home/me/Videos; (wf-recorder -f /home/me/Videos/t.mp4 >/tmp/wf.log 2>&1 &); sleep 5; pkill -INT -x wf-recorder; sleep 3")
+        print(laptop.succeed("cat /tmp/wf.log || true"))
+        size = int(laptop.succeed("stat -c %s /home/me/Videos/t.mp4").strip())
+        print("recording bytes:", size)
+        assert size > 10000, f"the recording is {size} bytes"
+
     with subtest("the finish switches at runtime: tokens, GTK, kitty, Hyprland border, wallpaper"):
         before = me("hyprctl getoption general:col.inactive_border -j")
         me("nixie-shell finish paper")
@@ -210,6 +235,33 @@ pkgs.testers.runNixOSTest {
         laptop.sleep(3)
         laptop.send_chars("nixie\n")
         laptop.wait_until_fails("pgrep -f '[h]yprlock'", timeout=60)
+
+    with subtest("the idle rules run commands the compositor accepts"):
+        # hypridle runs these verbatim; a legacy `hyprctl dispatch dpms off`
+        # is a Lua syntax error against a Lua config (D29) and the screen
+        # would simply never blank, so the generated commands are run here.
+        import json as _j
+        conf = laptop.succeed("cat /etc/xdg/hypr/hypridle.conf")
+        cmds = [ln.split("=", 1)[1].strip() for ln in conf.splitlines() if "dpms" in ln]
+        assert len(cmds) >= 2, conf
+        off = next(c for c in cmds if "off" in c)
+        on = next(c for c in cmds if "off" not in c)
+
+        def dpms():
+            return _j.loads(me("hyprctl monitors -j"))[0]["dpmsStatus"]
+
+        print(me(off + " 2>&1"))
+        for _ in range(10):
+            if dpms() is False:
+                break
+            laptop.sleep(1)
+        assert dpms() is False, "the screen never turned off"
+        print(me(on + " 2>&1"))
+        for _ in range(10):
+            if dpms() is True:
+                break
+            laptop.sleep(1)
+        assert dpms() is True, "the screen never came back on"
 
     with subtest("switching the site's default finish takes effect after an apply, no reboot"):
         laptop.succeed("/run/current-system/specialisation/paper/bin/switch-to-configuration test >&2")

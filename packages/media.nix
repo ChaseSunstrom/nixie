@@ -51,10 +51,24 @@ pkgs.writeShellApplication {
     run() { # name -> builds mediaTests.<name> and prints its output path
       nix build --no-link --print-out-paths ".#mediaTests.x86_64-linux.$1" 2>/dev/null | tail -1
     }
+    failed=()
     for name in panel desktop guests boot installer console; do
-      if ! p=$(run "$name") || [ -z "$p" ]; then echo "media run $name failed; its assets do not exist" >&2; continue; fi
-      find "$p" -maxdepth 2 -name '*.png' | sort | while read -r f; do
-        n=$(basename "$f"); cp "$f" "$out/$n"
+      if ! p=$(run "$name") || [ -z "$p" ]; then
+        # Every run is attempted before giving up, so one command names all
+        # the broken ones; an incomplete gallery is never a success.
+        echo "media run $name failed; its assets do not exist" >&2
+        failed+=("$name")
+        continue
+      fi
+      # Not frames/: those are the individual frames of a video, not gallery
+      # images, and there are hundreds of them.
+      mapfile -t pngs < <(find "$p" -maxdepth 2 -name '*.png' -not -path '*/frames/*' | sort)
+      for f in "''${pngs[@]}"; do
+        n=$(basename "$f")
+        # Assets are named by their basename, so two runs using one name would
+        # leave the gallery with the second and the shot list claiming both.
+        if [ -e "$out/$n" ]; then echo "two runs both produced $n; rename one of them" >&2; exit 1; fi
+        cp "$f" "$out/$n"
         # shellcheck disable=SC2016  # markdown backticks, not command substitution
         printf '| `%s` | `mediaTests.%s` (machine.screenshot or Playwright) |\n' "$n" "$name" >>"$shot"
       done
@@ -72,11 +86,19 @@ pkgs.writeShellApplication {
         printf '| `%s` | `mediaTests.%s` (asciinema, agg) |\n' "$name-$b.gif" "$name" >>"$shot"
       done
       if ls "$p"/frames/*.png >/dev/null 2>&1; then
-        ffmpeg -loglevel error -y -framerate 10 -pattern_type glob -i "$p/frames/*.png" -t 45 -vf 'scale=min(1280\,iw):-2' -c:v libvpx-vp9 -b:v 600k "$out/$name-console.webm"
+        ffmpeg -loglevel error -y -framerate 10 -pattern_type glob -i "$p/frames/*.png" -t 45 -vf 'scale=min(1280\,iw):-2' -c:v libvpx-vp9 -b:v 600k "$out/$name-frames.webm"
+        # This one is not built by encode(), so it gets the same budget here.
+        if [ "$(stat -c %s "$out/$name-frames.webm")" -gt "$videoBudget" ]; then
+          echo "$name-frames.webm is over $((videoBudget / 1024 / 1024)) MB" >&2; exit 1
+        fi
         # shellcheck disable=SC2016  # markdown backticks, not command substitution
-        printf '| `%s` | `mediaTests.%s` (screendumps at 10 fps, ffmpeg) |\n' "$name-console.webm" "$name" >>"$shot"
+        printf '| `%s` | `mediaTests.%s` (screendumps at 10 fps, ffmpeg) |\n' "$name-frames.webm" "$name" >>"$shot"
       fi
     done
+    if [ ''${#failed[@]} -gt 0 ]; then
+      echo "these media runs failed, so the gallery is incomplete: ''${failed[*]}" >&2
+      exit 1
+    fi
     total=$(du -sb "$out" | cut -f1)
     printf '\nThe gallery is %s MB; the budget is %s MB, so it lives in git with no large-file storage.\n' \
       "$((total / 1024 / 1024))" "$((galleryBudget / 1024 / 1024))" >>"$shot"

@@ -399,7 +399,7 @@ in
     overview.enable = mkOption {
       type = t.bool;
       default = true;
-      description = "An overview of all workspaces on one key.";
+      description = "Every open window, and the workspace it is on, in one panel on Super+` as well as Super+Tab.";
     };
   };
 }

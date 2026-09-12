@@ -94,10 +94,11 @@ let
       "SUPER + CTRL + L"
       "loginctl lock-session"
     ]
-    [
-      "SUPER + grave"
-      "hyprctl dispatch overview:toggle"
-    ]
+  ]
+  # The same panel on the key HyDE-shaped desktops use for an overview.
+  ++ lib.optional cfg.overview.enable [
+    "SUPER + grave"
+    "nixie-shell switcher"
   ]
   ++ lib.mapAttrsToList (k: v: [
     k
@@ -271,10 +272,6 @@ let
     hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
     hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
-    ${lib.optionalString cfg.overview.enable ''
-      hl.plugin.load(${lua "${pkgs.hyprlandPlugins.hyprspace}/lib/libHyprspace.so"})
-    ''}
-
     hl.on("hyprland.start", function()
       hl.exec_cmd("nixie-shell wallpaper restore")
       hl.exec_cmd("wl-paste --watch cliphist store")
@@ -290,11 +287,13 @@ in
 {
   config = lib.mkIf cfg.enable {
     environment.etc."xdg/hypr/hyprland.lua".text = conf;
+    # The dispatchers are Lua calls: against a Lua config `hyprctl dispatch
+    # dpms off` parses as `hl.dispatch(dpms off)` and blanks nothing (D29).
     environment.etc."xdg/hypr/hypridle.conf".text = ''
       general {
         lock_cmd = pidof hyprlock || hyprlock
         before_sleep_cmd = loginctl lock-session
-        after_sleep_cmd = hyprctl dispatch dpms on
+        after_sleep_cmd = hyprctl dispatch "hl.dsp.dpms({ state = [[on]] })"
       }
       listener {
         timeout = ${toString cfg.idle.lockAfter}
@@ -302,8 +301,8 @@ in
       }
       listener {
         timeout = ${toString cfg.idle.screenOffAfter}
-        on-timeout = hyprctl dispatch dpms off
-        on-resume = hyprctl dispatch dpms on
+        on-timeout = hyprctl dispatch "hl.dsp.dpms({ state = [[off]] })"
+        on-resume = hyprctl dispatch "hl.dsp.dpms({ state = [[on]] })"
       }
       ${lib.optionalString (cfg.idle.suspendAfter != null) ''
         listener {
@@ -312,29 +311,26 @@ in
         }
       ''}
     '';
-    environment.systemPackages =
-      with pkgs;
-      [
-        swaybg
-        hypridle
-        hyprlock
-        hyprpicker
-        hyprsunset
-        hyprpolkitagent
-        grim
-        slurp
-        satty
-        wf-recorder
-        wl-clipboard
-        cliphist
-        brightnessctl
-        playerctl
-        pamixer
-        kitty
-        nautilus
-        firefox
-      ]
-      ++ lib.optional cfg.overview.enable pkgs.hyprlandPlugins.hyprspace;
+    environment.systemPackages = with pkgs; [
+      swaybg
+      hypridle
+      hyprlock
+      hyprpicker
+      hyprsunset
+      hyprpolkitagent
+      grim
+      slurp
+      satty
+      wf-recorder
+      wl-clipboard
+      cliphist
+      brightnessctl
+      playerctl
+      pamixer
+      kitty
+      nautilus
+      firefox
+    ];
     programs.hyprlock.enable = true;
     services.hypridle.enable = true;
     systemd.user.services.hyprpolkitagent = {

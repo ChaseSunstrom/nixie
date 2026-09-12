@@ -130,7 +130,10 @@ in
         cd ${src}
         status=0
         for p in $patterns; do
-          if grep -rEn --exclude-dir=tests --exclude-dir=.git \
+          # The gallery is generated screenshots and video: not source, and a
+          # byte sequence in a PNG matching a pattern would read as a fact.
+          if grep -rEn --binary-files=without-match \
+              --exclude-dir=tests --exclude-dir=.git --exclude-dir=media \
               --exclude=NIXIE_PLATFORM_BRIEF.md --exclude=hardware.nix \
               --exclude=design-tokens.md --exclude=discover.sh -- "$p" .; then
             echo "hardware fact matching '$p' outside tests/ or hardware.nix" >&2
@@ -162,6 +165,12 @@ in
         site = lib.cleanSource ../examples/site;
         optionsJson = self.packages.x86_64-linux.nixie-setup.passthru.optionsJson;
         verification = ../VERIFICATION.md;
+        # Names only: the check needs to know which gallery files exist, not
+        # what is in them. Empty until `nix run .#media` has produced a
+        # gallery and it has been committed.
+        mediaFiles = toString (
+          lib.optionals (builtins.pathExists ../docs/media) (lib.attrNames (builtins.readDir ../docs/media))
+        );
       }
       ''
         python3 - <<'PY'
@@ -184,7 +193,13 @@ in
             heading = " ".join(anchor.split("-"))
             if not re.search(r"^#+ .*" + re.escape(heading.split(" ")[0]), ver, re.M | re.I):
                 sys.exit(f"README links to a VERIFICATION.md section that does not exist: {anchor}")
-        print(f"{len(blocks)} blocks ran, option names and verification links checked")
+        media = set(os.environ["mediaFiles"].split())
+        shown = set(re.findall(r"docs/media/([A-Za-z0-9._-]+)", readme))
+        if media:
+            missing = sorted(shown - media)
+            if missing:
+                sys.exit(f"README shows gallery files that are not in docs/media: {missing}")
+        print(f"{len(blocks)} blocks ran, option names, verification links and {len(shown)} gallery files checked")
         PY
         touch $out
       '';

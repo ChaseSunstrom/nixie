@@ -422,7 +422,7 @@ Warm the screen colours in the evening.
 
 *boolean*, default: `true`.
 
-An overview of all workspaces on one key.
+Every open window, and the workspace it is on, in one panel on Super+` as well as Super+Tab.
 
 ## `nixie.desktop.packages.categories.browsers`
 
@@ -723,9 +723,9 @@ Port Grafana listens on.
 
 ## `nixie.monitoring.port`
 
-*16 bit unsigned integer; between 0 and 65535 (both inclusive)*, default: `9090`.
+*16 bit unsigned integer; between 0 and 65535 (both inclusive)*, default: `9091`.
 
-Port Prometheus listens on, on this host only.
+Port Prometheus listens on, on this host only. Not 9090: the host page uses that one.
 
 ## `nixie.monitoring.retention`
 

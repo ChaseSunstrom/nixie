@@ -37,11 +37,13 @@ pkgs.testers.runNixOSTest {
     laptop.wait_for_text("(Reboot|Power Off|Hyprland|Password|nixie)", timeout=300)
     laptop.screenshot("desktop-greeter")
     laptop.send_chars("me\n"); laptop.sleep(2); laptop.send_chars("nixie\n")
-    laptop.wait_until_succeeds("pgrep -x Hyprland", timeout=180)
+    laptop.wait_until_succeeds("pgrep -f 'bin/Hyprland'", timeout=180)  # nixpkgs wraps the binary, so match its argv
     laptop.wait_until_succeeds("pgrep -f quickshell", timeout=180)
+    # The shell answers on its socket; without this the first verb can race it.
+    laptop.wait_until_succeeds("test -S /run/user/1000/nixie-shell.sock", timeout=60)
     laptop.sleep(6)
     laptop.screenshot("desktop-first-login")
-    me("kitty & sleep 3")
+    me("(kitty >/dev/null 2>&1 &) ; sleep 3")
     laptop.screenshot("desktop-bar")
     for mode in ["apps", "files", "calculator", "emoji", "clipboard"]:
         me(f"nixie-shell launcher {mode}"); laptop.sleep(2)
@@ -68,10 +70,12 @@ pkgs.testers.runNixOSTest {
     laptop.screenshot("desktop-wallpaper-next")
     # window motion on video: open, move, workspace switch, overview
     me("mkdir -p /home/me/Videos; (wf-recorder -f /home/me/Videos/motion.mp4 >/dev/null 2>&1 &) ; sleep 2")
-    me("hyprctl dispatch exec kitty; sleep 2; hyprctl dispatch exec kitty; sleep 2; hyprctl dispatch movewindow l; sleep 1; hyprctl dispatch workspace 2; sleep 1; hyprctl dispatch exec kitty; sleep 2; hyprctl dispatch workspace 1; sleep 1; hyprctl dispatch overview:toggle; sleep 3; hyprctl dispatch overview:toggle; sleep 1")
+    # Lua dispatchers: `hyprctl dispatch <legacy>` is a syntax error against
+    # a Lua config (D29).
+    me("hyprctl dispatch \"hl.dsp.exec_cmd([[kitty]])\"; sleep 2; hyprctl dispatch \"hl.dsp.exec_cmd([[kitty]])\"; sleep 2; hyprctl dispatch \"hl.dsp.window.move({ direction = [[l]] })\"; sleep 1; hyprctl dispatch \"hl.dsp.focus({ workspace = 2 })\"; sleep 1; hyprctl dispatch \"hl.dsp.exec_cmd([[kitty]])\"; sleep 2; hyprctl dispatch \"hl.dsp.focus({ workspace = 1 })\"; sleep 1; nixie-shell switcher; sleep 3; nixie-shell close; sleep 1")
     me("pkill -INT -x wf-recorder; sleep 3")
     laptop.copy_from_vm("/home/me/Videos/motion.mp4", "media")
-    me("hyprctl dispatch overview:toggle"); laptop.sleep(3); laptop.screenshot("desktop-overview"); me("hyprctl dispatch overview:toggle")
+    me("nixie-shell switcher"); laptop.sleep(3); laptop.screenshot("desktop-overview"); me("nixie-shell close")
     # local.conf override takes effect on reload
     me('printf "hl.config({ general = { gaps_out = 40 } })\n" >> /home/me/.config/hypr/local.lua; hyprctl reload; sleep 2')
     laptop.screenshot("desktop-local-conf")
@@ -81,6 +85,8 @@ pkgs.testers.runNixOSTest {
     me("hyprctl reload; sleep 4; pkill -INT -x wf-recorder; sleep 3")
     laptop.screenshot("desktop-finish-paper")
     laptop.copy_from_vm("/home/me/Videos/finish.mp4", "media")
-    me("loginctl lock-session"); laptop.sleep(4); laptop.screenshot("desktop-lock")
+    # From outside the graphical session there is no session to name;
+    # the root form locks every session and hypridle answers with hyprlock.
+    laptop.succeed("loginctl lock-sessions"); laptop.sleep(5); laptop.screenshot("desktop-lock")
   '';
 }

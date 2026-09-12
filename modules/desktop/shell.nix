@@ -28,7 +28,7 @@ let
   keys = pkgs.writeText "keys.txt" ''
     Super+Return terminal · Super+B browser · Super+E files · Super+Space launcher (Tab cycles apps, files, calc, emoji, clipboard)
     Super+Q close · Super+F fullscreen · Super+Shift+F maximise · Super+V float · Super+P pin · Super+H/J/K/L focus · Super+Shift+H/J/K/L move
-    Super+1..9 workspace · Super+Shift+1..9 send there · Super+S scratchpad · Super+` overview · Super+Tab windows
+    Super+1..9 workspace · Super+Shift+1..9 send there · Super+S scratchpad · Super+Tab or Super+` all windows
     Super+A control centre · Super+N notifications · Super+Esc power · Super+/ this sheet
     Super+W next wallpaper · Super+Shift+W wallpaper picker · Super+T next finish
     Super+Shift+S screenshot (annotate) · Super+Shift+R record · Super+Shift+C colour picker · Super+, clipboard · Super+. emoji · Super+= calculator · Super+Ctrl+L lock

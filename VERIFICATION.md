@@ -377,6 +377,64 @@ listing tolerates a missing instance now. The lesson both share is that a
 report which gathers from several sources has to survive each of them being
 absent, because on a fresh host most of them are.
 
+## Slice (s): the gallery, and four defects it found
+
+The showcase slice: `nix run .#media` regenerates `docs/media/` from six runs
+in VMs, `docs/media/SHOTLIST.md` maps every file to the run and commit that
+made it, and the README shows the result. Nothing is mocked and nothing is
+drawn by hand. The gallery is committed as ordinary files: each video is
+kept under 8 MB and the whole directory under 100 MB, and the generator
+fails rather than exceed either, so no large-file storage is needed.
+
+Running it for the first time end to end found four defects, each in a
+feature that shipped without a test.
+
+1. **Prometheus and Cockpit both listened on 9090.** A host with
+   `nixie.monitoring.enable` and `nixie.hostUi.enable` had one of the two
+   dead from boot: `Unable to start web listener ... address already in
+   use`, then `start-limit-hit`. Prometheus moved to 9091 (D28); it is bound
+   to loopback and every consumer takes the port from the option. An
+   assertion now refuses any configuration where the host page, Prometheus
+   and Grafana share a port. `vm-monitoring` (9091) and `vm-host-ui` (9090)
+   both pass.
+2. **The overview plugin never loaded.** The Lua configuration pointed at
+   `libHyprspace.so`; the package ships `libhyprspace.so`, and Hyprland
+   ignores a plugin path that does not exist without a config error, so
+   `hyprctl configerrors` stayed empty and nothing said the key was dead.
+3. **A plugin dispatcher cannot be called from a Lua configuration at all.**
+   With the path fixed the plugin loaded — `hyprctl plugin list` showed
+   "Plugin Hyprspace by KZdkm" — and the key still did nothing:
+   `hl.dispatch` takes a dispatcher object, a string naming one is refused,
+   and `hl.plugin` exposes only `load`. The overview is now the shell's own
+   window panel, which lists every window with the workspace it is on
+   (D29).
+4. **Idle screen blanking never worked.** hypridle was configured with
+   `hyprctl dispatch dpms off`, which against a Lua configuration is the
+   syntax error `return hl.dispatch(dpms off)`. The screen never turned off
+   on idle and never came back after suspend. The generated commands are now
+   Lua dispatchers, and `vm-desktop` runs the commands out of the generated
+   `hypridle.conf` and asserts the monitor's `dpmsStatus` goes off and back
+   on.
+
+`vm-desktop` gained two subtests for the features that had none: the
+overview key and screen recording (`wf-recorder`, the thing `Super+Shift+R`
+runs, verified by the size of the file it produces), and the idle rules. It
+passed on 2026-09-12 with ten subtests: "test script finished in 126.83s".
+The idle subtest reads the two commands out of the generated
+`/etc/xdg/hypr/hypridle.conf` and runs them, so it tests the wiring and not
+a copy of it; the monitor's `dpmsStatus` goes to false and back to true.
+
+Three more of my own mistakes are worth recording, because each of them
+makes a test lie rather than fail. A screenshot name used by two runs was
+silently overwritten by the second while the shot list claimed both
+(`boot-passphrase-prompt.png`, from the boot and installer runs); the
+generator now refuses a duplicate name. The generator warned and carried on
+when a run failed, so an incomplete gallery exited 0; it now fails and names
+every run that broke. And `me("kitty & sleep 2")` left the window holding
+the command's output, so the test driver waited for EOF forever and the run
+hung rather than failed — the window is started detached with its pipes
+closed.
+
 ## Console
 
 `vm-console`: tty1 shows the front panel (OCR finds the wordmark and the

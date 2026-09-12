@@ -39,7 +39,7 @@ let
                 await page.screenshot(path=f"{OUT}/panel-export-{finish}.png")
                 await ctx.close()
             # the walk-through video in one finish
-            ctx = await browser.new_context(viewport={"width": 1440, "height": 900}, ignore_https_errors=True, record_video_dir=OUT, record_video_size={"width": 1440, "height": 900},
+            ctx = await browser.new_context(viewport={"width": 1440, "height": 900}, ignore_https_errors=True, record_video_dir="/tmp/rec", record_video_size={"width": 1440, "height": 900},
                 client_certificates=[{"origin": "https://127.0.0.1:8443", "certPath": "/root/client.crt", "keyPath": "/root/client.key"}])
             page = await ctx.new_page()
             await page.goto(BASE + "#/overview"); await page.wait_for_timeout(6000)
@@ -49,7 +49,11 @@ let
             await page.keyboard.type("uptime"); await page.keyboard.press("Enter"); await page.wait_for_timeout(3000)
             await page.goto(BASE + "#/dashboards/nixie-guest/web"); await page.wait_for_timeout(5000)
             await page.click("text=6h"); await page.wait_for_timeout(3000)
+            video = page.video
             await ctx.close()
+            # Playwright names its recordings with a GUID; the gallery and the
+            # README refer to this file by name, so give it one.
+            await video.save_as(f"{OUT}/walkthrough.webm")
             await browser.close()
     asyncio.run(main())
   '';
@@ -115,6 +119,9 @@ pkgs.testers.runNixOSTest {
       py
       pkgs.openssl
       pkgs.oath-toolkit
+      # The test script itself reads guests.json; the CLI's own jq is inside
+      # its wrapper and not on PATH here.
+      pkgs.jq
     ];
     environment.variables.PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     environment.variables.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "1";
@@ -130,7 +137,7 @@ pkgs.testers.runNixOSTest {
     host.succeed("openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 -subj /CN=media -keyout /root/client.key -out /root/client.crt 2>/dev/null && incus config trust add-certificate /root/client.crt")
     host.succeed("sleep 20")  # a little history for the charts
     host.succeed("python3 ${script} >&2")
-    host.succeed("python3 ${cockpit} >&2 || true")
+    host.succeed("python3 ${cockpit} >&2")
     host.succeed("ls /tmp/media >&2")
     host.copy_from_vm("/tmp/media", "media")
   '';

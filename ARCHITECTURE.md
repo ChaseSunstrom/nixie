@@ -322,6 +322,7 @@ nixie.backups.check             nullOr str (calendar spec), default "weekly" (ch
 nixie.monitoring.enable         bool, default false
   Collect host, guest and GPU metrics with Prometheus for the dashboards.
 nixie.monitoring.retention      str, default "30d"
+nixie.monitoring.port           port, default 9091 (D28: 9090 is the host page's)
 nixie.monitoring.grafana.enable bool, default false
 nixie.monitoring.grafana.port   port, default 3000
 nixie.monitoring.gpuPowerCap    nullOr int (watts), default null
@@ -382,7 +383,7 @@ nixie.desktop.idle.lockAfter     int seconds, default 300
 nixie.desktop.idle.screenOffAfter int, default 600
 nixie.desktop.idle.suspendAfter  nullOr int, default null
 nixie.desktop.nightLight.enable  bool, default true
-nixie.desktop.overview.enable    bool, default true (hyprspace plugin; see D5)
+nixie.desktop.overview.enable    bool, default true (the shell's window panel on Super+`; see D29)
 nixie.desktop.look.gaps.inner    int, default 6              (change request, desktop rice)
 nixie.desktop.look.gaps.outer    int, default 14
 nixie.desktop.look.rounding      int, default 12
@@ -764,8 +765,8 @@ Components from the pin: Hyprland 0.55.4 (Lua configuration, see D25),
 hyprlock, hypridle, swaybg (one process per wallpaper; see the slice (r) verification for why not awww or hyprpaper), hyprsunset (night light), grim + slurp + satty (screenshot and
 annotation), wf-recorder, hyprpicker, cliphist, hyprpolkitagent, greetd +
 regreet (greeter themed from tokens), PipeWire, NetworkManager, BlueZ,
-xdg-desktop-portal-hyprland, power-profiles-daemon or TLP. Overview:
-`hyprlandPlugins.hyprspace` (see D2). Fonts: Archivo (from `google-fonts`,
+xdg-desktop-portal-hyprland, power-profiles-daemon or TLP. The overview is
+the shell's own window panel (see D29). Fonts: Archivo (from `google-fonts`,
 the design's UI face), JetBrains Mono, Material Symbols Rounded (the shell's
 icons), Noto. Cursor: Bibata. Icons: Papirus. GTK: adw-gtk3 with per-finish
 CSS.
@@ -867,7 +868,7 @@ and runs `nixie apply`.
 | `vm-data` | delete cache/, fetch restores (http kind against a test server); restore brings back state/ |
 | `vm-monitoring` | scrape targets up, dashboards provisioned |
 | `vm-installer-lan` | second VM's browser drives the wizard |
-| `vm-desktop` | greeter, Hyprland session, no config errors, every shell surface by screenshot and OCR, runtime finish switch, wallpaper change, lock screen, finish switch after apply |
+| `vm-desktop` | greeter, Hyprland session, no config errors, every shell surface by screenshot and OCR, the overview key and a real screen recording, the idle rules turning the screen off and back on, runtime finish switch, wallpaper change, lock screen, finish switch after apply |
 | `vm-host-ui` | Cockpit reachable with the admin login and TOTP; the History page lists generations and snapshots |
 | `vm-backup` (change request) | pre-apply ZFS and Incus snapshots exist and are pruned; `nixie backup now\|list\|verify`; a deleted state file comes back with `nixie restore --path`; the kit decrypts with its passphrase and holds headers, age key, restic secrets and a recovery key |
 | `vm-rollback` (change request) | a broken UI in a new generation is undone from the front panel; `apply --confirm-within` with no confirmation reverts host and guests; a guest snapshot restore leaves its `/data/state` untouched |
@@ -878,8 +879,10 @@ and runs `nixie apply`.
 
 - **D1 nixpkgs release.** `nixos-26.05`, the current stable, rather than
   unstable, so package versions hold still across slices.
-- **D2 No `hyprexpo`.** It is not packaged in the pin; `hyprspace` is and
-  provides the same overview. Used behind `nixie.desktop.overview.enable`.
+- **D2 No `hyprexpo`, and in the end no Hyprland overview plugin at all.**
+  `hyprexpo` is not packaged in the pin and `hyprspace` cannot be driven
+  from a Lua configuration; see D29 for what `nixie.desktop.overview.enable`
+  does instead.
 - **D3 No WebAuthn second factor.** The host UI is Cockpit, which
   authenticates through PAM on the server. A browser passkey cannot be
   presented to PAM, and `pam_u2f` needs the key plugged into the server, not
@@ -995,6 +998,25 @@ and runs `nixie apply`.
   `~/.config/nixie/finish` is a per-user preference like the wallpaper,
   the same class of thing as `local.conf`, and is what makes the desktop
   feel like a rice rather than a rebuild.
+- **D28 Prometheus listens on 9091, not its own default of 9090.** Cockpit's
+  default is 9090 too, so a host with both monitoring and the host page had
+  one of the two dying at boot with only a journal line to show for it. The
+  host page keeps 9090 because it is the one of the two a person types into a
+  browser; Prometheus is bound to loopback and reached only by Grafana, the
+  panel and the tailnet proxy, all of which take the port from the option. An
+  assertion covers the general case: the host page, Prometheus and Grafana
+  must not share a port.
+- **D29 The overview is the shell's own panel, not a Hyprland plugin.** With
+  a Lua configuration (D25) Hyprland 0.55.4 reaches dispatchers through
+  `hl.dsp`, and `hl.dispatch` takes a dispatcher object: a string naming one
+  is refused, `hl.plugin` exposes only `load`, and a plugin that registers
+  just a legacy dispatcher — hyprspace's `overview:toggle` — cannot be
+  called from Lua at all. The plugin loaded and its key did nothing. The
+  overview is therefore the shell's window panel, which lists every window
+  with the workspace it is on; `nixie.desktop.overview.enable` puts it on
+  Super+` beside Super+Tab, and `vm-desktop` asserts it opens. The same
+  incompatibility applied to everything that shelled out to `hyprctl
+  dispatch <legacy>`: hypridle's screen blanking is now a Lua dispatcher.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the
@@ -1023,10 +1045,6 @@ After the console and showcase slices, in this order, one commit each with
   `vm-rollback`.
 - (o) recovery: recovery-key policy, `nixie security reenroll`, `nixie usb`
   and `usbguard.allow`; part of `vm-hardware`.
-- (p) hardware: `nixie hardware scan|refresh|add-disk`, rescue network,
-  doctor drift; `vm-hardware`.
-- (q) history: `packages.nixie-cockpit` page and the panel's snapshots view;
-  `vm-host-ui` extension.
 - (p) hardware: `nixie hardware scan|refresh|add-disk`, the rescue network,
   the per-host facts file and doctor drift; `vm-hardware` (done).
 - (q) history: `packages.nixie-cockpit` and the control panel's History
@@ -1034,3 +1052,7 @@ After the console and showcase slices, in this order, one commit each with
 - (r) desktop rice (section 11.1, D25, D26): Lua Hyprland config, runtime
   finish switching, wallpapers and accent, the full shell, terminal and lock
   screen; `vm-desktop` and `media-desktop` extended.
+- (s) the gallery: `nix run .#media` run end to end, `docs/media/` and its
+  shot list committed inside the size budget, the README gallery, and the
+  four defects the first complete run found (D28, D29); `vm-desktop`
+  extended with the overview, recording and idle subtests (done).

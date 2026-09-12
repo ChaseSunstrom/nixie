@@ -44,8 +44,10 @@ in
     };
     port = mkOption {
       type = lib.types.port;
-      default = 9090;
-      description = "Port Prometheus listens on, on this host only.";
+      # Prometheus' own default is 9090, which is also Cockpit's, and the host
+      # page is the one of the two a person types into a browser.
+      default = 9091;
+      description = "Port Prometheus listens on, on this host only. Not 9090: the host page uses that one.";
     };
     grafana.enable = mkOption {
       type = lib.types.bool;
@@ -85,6 +87,33 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Two services on one port means one of them dies at boot with nothing but
+    # a journal line to say so; say it here instead.
+    assertions =
+      let
+        listeners = [
+          {
+            name = "nixie.monitoring.port";
+            inherit (cfg) port;
+          }
+        ]
+        ++ lib.optional cfg.grafana.enable {
+          name = "nixie.monitoring.grafana.port";
+          inherit (cfg.grafana) port;
+        }
+        ++ lib.optional config.nixie.hostUi.enable {
+          name = "nixie.hostUi.port";
+          inherit (config.nixie.hostUi) port;
+        };
+      in
+      [
+        {
+          assertion = lib.length (lib.unique (map (l: l.port) listeners)) == lib.length listeners;
+          message = "these listen on one host and need different ports: ${
+            lib.concatMapStringsSep ", " (l: "${l.name} = ${toString l.port}") listeners
+          }";
+        }
+      ];
     systemd.services.grafana.preStart = lib.mkIf cfg.grafana.enable (
       lib.mkBefore ''
         if [ ! -s /var/lib/grafana/nixie-secret-key ]; then

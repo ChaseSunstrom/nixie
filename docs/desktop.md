@@ -20,7 +20,7 @@ scheme and every knob.
 | `Super+Q`, `Super+F`, `Super+Shift+F`, `Super+V`, `Super+P` | close, fullscreen, maximise, float, pin |
 | `Super+H/J/K/L`, `Super+Shift+H/J/K/L` | focus, move |
 | `Super+1..9`, `Super+Shift+1..9`, `Super+S` | workspace, send there, scratchpad |
-| `` Super+` `` | overview |
+| `` Super+` ``, `Super+Tab` | every open window, with the workspace it is on |
 | `Super+Shift+S`, `Super+Shift+R`, `Super+Shift+C` | screenshot with annotation, record, colour picker |
 | `nixie-shell screenshots` | the screenshot menu: region, window, whole screen, after five seconds |
 | `nixie-shell network` / `bluetooth` / `mixer` | join a Wi-Fi network (with its password), connect a paired device, set the volume of each playing app |

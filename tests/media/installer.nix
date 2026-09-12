@@ -51,7 +51,7 @@ let
         async with async_playwright() as p:
             b = await p.chromium.launch(args=["--ignore-certificate-errors"])
             page = await (await b.new_context(viewport={"width": 1280, "height": 900}, ignore_https_errors=True)).new_page()
-            await page.goto(base); await shot(page, "pair")
+            await page.goto(base); await shot(page, "pair" if mode != "continuation" else "continuation-pair")
             await page.fill("input", code); await page.click("text=Pair"); await page.wait_for_timeout(2500)
             if mode == "continuation":
                 await shot(page, "continuation"); await b.close(); return
@@ -145,7 +145,7 @@ pkgs.testers.runNixOSTest {
     installer.screenshot("installer-kiosk-after-install")
     installer.shutdown()
     target.start()
-    target.wait_for_console_text("Please enter passphrase"); target.screenshot("boot-passphrase-prompt")
+    target.wait_for_console_text("Please enter passphrase"); target.screenshot("installer-target-passphrase")
     target.send_console("hunter2\n")
     target.wait_for_unit("nixie-setup.service"); target.wait_for_open_port(9443)
     target.wait_for_unit("cage-tty1.service"); target.wait_for_text("(First boot|Finished|nixie)", timeout=300)

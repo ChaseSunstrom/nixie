@@ -61,7 +61,10 @@ pkgs.testers.runNixOSTest {
     host.succeed("nixie apply --yes --skip-host >&2")
     host.wait_until_succeeds("curl -sf --max-time 3 http://10.90.0.10/ | grep -q hello", timeout=240)
     host.wait_until_succeeds("incus exec db -- systemctl is-active postgresql", timeout=240)
-    host.wait_until_succeeds("incus exec builder -- podman info >/dev/null", timeout=240)
+    host.wait_until_succeeds("incus list builder -c s -f csv | grep -q RUNNING", timeout=240)
+    # Say what podman is unhappy about rather than timing out silently.
+    print(host.execute("incus exec builder -- podman info 2>&1")[1][:2000])
+    host.wait_until_succeeds("incus exec builder -- podman info >/dev/null 2>&1", timeout=180)
     host.succeed("mkdir -p /tmp/media && asciinema rec --overwrite -c 'bash -c \"incus list; sleep 1; curl -s http://10.90.0.10/; sleep 1; incus exec db -- sudo -u postgres psql -c \\\"select version()\\\"; sleep 1; incus exec builder -- podman info | head -5; sleep 1; nixie doctor; sleep 2\"' /tmp/media/guests.cast")
     host.copy_from_vm("/tmp/media/guests.cast", "media")
   '';

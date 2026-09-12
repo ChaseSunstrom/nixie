@@ -270,7 +270,7 @@ Version 0.1.0, unreleased. By section of the brief:
 | 10 control panel | done for every screen the brief lists; screens the design does not draw follow its recipes |
 | 11 installer: kiosk, LAN, headless, setup generation | done; the headless path is verified through the same phase scripts, not a full kexec run |
 | 12.1 server host page | done (TOTP; no passkeys, see ARCHITECTURE D3) |
-| 12.2 desktop | done; overview through hyprspace; change request: the full rice, Lua config, runtime finish and wallpaper switching, network, device, volume and screenshot menus, system readouts, keep-awake, wallpaper-derived accent, site and HyDE themes ([VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)) |
+| 12.2 desktop | done; overview is the shell's window panel (D29); change request: the full rice, Lua config, runtime finish and wallpaper switching, network, device, volume and screenshot menus, system readouts, keep-awake, wallpaper-derived accent, site and HyDE themes ([VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)) |
 | 13 extension points | done |
 | 14 docs, examples | done; media gallery generated per release |
 | console slice | done |
