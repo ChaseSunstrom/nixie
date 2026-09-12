@@ -164,6 +164,9 @@ grep -q 'gpu = true' guests.nix
 | `nixie rollback data <name> [--snapshot s] [--in-place]` | a state directory from a ZFS snapshot, beside the live one or in place |
 | `nixie reseal` | reseals attestation to the running boot chain |
 | `nixie security reenroll` | after a board, TPM or firmware change: Secure Boot enrolment, TPM + PIN binding with a new recovery key, attestation, lockout password, header backups; resumable, also from the front panel (`e`) ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
+| `nixie rollback --json` | every generation, guest and data snapshot and backup as JSON; the History screens read this |
+| `nixie hardware scan \| refresh` | compare the machine with `hosts/<name>/hardware.nix`, then rewrite it, commit and apply |
+| `nixie hardware add-disk <by-id> [name]` | format and mount a disk the site does not declare; it refuses any that it does |
 | `nixie usb [--json]`, `nixie usb allow <vendor:product[/serial]>` | blocked USB devices; allow one in `hosts/<name>/usb.nix` and commit, then `nixie apply` |
 | `nixie doctor` | TPM, attestation, Secure Boot, key slots, whether the last unlock needed the recovery key, blocked USB devices, guests, backup check, disk space |
 | `nixie export <instance>` | a `guests.nix` entry for a scratch instance |

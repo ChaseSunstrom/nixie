@@ -957,7 +957,10 @@ and runs `nixie apply`.
   addition says never stored on the host; phase 6 shows it once, and
   `nixie backup kit` enrols a fresh one for the passphrase-encrypted kit.
   D10's bundle keeps the headers, lockout auth and TOTP reseal password.
-- **D22 History is split across the two existing web surfaces** rather
+- **D22 History is split across the two existing web surfaces** (built in
+  slice (q): `packages.nixie-cockpit` is the host page's History screen and
+  `ui/src/pages/History.tsx` the control panel's, both reading
+  `nixie rollback --json` rather than scraping human output) rather
   than a new host agent: guest snapshots in the control panel (Incus API),
   host generations, data and restic snapshots and their actions on a
   branded Cockpit page that runs `nixie` through the Cockpit bridge. The
@@ -1024,6 +1027,10 @@ After the console and showcase slices, in this order, one commit each with
   doctor drift; `vm-hardware`.
 - (q) history: `packages.nixie-cockpit` page and the panel's snapshots view;
   `vm-host-ui` extension.
+- (p) hardware: `nixie hardware scan|refresh|add-disk`, the rescue network,
+  the per-host facts file and doctor drift; `vm-hardware` (done).
+- (q) history: `packages.nixie-cockpit` and the control panel's History
+  page, both on `nixie rollback --json`; `vm-host-ui` extension (done).
 - (r) desktop rice (section 11.1, D25, D26): Lua Hyprland config, runtime
   finish switching, wallpapers and accent, the full shell, terminal and lock
   screen; `vm-desktop` and `media-desktop` extended.

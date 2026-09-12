@@ -26,6 +26,7 @@ let
     #brand::before { content: "nixie · "; color: ${t.brand2}; }
     CSS
   '';
+  historyPage = import ../packages/nixie-cockpit.nix { inherit pkgs; };
   port = toString cfg.port;
   wsDropin = {
     overrideStrategy = "asDropin";
@@ -73,6 +74,7 @@ in
       inherit (cfg) port;
       plugins = [
         branding
+        historyPage
         pkgs.cockpit-files
         pkgs.cockpit-podman
       ];

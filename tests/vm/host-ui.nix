@@ -4,6 +4,7 @@
   pkgs,
   nixieLib,
   exampleSite,
+  nixieCli,
 }:
 let
   inherit (pkgs) lib;
@@ -39,6 +40,7 @@ pkgs.testers.runNixOSTest {
     environment.systemPackages = [
       pkgs.curl
       pkgs.oath-toolkit
+      nixieCli
     ];
   };
 
@@ -68,5 +70,21 @@ pkgs.testers.runNixOSTest {
             assert bad == "401", bad
         # cockpit-session reports each attempt through PAM's audit records.
         host.succeed("journalctl -b --no-pager | grep -E 'PAM:authentication.*acct=.admin.' | grep -q cockpit-session")
+
+    with subtest("the History screen is installed and the host can answer it"):
+        # The page is joined into Cockpit's share alongside the branding.
+        host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/manifest.json")
+        host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/index.html")
+        host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/history.js")
+        import json as _json
+        m = _json.loads(host.succeed("cat /etc/cockpit/share/cockpit/nixie-history/manifest.json"))
+        assert m["menu"]["index"]["label"] == "History", m
+        # It asks the CLI for JSON through the bridge; that is what the CLI prints.
+        host.succeed("grep -q 'nixie\", \"rollback\", \"--json' /etc/cockpit/share/cockpit/nixie-history/history.js")
+        host.succeed("nix-env --profile /nix/var/nix/profiles/system --set \"$(readlink -f /run/current-system)\"")
+        h = _json.loads(host.succeed("nixie rollback --json"))
+        assert set(h) == {"generations", "guests", "data", "backups"}, h
+        assert len(h["generations"]) >= 1 and h["generations"][-1]["current"] is True, h
+        print(h["generations"][-1])
   '';
 }

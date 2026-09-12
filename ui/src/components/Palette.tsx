@@ -4,7 +4,7 @@ import { useStore } from "../lib/store";
 import { go } from "./ui";
 import { finishes } from "../tokens";
 
-export const PAGES = ["Overview", "Instances", "Images", "Profiles", "Networks", "Storage", "Operations", "Dashboards", "Settings"];
+export const PAGES = ["Overview", "Instances", "Images", "Profiles", "Networks", "Storage", "Operations", "Dashboards", "History", "Settings"];
 
 type Cmd = { label: string; hint: string; run: () => void };
 

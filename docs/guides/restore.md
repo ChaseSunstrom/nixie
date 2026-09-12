@@ -32,6 +32,11 @@ boot. The tty1 front panel offers the first and the last with one key. An
 `nixie apply` afterwards recreates any instance that was missing; its state
 is the restored directory.
 
+Both web surfaces show the same history: the host page has a History screen
+(generations, guest and data snapshots, restic backups, with the command
+that undoes each) and the control panel has one under History. Both read
+`nixie rollback --json`.
+
 Disaster kit: `nixie backup kit <file>` writes a passphrase-encrypted tar
 with the LUKS headers, the host's age key, the restic secrets, a fresh
 recovery key for the TPM layer and the rebuild steps; the README's "Rebuild

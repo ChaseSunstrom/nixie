@@ -20,6 +20,9 @@ pkgs.writeShellApplication {
     tpm2-totp
     usbguard
     qrencode
+    gptfdisk
+    iproute2
+    pciutils
     util-linux
     yq-go
     # `security reenroll` runs the same phase scripts setup ran.
@@ -150,6 +153,23 @@ pkgs.writeShellApplication {
           if journalctl -b -q -o cat 2>/dev/null | grep -qE 'TPM2 (operation|PIN unlock) failed'; then say "unlock" "RECOVERY KEY used at the last unlock; run nixie security reenroll"; rc=1
           else say "unlock" "TPM"; fi
         fi
+        if [ -e /etc/nixie/hardware.json ]; then
+          drift=""
+          for mac in $(jq -r '.uplinks[]' /etc/nixie/hardware.json); do
+            ip -j link | jq -e --arg m "$mac" 'any(.[]; .address == $m)' >/dev/null || drift="$drift uplink:$mac"
+          done
+          want_disk=$(jq -r '.disks.system' /etc/nixie/hardware.json)
+          [ "$want_disk" = null ] || [ -e "$want_disk" ] || drift="$drift disk:$want_disk"
+          data_disk=$(jq -r '.disks.data // empty' /etc/nixie/hardware.json)
+          [ -z "$data_disk" ] || [ -e "$data_disk" ] || drift="$drift disk:$data_disk"
+          want_gpu=$(jq -r .gpu /etc/nixie/hardware.json)
+          if [ "$want_gpu" != none ]; then
+            case "$want_gpu" in nvidia) id='\[10de:' ;; amd) id='\[1002:' ;; intel) id='\[8086:' ;; *) id="" ;; esac
+            if [ -n "$id" ] && ! lspci -nn 2>/dev/null | grep -Ei 'VGA|3D|Display' | grep -q "$id"; then drift="$drift gpu:$want_gpu"; fi
+          fi
+          if [ -n "$drift" ]; then say "hardware" "DRIFT:$drift; run nixie hardware scan"; rc=1
+          else say "hardware" "matches the site"; fi
+        fi
         if systemctl is-active -q usbguard 2>/dev/null; then
           n=$(usbguard list-devices -b 2>/dev/null | grep -c . || true)
           if [ "$n" -gt 0 ]; then say "usb" "$n BLOCKED device(s); run nixie usb"; rc=1; else say "usb" "nothing blocked"; fi
@@ -225,6 +245,93 @@ pkgs.writeShellApplication {
         fi
         [ -z "$rule" ] || usbguard remove-rule "$rule" >/dev/null 2>&1 || true
         exit "$rc" ;;
+      hardware)
+        facts=/etc/nixie/hardware.json
+        hw="$site/hosts/$host/hardware.nix"
+        live_uplinks() { ip -j link | jq -r '[.[] | select(.link_type == "ether" and (.ifname | startswith("veth") or startswith("nixie-") | not)) | .address] | unique | join(" ")'; }
+        live_gpu() {
+          if lspci -nn 2>/dev/null | grep -Ei 'VGA|3D|Display' | grep -q '\[10de:'; then echo nvidia
+          elif lspci -nn 2>/dev/null | grep -Ei 'VGA|3D|Display' | grep -q '\[1002:'; then echo amd
+          elif lspci -nn 2>/dev/null | grep -Ei 'VGA|3D|Display' | grep -q '\[8086:'; then echo intel
+          else echo none; fi
+        }
+        case "''${1:-scan}" in
+          scan|refresh)
+            [ -e "$facts" ] || { echo "no $facts on this host" >&2; exit 2; }
+            changed=0
+            declared_uplinks=$(jq -r '.uplinks | join(" ")' "$facts")
+            present=""; missing=""
+            for mac in $declared_uplinks; do
+              if ip -j link | jq -e --arg m "$mac" 'any(.[]; .address == $m)' >/dev/null; then present="$present $mac"; else missing="$missing $mac"; changed=1; fi
+            done
+            new=""
+            for mac in $(live_uplinks); do
+              case " $declared_uplinks " in *" $mac "*) ;; *) new="$new $mac" ;; esac
+            done
+            gpu_now=$(live_gpu); gpu_want=$(jq -r .gpu "$facts")
+            tpm_now=false; [ -e /dev/tpmrm0 ] && tpm_now=true; tpm_want=$(jq -r .tpm "$facts")
+            printf '%-10s declared:%s present:%s missing:%s new:%s\n' uplinks "''${declared_uplinks:- none}" "''${present:- none}" "''${missing:- none}" "''${new:- none}"
+            printf '%-10s declared:%s found:%s\n' gpu "$gpu_want" "$gpu_now"
+            printf '%-10s declared:%s found:%s\n' tpm "$tpm_want" "$tpm_now"
+            for d in $(jq -r '[.disks.system, .disks.data] | map(select(. != null)) | .[]' "$facts"); do
+              if [ -e "$d" ]; then printf '%-10s %s present\n' disk "$d"; else printf '%-10s %s MISSING\n' disk "$d"; changed=1; fi
+            done
+            [ "$gpu_now" = "$gpu_want" ] || changed=1
+            [ "$tpm_now" = "$tpm_want" ] || changed=1
+            if [ "''${1:-scan}" = scan ]; then
+              [ "$changed" = 0 ] && echo "the machine matches $hw" || echo "the machine has moved on from $hw; nixie hardware refresh writes it"
+              exit 0
+            fi
+            [ "$changed" = 0 ] && { echo "nothing to refresh"; exit 0; }
+            [ -e "$hw" ] || { echo "no $hw to refresh" >&2; exit 2; }
+            # Only the facts that moved, and only in place: the disks a system
+            # was installed on are never rewritten from under it.
+            keep_uplinks=""
+            for mac in $(live_uplinks); do
+              case " $missing " in *" $mac "*) ;; *) keep_uplinks="$keep_uplinks \"$mac\"" ;; esac
+            done
+            tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
+            sed -e "s|^  nixie.network.bridge.uplinks = .*|  nixie.network.bridge.uplinks = [$keep_uplinks ];|" \
+                -e "s|^  nixie.hardware.gpu = .*|  nixie.hardware.gpu = \"$gpu_now\";|" \
+                -e "s|^  nixie.hardware.tpm = .*|  nixie.hardware.tpm = $tpm_now;|" "$hw" >"$tmp"
+            diff -u "$hw" "$tmp" || true
+            read -r -p "write this to $hw and apply? [y/N] " a; [ "$a" = y ] || exit 1
+            cp "$tmp" "$hw"
+            git -C "$site" add "$hw" && git -C "$site" commit -qm "hardware: refresh $host" || true
+            nixie apply --yes ;;
+          add-disk)
+            dev=''${2:?a stable disk path, the by-id kind}
+            [ -e "$dev" ] || { echo "$dev is not there" >&2; exit 2; }
+            for d in $(jq -r '[.disks.system, .disks.data] | map(select(. != null)) | .[]' "$facts"); do
+              if [ "$(readlink -f "$d")" = "$(readlink -f "$dev")" ]; then
+                echo "$dev is already declared in nixie.disks; this command only adds new disks" >&2; exit 3
+              fi
+            done
+            name=''${3:-extra}
+            # ZFS keeps some words for vdev kinds; zpool's own refusal reads
+            # like a typo, so say it plainly before anything is destroyed.
+            case "$name" in
+              mirror | raidz | raidz1 | raidz2 | raidz3 | draid | draid1 | draid2 | draid3 | spare | log | cache | special | dedup)
+                echo "'$name' is a word ZFS keeps for itself; choose another name" >&2; exit 2 ;;
+              */* | [0-9]*)
+                echo "a pool name cannot contain / or start with a digit" >&2; exit 2 ;;
+            esac
+            root=$(layout .dataRoot 2>/dev/null); [ -n "$root" ] && [ "$root" != null ] || root=/data
+            # Done with the tools already on the host: an installed machine has
+            # no Nix search path and may have no network, so nothing here may
+            # evaluate or build anything.
+            echo "$dev becomes the pool '$name', mounted at $root/$name; everything on it is lost."
+            read -r -p "type the disk's name to confirm: " a; [ "$a" = "$(basename "$dev")" ] || { echo "not confirmed" >&2; exit 1; }
+            sgdisk --zap-all "$dev" >/dev/null
+            zpool create -f -o ashift=12 \
+              -O compression=zstd -O acltype=posixacl -O xattr=sa -O mountpoint=none \
+              "$name" "$dev"
+            zfs create -o mountpoint="$root/$name" "$name/data"
+            zpool set cachefile=/etc/zfs/zpool.cache "$name" 2>/dev/null || true
+            echo "$dev is now $name, mounted at $root/$name"
+            echo "declare it in hosts/$host/hardware.nix as nixie.disks.data, or leave it as an extra pool" ;;
+          *) echo "usage: nixie hardware [scan | refresh | add-disk <by-id> [name]]" >&2; exit 2 ;;
+        esac ;;
       usb)
         f="$site/hosts/$host/usb.nix"
         case "''${1:-}" in
@@ -263,6 +370,27 @@ pkgs.writeShellApplication {
               [ "$n" = "$newest" ] && marks="$marks boot-default"
               printf '%-4s %-17s %-40s %-14s %s\n' "$n" "$(date -r "$l" '+%F %R')" "$(cat "$l/nixos-version")" "$(basename "$(readlink -f "$l/kernel")" | sed 's/^[a-z0-9]*-linux-//' | cut -c1-14)" "$marks"
             done ;;
+          --json)
+            gens=$(for m in "$prof"-*-link; do
+              n=''${m##*system-}; n=''${n%-link}
+              jq -n --arg gen "$n" --arg date "$(date -r "$m" -Is)" --arg label "$(cat "$m/nixos-version" 2>/dev/null || echo unknown)" \
+                --arg kernel "$(basename "$(readlink -f "$m/kernel")" 2>/dev/null | sed 's/^[a-z0-9]*-linux-//')" \
+                --argjson current "$([ "$(readlink -f "$m")" = "$(readlink -f /run/current-system)" ] && echo true || echo false)" \
+                --argjson booted "$([ "$(readlink -f "$m")" = "$(readlink -f /run/booted-system 2>/dev/null)" ] && echo true || echo false)" \
+                '{generation: ($gen | tonumber), date: $date, label: $label, kernel: $kernel, current: $current, booted: $booted}'
+            done | jq -s 'sort_by(.generation)')
+            guests=$(if [ -e /run/current-system/etc/nixie/guests.json ] && incus info >/dev/null 2>&1; then
+              for g in $(jq -r '.declared | keys[]' /run/current-system/etc/nixie/guests.json); do
+                { incus snapshot list "$g" -f json 2>/dev/null || echo '[]'; } | jq --arg g "$g" '[.[]? | {guest: $g, name: .name, taken: .created_at}]'
+              done | jq -s 'add // []'
+            else echo '[]'; fi)
+            guests=''${guests:-[]}
+            data=$(if command -v zfs >/dev/null && zfs list -H -o name "$root/state" >/dev/null 2>&1; then
+              zfs list -H -t snapshot -o name,creation -s creation "$root/state" | jq -R -s 'split("\n") | map(select(. != "") | split("\t") | {name: (.[0] | sub(".*@"; "")), taken: .[1]})'
+            else echo '[]'; fi)
+            backups=$(if command -v restic-nixie >/dev/null; then restic-nixie snapshots --json 2>/dev/null | jq '[.[] | {id: .short_id, taken: .time, paths: .paths}]' || echo '[]'; else echo '[]'; fi)
+            jq -n --argjson generations "$gens" --argjson guests "$guests" --argjson data "$data" --argjson backups "$backups" \
+              '{generations: $generations, guests: $guests, data: $data, backups: $backups}' ;;
           --generation) switch_gen "$2" ;;
           --boot-previous)
             id=$(bootctl list --json=short | jq -r --arg n "$((cur - 1))" '.[] | select(.id | test("generation-" + $n + "([-.]|$)")) | .id' | head -1)
@@ -308,10 +436,10 @@ pkgs.writeShellApplication {
               fi
             fi ;;
           "") [ -n "$cur" ] && [ "$cur" -gt 1 ] || { echo "no earlier generation" >&2; exit 1; }; switch_gen "$((cur - 1))" ;;
-          *) echo "usage: nixie rollback [--list | --generation N | --boot-previous | guest <name> [--snapshot s] | data <name>|state [--snapshot s] [--in-place] [--yes]]" >&2; exit 2 ;;
+          *) echo "usage: nixie rollback [--list | --json | --generation N | --boot-previous | guest <name> [--snapshot s] | data <name>|state [--snapshot s] [--in-place] [--yes]]" >&2; exit 2 ;;
         esac ;;
       *)
-        echo "usage: nixie apply [--yes] [--skip-host] [--confirm-within <duration>] | apply --confirm | rollback ... | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | security reenroll | usb [--json] | usb allow <device> | doctor | menu" >&2; exit 2 ;;
+        echo "usage: nixie apply [--yes] [--skip-host] [--confirm-within <duration>] | apply --confirm | rollback [--json] ... | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | security reenroll | usb [--json] | usb allow <device> | hardware scan|refresh|add-disk <by-id> | doctor | menu" >&2; exit 2 ;;
     esac
   '';
 }

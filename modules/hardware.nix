@@ -1,10 +1,19 @@
 # Facts the installer discovers and writes into a site's hardware.nix. Nothing
 # in the platform may set these.
-{ lib, ... }:
+{ config, lib, ... }:
 let
   inherit (import ../lib/option.nix lib) mkOption;
 in
 {
+  config.environment.etc."nixie/hardware.json".text = builtins.toJSON {
+    inherit (config.nixie.hardware) gpu tpm;
+    uplinks = config.nixie.network.bridge.uplinks;
+    disks = {
+      inherit (config.nixie.disks) system data;
+    };
+    secureBoot = config.nixie.security.secureBoot.enable;
+  };
+
   options.nixie.hardware = {
     gpu = mkOption {
       type = lib.types.enum [

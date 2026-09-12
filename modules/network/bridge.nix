@@ -129,6 +129,14 @@ in
           networkConfig.Bridge = cfg.bridge.name;
           linkConfig.RequiredForOnline = "enslaved";
         };
+        # Lowest priority on purpose: 10- claims the renamed uplinks, and
+        # anything left over lands here so a swapped card is reachable.
+        "90-nixie-rescue" = {
+          matchConfig.Name = "en* eth* wl*";
+          networkConfig.DHCP = "yes";
+          dhcpV4Config.RouteMetric = 2048;
+          linkConfig.RequiredForOnline = "no";
+        };
         "20-${cfg.bridge.name}" = {
           matchConfig.Name = cfg.bridge.name;
           # In NAT mode the host owns the private network and hands out

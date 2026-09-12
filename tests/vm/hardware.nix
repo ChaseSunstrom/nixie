@@ -33,9 +33,17 @@ let
       source = "/var/lib/incus/storage-pools/default";
     };
     nixie.guests = lib.mkForce { };
+    # The facts the site declares must name what this VM actually has, so
+    # drift is a real signal rather than noise from the example's by-id paths.
+    nixie.disks.system = lib.mkForce "/dev/vda";
+    # A spare disk for `nixie hardware add-disk`.
+    virtualisation.emptyDiskImages = [ 512 ];
+    boot.supportedFilesystems.zfs = true;
+    networking.hostId = "8425e349";
     environment.systemPackages = [
       nixieCli
       pkgs.git
+      pkgs.jq
     ];
   };
   # The generation `nixie apply` switches to after `nixie usb allow`.
@@ -89,6 +97,44 @@ pkgs.testers.runNixOSTest {
         host.send_monitor_command("device_del kbd1")
         host.send_monitor_command("device_add usb-kbd,id=kbd2,bus=usb-bus.0,port=2")
         host.wait_until_succeeds("usbguard list-devices -b | grep -q 'QEMU USB Keyboard'", timeout=60)
+
+    with subtest("the rescue network, hardware scan, drift and add-disk"):
+        # A card whose address is not in hardware.nix still gets an address.
+        host.succeed("test -e /etc/systemd/network/90-nixie-rescue.network")
+        host.succeed("grep -q 'DHCP=yes' /etc/systemd/network/90-nixie-rescue.network")
+        host.succeed("grep -q 'RouteMetric=2048' /etc/systemd/network/90-nixie-rescue.network")
+        scan = host.succeed("nixie hardware scan 2>&1")
+        print(scan)
+        assert "uplinks" in scan and "gpu" in scan and "/dev/vda present" in scan, scan
+        assert "matches" in scan, scan
+        doc = host.succeed("nixie doctor || true")
+        print(doc)
+        assert "hardware" in doc and "matches the site" in doc, doc
+        # A disk the site already declares is never reformatted.
+        rc, out = host.execute("nixie hardware add-disk /dev/vda spare 2>&1")
+        print(rc, out)
+        assert rc == 3 and "already declared" in out, (rc, out)
+        # A new one is formatted and mounted.
+        # A name ZFS keeps for itself is refused before anything is destroyed.
+        rc, out = host.execute("printf 'vdb\n' | nixie hardware add-disk /dev/vdb spare 2>&1")
+        print(rc, out)
+        assert rc == 2 and "keeps for itself" in out, (rc, out)
+        # It asks for the disk's name before destroying anything.
+        host.succeed("printf 'vdb\n' | nixie hardware add-disk /dev/vdb scratch >&2")
+        host.succeed("zpool list scratch >/dev/null && mountpoint -q /data/scratch")
+        host.succeed("touch /data/scratch/it-works")
+
+    with subtest("the machine having moved on shows up as drift"):
+        # A generation that declares a card this machine does not have.
+        host.succeed("cp /etc/nixie/hardware.json /tmp/facts.json")
+        host.succeed("jq '.uplinks = [\"02:00:00:00:00:99\"]' /tmp/facts.json > /tmp/drift.json")
+        host.succeed("mount --bind /tmp/drift.json /etc/nixie/hardware.json")
+        doc = host.succeed("nixie doctor || true")
+        print(doc)
+        assert "DRIFT" in doc and "uplink:02:00:00:00:00:99" in doc, doc
+        scan = host.succeed("nixie hardware scan 2>&1")
+        assert "missing: 02:00:00:00:00:99" in scan or "missing:02:00:00:00:00:99" in scan or "02:00:00:00:00:99" in scan, scan
+        host.succeed("umount /etc/nixie/hardware.json")
 
     with subtest("nixie usb lists the block, allow writes the site, apply lets it through"):
         out = host.succeed("nixie usb")

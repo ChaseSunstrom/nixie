@@ -12,6 +12,7 @@ rec {
   nixie-installer = installer;
   nixie-cli = import ./nixie-cli.nix { inherit pkgs; };
   nixie-panel = import ./nixie-panel.nix { inherit pkgs; };
+  nixie-cockpit = import ./nixie-cockpit.nix { inherit pkgs; };
   inherit (web) nixie-ui nixie-setup-web;
   nixie-setup = import ./nixie-setup.nix { inherit pkgs inputs self; };
   deploy = import ./deploy.nix { inherit pkgs; };

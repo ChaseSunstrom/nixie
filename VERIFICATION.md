@@ -319,6 +319,64 @@ shows (`notifFirst`) and whether QML had to cut it (`notifTruncated`, from
 the `Text.truncated` property), and the test fails if the summary is
 truncated or the text is not the full "summary / body".
 
+## Slice (p): hardware
+
+Change request (ARCHITECTURE 4.11). `vm-hardware` grew to five subtests and
+passed on 2026-09-12: "test script finished in 24.74s". The new ones prove
+the rescue network is installed (`90-nixie-rescue.network`, DHCP, route
+metric 2048, so a card whose address is not in `hardware.nix` still gets an
+address and never beats the real uplink); `nixie hardware scan` reports the
+declared uplinks, GPU, TPM and disks against the machine and says it
+matches; `nixie doctor` carries the same line; `nixie hardware add-disk`
+refuses a disk the site already declares (exit 3), refuses a name ZFS keeps
+for itself (exit 2), asks for the disk's own name before destroying
+anything, and then creates the pool and mounts it under the data root; and,
+with the facts file swapped for one naming a card this machine does not
+have, both `doctor` and `scan` report the drift by address.
+
+The facts a site declares now live in `/etc/nixie/hardware.json` (GPU, TPM,
+uplinks, disks, Secure Boot), so nothing has to re-derive them to compare.
+
+Four things this slice got wrong first, all worth keeping in mind. `add-disk`
+began by shelling out to disko's CLI, which evaluates Nix and builds a
+closure: it hung the VM and would have failed on any installed host, since
+an installed host has no Nix search path and may have no network. It now
+uses `sgdisk` and `zpool` directly, which is also what the generated disko
+config would have done. The rewrite dropped the `;;` that closed its `case`
+branch, which bash reports as a syntax error at the *next* branch; extracting
+the generated script and running `bash -n` on it found that in one step
+where reading the Nix source had not. A pool named `spare` is rejected by
+ZFS because that word names a vdev kind, so the command now says which
+words are reserved instead of passing a confusing `zpool` error through.
+And the test itself used `jq` inside the VM, which that node did not have.
+
+## Slice (q): history
+
+Change request (ARCHITECTURE 4.11, D22). One command answers for every kind
+of history a host keeps: `nixie rollback --json` prints its generations
+(number, label, kernel, date, which is current and which was booted), its
+guest snapshots, its data snapshots and its restic backups in one shape.
+Two screens read it and neither scrapes human output: `packages.nixie-cockpit`
+is the host page's History screen, a Cockpit package that asks the CLI
+through the bridge (`cockpit.spawn`), and `ui/src/pages/History.tsx` is the
+control panel's, reached from the nav and the command palette.
+
+`vm-host-ui` grew a subtest and passed on 2026-09-12: "test script finished
+in 13.88s". It proves the page is joined into Cockpit's share with its
+manifest, index and script, that the manifest names the History menu entry,
+that the script asks for `nixie rollback --json` rather than parsing text,
+and that the host answers with exactly the four keys, the newest generation
+marked current.
+
+Two bugs came out of it, both mine and both silent. `jq -s add // echo '[]'`
+reads as jq's own alternative operator, so jq tried to open `echo` and `[]`
+as files; it is `jq -s 'add // []'`. And a declared guest that does not
+exist yet made `incus snapshot list` fail inside a command substitution,
+which under `set -e` took the whole report down with no message at all: the
+listing tolerates a missing instance now. The lesson both share is that a
+report which gathers from several sources has to survive each of them being
+absent, because on a fresh host most of them are.
+
 ## Console
 
 `vm-console`: tty1 shows the front panel (OCR finds the wordmark and the
@@ -370,5 +428,5 @@ the verification session; its summary is the table.
 | vm-encryption (1258 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b); reenroll subtest added in slice (o) |
 | vm-backup (27 s) | pass (change request, slice (m)) |
 | vm-rollback (132 s) | pass (change request, slice (n)) |
-| vm-hardware (29 s) | pass (change request, slice (o)) |
+| vm-hardware (25 s, five subtests) | pass (change request, slices (o) and (p)) |
 | vm-desktop (110 s, eight subtests) | pass (change request, slice (r)) |

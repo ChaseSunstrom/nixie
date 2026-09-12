@@ -7,6 +7,7 @@ import { Instances, CreateInstance } from "./pages/Instances";
 import { InstancePage } from "./pages/Instance";
 import { Images, Profiles, Networks, Storage, Operations, Settings } from "./pages/Others";
 import { Dashboards } from "./pages/Dashboards";
+import { History } from "./pages/History";
 import { RANGES, fmtBytes } from "./lib/series";
 import { finishes } from "./tokens";
 
@@ -134,6 +135,7 @@ export function App() {
         {page === "operations" && <Operations />}
         {page === "settings" && <Settings />}
         {page === "dashboards" && <Dashboards uid={route[1]} guest={route[2]} />}
+        {page === "history" && <History />}
       </main>
       <Palette open={palette} onClose={() => setPalette(false)} />
       <Toasts />
