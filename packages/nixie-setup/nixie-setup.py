@@ -260,7 +260,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({"secret": secret, "uri": uri, "qr": qr_text(uri)})
         if path == "/api/attestation":
             p = os.path.join(keys_dir(), "attestation-qr")
-            return self.send_json({"text": open(p).read() if os.path.exists(p) else ""})
+            r = os.path.join(keys_dir(), "recovery-key")
+            key = open(r).read().strip() if os.path.exists(r) else ""
+            return self.send_json({"text": open(p).read() if os.path.exists(p) else "", "recovery": key, "recoveryQr": qr_text(key) if key else ""})
         if path == "/api/download/header-backup":
             p = os.path.join(ARGS.state_dir, "header-backup.tar.age")
             if not os.path.exists(p):

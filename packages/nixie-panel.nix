@@ -72,14 +72,14 @@ pkgs.writeShellApplication {
         for h in /sys/class/drm/card*/device/hwmon/hwmon*/temp1_input; do [ -e "$h" ] && { b "$BG"; c "$INK"; printf '  gpu %s°C' "$(( $(cat "$h") / 1000 ))"; r; printf '\n'; }; done
       fi
       if [ -e /run/current-system/sw/bin/nixie ]; then
-        doc=$(timeout 5 nixie doctor 2>/dev/null | grep -iE 'MISSING|NEEDED|NOT|full' || true)
+        doc=$(timeout 5 nixie doctor 2>/dev/null | grep -iE 'MISSING|NEEDED|NOT|BLOCKED|RECOVERY|DRIFT|full' || true)
         [ -n "$doc" ] && { b "$BG"; c "$ERR"; printf '  doctor: %s\n' "$doc"; r; }
       fi
       # QR at the right
       qy=3; qx=$(( cols - ''${#ql[0]} - 4 )); [ "$qx" -lt 60 ] && qx=60
       for l in "''${ql[@]}"; do printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$INK"; printf '%s' "$l"; r; qy=$((qy+1)); done
       printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$MUTED"; printf '%s' "$url"; r
-      printf '\033[%d;1H' "$((rows-1))"; b "$BG"; c "$MUTED"; printf '  any key: log in · r: roll back to the previous system · b: boot the previous one next time · Ctrl+Alt+F3: plain console'; r
+      printf '\033[%d;1H' "$((rows-1))"; b "$BG"; c "$MUTED"; printf '  any key: log in · r: roll back to the previous system · b: boot the previous one next time · e: re-enrol Secure Boot, TPM and attestation · Ctrl+Alt+F3: plain console'; r
     }
     stty -echo 2>/dev/null || true
     while true; do
@@ -93,6 +93,8 @@ pkgs.writeShellApplication {
           # console can be read back later.
           r) nixie rollback 2>&1 | tee >(logger -t nixie-panel) | tail -3; sleep 3; stty -echo 2>/dev/null || true ;;
           b) nixie rollback --boot-previous 2>&1 | tee >(logger -t nixie-panel) | tail -2; sleep 3; stty -echo 2>/dev/null || true ;;
+          # Re-enrolment asks for the recovery key and PIN on this console.
+          e) nixie security reenroll || true; read -r -s -n 1 -p "press any key"; stty -echo 2>/dev/null || true ;;
           *) exec login ;;
         esac
       fi

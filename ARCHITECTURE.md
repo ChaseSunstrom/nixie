@@ -487,7 +487,7 @@ Recovery (section 7):
   secret (new QR), sets the lockout auth, and rebuilds the header bundle.
 - `nixie usb [--json]` lists blocked devices from usbguard; `nixie usb
   allow <vendor:product[/serial]>` appends to `usbguard.allow` in
-  `hosts/<name>/usb.nix` (imported by the host's settings) and commits. The
+  `hosts/<name>/usb.nix` (imported by `mkSite` when present) and commits. The
   generated rules always allow HID keyboards while `nixie.setup.pending`
   or a reenroll is running.
 
@@ -761,7 +761,7 @@ and runs `nixie apply`.
 | `systemd-security` | every platform unit at "OK" or a `# exposure:` comment |
 | `profiles-disjoint` | `nix why-depends` both directions on the examples |
 | `option-docs` | every `nixie.*` option has a description |
-| `eval-matrix` | throwaway sites: no GPU, one NIC, no TPM, no data disk, VM |
+| `eval-matrix` | throwaway sites: no GPU, one NIC, no TPM, no data disk, VM; evaluation only (the derivation paths are written without string context, so the check does not build each host's build closure) |
 | `vm-boot-plain` | example server boots, incusd up |
 | `vm-encryption` | OVMF + swtpm: LUKS root unlock, TPM layer + PIN, attestation code shown, duress wipes, remote unlock |
 | `vm-egress` | declared and undeclared guest cannot reach the internet directly under exit-node |

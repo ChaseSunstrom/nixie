@@ -24,7 +24,8 @@ it has run at a release, this section lists what it produces.
   palette; one walk-through video.
 - Guests: the examples answering, as a terminal recording.
 - Desktop: greeter, session, launcher modes, notifications, OSDs, power menu,
-  lock screen, overview, window motion and a finish switch on video.
+  control centre, calendar, wallpaper picker, lock screen, overview, window
+  motion, a runtime finish switch and wallpaper change on video.
 - Host page: Cockpit with Nixie branding and the second-factor login.
 
 ## Requirements
@@ -87,7 +88,7 @@ Both share the boot chain, the security stack, the installer and the
 | `nixie.security.duress.enable` | a second passphrase that erases every key slot and powers off | no undo | off |
 | `nixie.security.remoteUnlock.enable` | early-boot SSH with the administrator's keys | the early-boot host key on the boot partition | off |
 | `nixie.security.lockdown` | kernel lockdown integrity mode | a kernel rebuild and no unsigned modules | `none` |
-| `nixie.security.hardening.usbguard.enable` | USB allowlist from setup | new devices blocked until listed | on for servers |
+| `nixie.security.hardening.usbguard.enable` | USB allowlist from setup, plus `usbguard.allow` | new devices blocked until `nixie usb allow` lists them | on for servers |
 
 Each was exercised in a VM with OVMF and swtpm
 ([VERIFICATION.md#encryption](VERIFICATION.md#encryption)); the table's
@@ -160,7 +161,9 @@ grep -q 'gpu = true' guests.nix
 | `nixie rollback guest <name> [--snapshot s]` | restore a guest's root disk from a snapshot; its `state/` is untouched |
 | `nixie rollback data <name> [--snapshot s] [--in-place]` | a state directory from a ZFS snapshot, beside the live one or in place |
 | `nixie reseal` | reseals attestation to the running boot chain |
-| `nixie doctor` | TPM, attestation, Secure Boot, key slots, guests, disk space |
+| `nixie security reenroll` | after a board, TPM or firmware change: Secure Boot enrolment, TPM + PIN binding with a new recovery key, attestation, lockout password, header backups; resumable, also from the front panel (`e`) ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
+| `nixie usb [--json]`, `nixie usb allow <vendor:product[/serial]>` | blocked USB devices; allow one in `hosts/<name>/usb.nix` and commit, then `nixie apply` |
+| `nixie doctor` | TPM, attestation, Secure Boot, key slots, whether the last unlock needed the recovery key, blocked USB devices, guests, backup check, disk space |
 | `nixie export <instance>` | a `guests.nix` entry for a scratch instance |
 | `nixie menu` | the desktop menu: finish, wallpaper, packages, update, keybinds |
 
@@ -178,7 +181,9 @@ What the kit plus the site repository give back, and the order:
    refetched with `nixie fetch`.
 4. `headers/` in the kit restores a damaged LUKS header
    (`cryptsetup luksHeaderRestore <device> --header-backup-file <name>.header`);
-   `recovery-key.txt` opens the TPM layer when the TPM cannot.
+   `recovery-key.txt` opens the TPM layer when the TPM cannot. The key from
+   setup was shown once and is kept nowhere on the host; after using it,
+   `nixie security reenroll` rebinds the TPM and shows a new one.
 
 `nixie backup kit <file>` writes the kit, encrypted with a passphrase you
 type; keep it offline. Local ZFS snapshots (`nixie.backups.snapshots`, and
@@ -191,6 +196,24 @@ The first text console shows a front panel (`nixie.console.frontPanel.enable`,
 on by default); any key opens the normal login. `nixie.console.kiosk.enable`
 keeps a kiosk with the control panel behind a lock page on the local display
 ([docs/console.md](docs/console.md), [VERIFICATION.md#console](VERIFICATION.md#console)).
+
+## Desktop
+
+The desktop profile is a complete Hyprland rice, declared in the site and
+switchable at runtime ([docs/desktop.md](docs/desktop.md),
+[VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)):
+a floating bar (mark, workspaces, focused window or playing track, tray,
+network, Bluetooth, volume, battery, clock), a launcher with app icons and
+favourites plus file, calculator, emoji and clipboard modes, a notification
+centre with do-not-disturb, a control centre (sliders, toggles, media, the
+three finish swatches, wallpaper), a calendar, OSDs, a tiled power menu, a
+window switcher, a wallpaper picker, a keybind cheat-sheet, a themed lock
+screen, kitty with a starship prompt and fastfetch. Hyprland is configured
+in Lua from `nixie.desktop.*` (`look.gaps`, `look.rounding`, `look.blur`,
+`look.animations`, `fonts.ui`, `favourites`, `workspaces.labels` and the
+rest); `~/.config/hypr/local.lua` is loaded last. `Super+T` cycles the
+finish and `Super+W` the wallpaper for the session with no rebuild;
+`nixie.desktop.finish` stays the declared default.
 
 ## Host page
 
@@ -223,13 +246,14 @@ Version 0.1.0, unreleased. By section of the brief:
 | 5 guests: schema, derivations, declared/scratch, Export | done; Declare from the panel waits for a host agent |
 | 6 data and manifest, backups, restore | done; change request: local snapshots, verify, kit, restore beside ([VERIFICATION.md#slice-m-backups](VERIFICATION.md#slice-m-backups)) |
 | 11 rollback (change request) | done: generations kept and labelled, `nixie rollback`, `apply --confirm-within`, front-panel rollback ([VERIFICATION.md#slice-n-rollback](VERIFICATION.md#slice-n-rollback)) |
+| 7 recovery (change request) | done: recovery key shown once and never stored, unlock falls back to it, `nixie security reenroll`, `nixie usb`, keyboards allowed during setup and reenroll ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
 | 7 security features | done; lockdown integrity is an option that rebuilds the kernel and is documented, not runtime-verified |
 | 8 networking, exit-node egress | done for managed-nat; exit-node needs managed-nat by design |
 | 9 monitoring and backups | done |
 | 10 control panel | done for every screen the brief lists; screens the design does not draw follow its recipes |
 | 11 installer: kiosk, LAN, headless, setup generation | done; the headless path is verified through the same phase scripts, not a full kexec run |
 | 12.1 server host page | done (TOTP; no passkeys, see ARCHITECTURE D3) |
-| 12.2 desktop | done; overview through hyprspace |
+| 12.2 desktop | done; overview through hyprspace; change request: the full rice, Lua config, runtime finish and wallpaper switching ([VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)) |
 | 13 extension points | done |
 | 14 docs, examples | done; media gallery generated per release |
 | console slice | done |

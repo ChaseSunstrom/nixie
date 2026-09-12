@@ -18,8 +18,12 @@ pkgs.writeShellApplication {
     systemd
     tpm2-tools
     tpm2-totp
+    usbguard
+    qrencode
     util-linux
     yq-go
+    # `security reenroll` runs the same phase scripts setup ran.
+    (import ./nixie-installer.nix { inherit pkgs; })
   ];
   text = ''
     layout() { jq -r "$1" /run/current-system/etc/nixie/layout.json; }
@@ -140,6 +144,16 @@ pkgs.writeShellApplication {
         if feature secureBoot; then
           if bootctl status 2>/dev/null | grep -qE 'Secure Boot: *enabled'; then say "secure boot" "enabled"; else say "secure boot" "NOT ENABLED"; rc=1; fi
         fi
+        if feature tpm; then
+          # systemd-cryptsetup says so when the TPM could not unseal and a
+          # typed key opened the layer instead.
+          if journalctl -b -q -o cat 2>/dev/null | grep -qE 'TPM2 (operation|PIN unlock) failed'; then say "unlock" "RECOVERY KEY used at the last unlock; run nixie security reenroll"; rc=1
+          else say "unlock" "TPM"; fi
+        fi
+        if systemctl is-active -q usbguard 2>/dev/null; then
+          n=$(usbguard list-devices -b 2>/dev/null | grep -c . || true)
+          if [ "$n" -gt 0 ]; then say "usb" "$n BLOCKED device(s); run nixie usb"; rc=1; else say "usb" "nothing blocked"; fi
+        fi
         if [ -e /run/current-system/etc/nixie/guests.json ] && incus info >/dev/null 2>&1; then
           for g in $(jq -r '.declared | keys[]' /run/current-system/etc/nixie/guests.json); do
             st=$(incus list "^$g\$" -c s -f csv 2>/dev/null || echo MISSING); say "guest" "$g: ''${st:-MISSING}"
@@ -171,6 +185,63 @@ pkgs.writeShellApplication {
       backup)
         command -v nixie-backup >/dev/null || { echo "backups are off on this host" >&2; exit 2; }
         exec nixie-backup "$@" ;;
+      security)
+        [ "''${1:-}" = reenroll ] || { echo "usage: nixie security reenroll [--backup-dest <dir>]" >&2; exit 2; }
+        shift
+        d=/var/lib/nixie/reenroll
+        mkdir -p "$d" /run/nixie/keys; chmod 700 /run/nixie/keys
+        # A keyboard plugged in for this must not be blocked: the ones already
+        # waiting are let through, and a temporary rule covers the rest
+        # until the end.
+        rule=""
+        if systemctl is-active -q usbguard 2>/dev/null; then
+          for id in $(usbguard list-devices -b | grep -E 'with-interface [^ ]*03:0[01]:01' | cut -d: -f1); do usbguard allow-device "$id"; done
+          rule=$(usbguard append-rule -t 'allow with-interface one-of { 03:00:01 03:01:01 }' || true)
+        fi
+        if feature tpm && [ -t 0 ]; then
+          [ -s /run/nixie/keys/recovery-key ] || { read -r -s -p "recovery key of the outer layer: " k; echo; (umask 077; printf '%s' "$k" >/run/nixie/keys/recovery-key); }
+          [ -s /run/nixie/keys/pin ] || { read -r -s -p "new PIN: " k; echo; (umask 077; printf '%s' "$k" >/run/nixie/keys/pin); }
+        fi
+        # The phases keep their markers here, so a reboot in the middle
+        # (Secure Boot enrolment) resumes where it stopped; setup's own
+        # markers stay untouched.
+        [ -e "$d/state.json" ] || cp /var/lib/nixie/setup/state.json "$d/" 2>/dev/null || true
+        rc=0
+        NIXIE_SETUP_DIR=$d nixie-phase 5 || rc=$?
+        if [ "$rc" = 10 ]; then echo "reboot now, then run 'nixie security reenroll' again to continue"; fi
+        if [ "$rc" = 0 ]; then
+          NIXIE_SETUP_DIR=$d nixie-phase 6 --force "$@" || rc=$?
+          # The new bundle replaces setup's as soon as it exists; a failed
+          # verification afterwards must not lose it.
+          if [ -e "$d/header-backup.tar.age" ]; then mv "$d/header-backup.tar.age" /var/lib/nixie/setup/header-backup.tar.age; fi
+          [ "$rc" = 0 ] && { NIXIE_SETUP_DIR=$d nixie-phase 7 || rc=$?; }
+          if [ "$rc" = 0 ]; then
+            if [ -s /run/nixie/keys/recovery-key ] && [ -t 1 ]; then
+              echo; echo "The new recovery key, shown once:"; qrencode -t UTF8 -m 1 "$(cat /run/nixie/keys/recovery-key)"; cat /run/nixie/keys/recovery-key; echo
+            fi
+            if [ -s /run/nixie/keys/attestation-qr ] && [ -t 1 ]; then echo "The new attestation secret; scan it now:"; cat /run/nixie/keys/attestation-qr; fi
+            rm -r "$d"; echo "re-enrolment complete"
+          fi
+        fi
+        [ -z "$rule" ] || usbguard remove-rule "$rule" >/dev/null 2>&1 || true
+        exit "$rc" ;;
+      usb)
+        f="$site/hosts/$host/usb.nix"
+        case "''${1:-}" in
+          allow)
+            spec=''${2:?vendor:product[/serial]}
+            [ -e "$f" ] || printf '# Written by nixie usb allow: USB devices allowed on this host.\n{\n  nixie.security.hardening.usbguard.allow = [\n  ];\n}\n' >"$f"
+            grep -qF "\"$spec\"" "$f" || sed -i "/^  \];/i\    \"$spec\"" "$f"
+            git -C "$site" add "$f" && git -C "$site" commit -qm "usb: allow $spec on $host" || true
+            echo "$spec added to $f; run 'nixie apply' to let it through" ;;
+          ""|--json)
+            list=$(usbguard list-devices -b 2>/dev/null || true)
+            rows=$(printf '%s\n' "$list" | sed -n 's/^\([0-9]*\): block id \([0-9a-f:]*\) serial "\([^"]*\)" name "\([^"]*\)".*/\1\t\2\t\3\t\4/p')
+            if [ "''${1:-}" = --json ]; then printf '%s\n' "$rows" | jq -R -s 'split("\n") | map(select(. != "") | split("\t") | {id: .[0], device: .[1], serial: .[2], name: .[3]})'
+            elif [ -z "$rows" ]; then echo "no blocked USB devices"
+            else printf '%-13s %-16s %s\n' device serial name; printf '%s\n' "$rows" | awk -F'\t' '{printf "%-13s %-16s %s\n", $2, $3, $4}'; echo "allow one with: nixie usb allow <vendor:product[/serial]>"; fi ;;
+          *) echo "usage: nixie usb [--json] | usb allow <vendor:product[/serial]>" >&2; exit 2 ;;
+        esac ;;
       rollback)
         prof=/nix/var/nix/profiles/system
         root=$(layout .dataRoot 2>/dev/null); [ -n "$root" ] && [ "$root" != null ] || root=/data
@@ -240,7 +311,7 @@ pkgs.writeShellApplication {
           *) echo "usage: nixie rollback [--list | --generation N | --boot-previous | guest <name> [--snapshot s] | data <name>|state [--snapshot s] [--in-place] [--yes]]" >&2; exit 2 ;;
         esac ;;
       *)
-        echo "usage: nixie apply [--yes] [--skip-host] [--confirm-within <duration>] | apply --confirm | rollback ... | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | doctor | menu" >&2; exit 2 ;;
+        echo "usage: nixie apply [--yes] [--skip-host] [--confirm-within <duration>] | apply --confirm | rollback ... | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | security reenroll | usb [--json] | usb allow <device> | doctor | menu" >&2; exit 2 ;;
     esac
   '';
 }

@@ -16,8 +16,16 @@ are off by default except that the ISO pre-selects encryption.
 
 Always on with encryption: `panic=10`, a TPM lockout password set by setup
 and kept on the encrypted root, and LUKS header backups for every layer,
-bundled with the recovery key and encrypted with age to the host's key and
-every recipient in `.sops.yaml`.
+encrypted with age to the host's key and every recipient in `.sops.yaml`.
+With the TPM layer, setup also enrols a recovery key on the outer layer,
+shows it once (text and QR) and keeps it nowhere on the machine; the boot
+prompt falls back to it whenever the TPM cannot unseal, `nixie doctor` says
+when that happened, and `nixie security reenroll` then rebinds the TPM
+(Secure Boot, TPM + PIN, attestation, lockout password, header backups; the
+same phases as setup, resumable across the enrolment reboot) and shows a
+fresh key. USB devices plugged in later are blocked; `nixie usb` lists
+them and `nixie usb allow` records one in the site. A keyboard is never
+blocked while setup or a reenroll runs.
 
 On the host: nftables default-drop inbound, guests can never reach the host's
 SSH, control panel, host page or metrics ports, every platform unit passes

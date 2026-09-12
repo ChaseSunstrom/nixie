@@ -1,12 +1,28 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
   inherit (import ../../lib/option.nix lib) mkOption;
   cfg = config.nixie.security.hardening;
   h = "nixie.security.hardening";
+  allowRule =
+    spec:
+    let
+      parts = lib.splitString "/" spec;
+      id = lib.head parts;
+      serial = lib.concatStringsSep "/" (lib.tail parts);
+    in
+    "allow id ${id}" + lib.optionalString (serial != "") " serial \"${serial}\"";
+  declaredRules = pkgs.writeText "nixie-usbguard-declared.conf" (
+    lib.concatMapStrings (r: r + "\n") (map allowRule cfg.usbguard.allow)
+    # A keyboard must work on the console while setup runs; after Finish
+    # this rule is gone and only the setup list and the allow list remain.
+    + lib.optionalString config.nixie.setup.pending "allow with-interface one-of { 03:00:01 03:01:01 }\n"
+    + cfg.usbguard.rules
+  );
 in
 {
   options.nixie.security.hardening = {
@@ -24,7 +40,7 @@ in
       default = false;
       description = ''
         Only USB devices present at setup are allowed. Anything plugged in
-        later is ignored until you add it to the allowlist in ${h}.usbguard.rules.
+        later is blocked until `nixie usb allow` adds it to ${h}.usbguard.allow.
       '';
       nixieUi = {
         section = "security";
@@ -34,7 +50,20 @@ in
     usbguard.rules = mkOption {
       type = lib.types.lines;
       default = "";
-      description = "The USB allowlist. Empty means the list setup generated on this host.";
+      description = "Extra usbguard rules, added after the list of devices present when this host was set up.";
+    };
+    usbguard.allow = mkOption {
+      type = lib.types.listOf (lib.types.strMatching "^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}(/.*)?$");
+      default = [ ];
+      example = [
+        "1234:5678"
+        "1234:5678/SERIAL"
+      ];
+      description = ''
+        USB devices allowed on top of the ones present at setup, as
+        "vendor:product" or "vendor:product/serial". `nixie usb allow` adds
+        to this list in the site.
+      '';
     };
     memoryEncryption.enable = mkOption {
       type = lib.types.bool;
@@ -109,9 +138,21 @@ in
     (lib.mkIf cfg.usbguard.enable {
       services.usbguard = {
         enable = true;
-        rules = if cfg.usbguard.rules == "" then null else cfg.usbguard.rules;
         implicitPolicyTarget = "block";
         presentDevicePolicy = "apply-policy";
+      };
+      # The policy is the devices present when usbguard first ran on this
+      # host (kept in /var/lib/usbguard/setup-rules.conf) followed by the
+      # declared part; usbguard reads one file, so it is joined before every
+      # start and the daemon restarts when the declared part changes.
+      systemd.services.usbguard = {
+        path = [ config.services.usbguard.package ];
+        restartTriggers = [ declaredRules ];
+        preStart = lib.mkAfter ''
+          cd /var/lib/usbguard
+          [ -s setup-rules.conf ] || usbguard generate-policy >setup-rules.conf
+          cat setup-rules.conf ${declaredRules} >rules.conf
+        '';
       };
     })
     (lib.mkIf cfg.memoryEncryption.enable {

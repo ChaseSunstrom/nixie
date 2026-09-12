@@ -27,7 +27,7 @@ export const api = {
   secrets: (b: Record<string, string>) => j<{ ok: boolean; have: string[] }>("POST", "/api/secrets", b),
   totpNew: () => j<{ secret: string; uri: string; qr: string }>("GET", "/api/totp/new"),
   totpVerify: (code: string) => j<{ ok: boolean }>("POST", "/api/totp/verify", { code }),
-  attestation: () => j<{ text: string }>("GET", "/api/attestation"),
+  attestation: () => j<{ text: string; recovery: string; recoveryQr: string }>("GET", "/api/attestation"),
   reboot: () => j<{ ok: boolean }>("POST", "/api/reboot", {}),
   finish: () => j<{ ok: boolean; output: string }>("POST", "/api/finish", {}),
   phase: (n: number, body: Record<string, unknown>, onLine: (l: string) => void) =>

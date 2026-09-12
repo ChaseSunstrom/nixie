@@ -68,6 +68,7 @@ function Wizard() {
   const [totpCode, setTotpCode] = useState("");
   const [totpOk, setTotpOk] = useState(false);
   const [attest, setAttest] = useState("");
+  const [recovery, setRecovery] = useState<{ key: string; qr: string }>({ key: "", qr: "" });
   const logRef = useRef<HTMLPreElement>(null);
 
   const refresh = () => api.state().then(setSt).catch(() => undefined);
@@ -197,12 +198,13 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
                   <Field label="Also copy the header backup to this path (a USB stick), optional"><input className="input mono" value={(values.backupDest as string) ?? ""} onChange={(e) => set("backupDest", e.target.value)} /></Field>
                 </div>
               )}
+              {recovery.key && <div><div className="caption">The recovery key opens the disk when the TPM cannot. Write it down or scan it now; it is shown once and never stored on this machine.</div><pre className="well term" style={{ fontSize: 10, lineHeight: 1 }}>{recovery.qr}</pre><pre className="well mono">{recovery.key}</pre></div>}
               {attest && <div><div className="caption">Scan this with your authenticator app now; it is shown once.</div><pre className="well term" style={{ fontSize: 10, lineHeight: 1 }}>{attest}</pre></div>}
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button className="btn primary" disabled={busy} onClick={async () => {
                   if (next.n === 6) await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "" });
                   const rc = await run(next.n, next.n === 6 ? { backupDest: values.backupDest } : {});
-                  if (next.n === 6 && rc === 0) api.attestation().then((a) => setAttest(a.text));
+                  if (next.n === 6 && rc === 0) api.attestation().then((a) => { setAttest(a.text); setRecovery({ key: a.recovery, qr: a.recoveryQr }); });
                   if ((next.n === 5 && rc === 10) || (next.n === 6 && rc === 0 && (features.tpm || features.attestation))) setLines((l) => [...l, "Reboot to continue."]);
                 }}>Run</button>
                 <button className="btn" onClick={() => api.reboot()}>Reboot</button>

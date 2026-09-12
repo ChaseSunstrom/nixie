@@ -202,6 +202,12 @@ Pick the accent colour from the wallpaper instead of the finish.
 
 Commands run when the session starts.
 
+## `nixie.desktop.clock.format`
+
+*string*, default: `"ddd d MMM  HH:mm"`.
+
+The bar clock, in Qt date format.
+
 ## `nixie.desktop.defaultApps.browser`
 
 *null or string*, default: `null`.
@@ -232,17 +238,37 @@ Desktop entry name of the default terminal.
 
 Internal: the desktop profile is active.
 
+## `nixie.desktop.favourites`
+
+*list of string*, default: `[]`.
+
+Desktop entry ids pinned at the top of the launcher.
+
 ## `nixie.desktop.finish`
 
 *one of "graphite", "umber", "paper" (graphite, umber, paper)*, default: `"nixie.ui.theme"`. Wizard section: desktop.
 
-The finish for the whole desktop: bar, windows, terminal, editor and apps.
+The finish for the whole desktop: bar, windows, terminal, editor and
+apps. This is the default; the control centre can switch it for a
+person without a rebuild.
 
 ## `nixie.desktop.flatpak.enable`
 
 *boolean*, default: `false`. Wizard section: desktop.
 
 Also allow Flatpak apps. Off by default because they are not declared in the site.
+
+## `nixie.desktop.fonts.mono`
+
+*string*, default: `"JetBrains Mono"`.
+
+The monospace font (terminal, readouts).
+
+## `nixie.desktop.fonts.ui`
+
+*string*, default: `"Archivo"`.
+
+The interface font.
 
 ## `nixie.desktop.idle.lockAfter`
 
@@ -266,7 +292,7 @@ Seconds of inactivity before suspend. Empty means never.
 
 *attribute set of string*, default: `{}`.
 
-Key bindings added to or replacing the platform set.
+Extra key bindings: a key combination to a command, added to the platform set.
 
 ## `nixie.desktop.keyboard.layout`
 
@@ -279,6 +305,72 @@ Keyboard layout.
 *string*, default: `""`. Wizard section: desktop.
 
 Keyboard layout variant, if any.
+
+## `nixie.desktop.look.animations`
+
+*one of "full", "reduced", "none" (full, reduced, none)*, default: `"full"`.
+
+Window and workspace motion: the full set, faster and fewer, or none.
+
+## `nixie.desktop.look.barPosition`
+
+*one of "top", "bottom" (top, bottom)*, default: `"top"`.
+
+Where the bar sits.
+
+## `nixie.desktop.look.blur`
+
+*boolean*, default: `true`.
+
+Blur behind translucent windows and the shell.
+
+## `nixie.desktop.look.borderSize`
+
+*signed integer*, default: `2`.
+
+Window border width, in pixels.
+
+## `nixie.desktop.look.cursor.size`
+
+*signed integer*, default: `24`.
+
+Cursor size in pixels.
+
+## `nixie.desktop.look.cursor.theme`
+
+*string*, default: `"Bibata, light on paper"`.
+
+Cursor theme.
+
+## `nixie.desktop.look.gaps.inner`
+
+*signed integer*, default: `6`.
+
+Space between windows, in pixels.
+
+## `nixie.desktop.look.gaps.outer`
+
+*signed integer*, default: `14`.
+
+Space between windows and the screen edge, in pixels.
+
+## `nixie.desktop.look.iconTheme`
+
+*string*, default: `"Papirus, dark on the dark finishes"`.
+
+Icon theme for apps and the shell.
+
+## `nixie.desktop.look.rounding`
+
+*signed integer*, default: `12`.
+
+Corner radius of windows, in pixels.
+
+## `nixie.desktop.look.terminalOpacity`
+
+*floating point number*, default: `0.92`.
+
+Background opacity of the terminal, 0 to 1.
 
 ## `nixie.desktop.monitors`
 
@@ -364,6 +456,12 @@ Which power manager to use on a laptop.
 
 What closing the lid does.
 
+## `nixie.desktop.terminal.greeting`
+
+*boolean*, default: `true`.
+
+Show system facts (fastfetch) when a terminal opens.
+
 ## `nixie.desktop.user`
 
 *string*, default: `"the administrator"`.
@@ -374,7 +472,25 @@ The account that gets the desktop session.
 
 *null or absolute path*, default: `null`. Wizard section: desktop.
 
-An image for the desktop background. Empty means a plain one matching the finish.
+An image for the desktop background. Empty means the generated set for the finish.
+
+## `nixie.desktop.wallpaperCycle`
+
+*null or signed integer*, default: `null`.
+
+Minutes between automatic wallpaper changes. Empty means never.
+
+## `nixie.desktop.wallpapers`
+
+*null or absolute path*, default: `null`.
+
+A folder of your own images for the wallpaper picker, on top of the generated ones.
+
+## `nixie.desktop.workspaces.labels`
+
+*list of string*, default: `[]`.
+
+Names shown for workspaces 1, 2, 3… in the bar. Empty means numbers.
 
 ## `nixie.disks.data`
 
@@ -750,18 +866,26 @@ Where the log copy is sent (a systemd-journal-remote endpoint).
 
 Key-only SSH with modern ciphers, no root login and no forwarding.
 
+## `nixie.security.hardening.usbguard.allow`
+
+*list of string matching the pattern ^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}(/.*)?$*, default: `[]`.
+
+USB devices allowed on top of the ones present at setup, as
+"vendor:product" or "vendor:product/serial". `nixie usb allow` adds
+to this list in the site.
+
 ## `nixie.security.hardening.usbguard.enable`
 
 *boolean*, default: `false`. Wizard section: security.
 
 Only USB devices present at setup are allowed. Anything plugged in
-later is ignored until you add it to the allowlist in nixie.security.hardening.usbguard.rules.
+later is blocked until `nixie usb allow` adds it to nixie.security.hardening.usbguard.allow.
 
 ## `nixie.security.hardening.usbguard.rules`
 
 *strings concatenated with "\n"*, default: `""`.
 
-The USB allowlist. Empty means the list setup generated on this host.
+Extra usbguard rules, added after the list of devices present when this host was set up.
 
 ## `nixie.security.lockdown`
 

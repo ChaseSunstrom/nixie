@@ -42,6 +42,10 @@ let
   hostModulesRev =
     rev: siteDir: name: host:
     unfreeModule host
+    # `nixie usb allow` writes this file; a host without one has no extra devices.
+    ++ lib.optional (builtins.pathExists (siteDir + "/hosts/${name}/usb.nix")) (
+      siteDir + "/hosts/${name}/usb.nix"
+    )
     ++ [
       self.nixosModules.nixie
       host.hardware

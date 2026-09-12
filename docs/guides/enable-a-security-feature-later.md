@@ -13,7 +13,9 @@ Every feature except encryption itself is a config change and an apply:
    `/run/nixie/keys`, then a reboot; `nixie-phase 7` verifies). The setup
    generation's wizard can be brought back for this by setting
    `nixie.setup.pending = true` in the site, applying, and choosing the
-   `nixie-setup` boot entry; Finish removes it again.
+   `nixie-setup` boot entry; Finish removes it again. On an installed host
+   with the TPM layer already on, `nixie security reenroll` runs these
+   three phases in order and is resumable.
 
 Turning a feature off is the same edit the other way. `nixie apply` refuses
 to change `nixie.security.encryption.enable` on an installed system with a

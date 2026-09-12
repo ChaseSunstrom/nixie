@@ -180,6 +180,57 @@ the Incus client hanging on its websocket. Bugs the test found in the CLI:
 three tools it borrowed from an interactive PATH (`hostname`, `sed`, `nix-env`)
 are now runtime inputs, since a transient unit has none of them.
 
+## Slice (o): recovery
+
+Change request (ARCHITECTURE 4.11, D21). Two tests. `vm-hardware`: on a
+server with USBGuard on, the devices present at usbguard's first start are
+allowed (the generated `setup-rules.conf`), a keyboard hot-plugged later
+is blocked, `nixie security reenroll` lets the waiting keyboard through
+and removes its temporary rule when done, a second keyboard is blocked
+again, `nixie usb` and `nixie usb --json` list it, `nixie usb allow
+0627:0001` writes `hosts/server/usb.nix`, commits, and is idempotent, and
+`nixie apply` to the generation with that list restarts usbguard and the
+keyboard is allowed; `nixie doctor` shows the block and then its absence.
+Passed on 2026-09-11: "test script finished in 29s". One test-environment
+note: the keyboard is attached with `device_add usb-kbd,bus=usb-bus.0,port=2`;
+without a port QEMU inserts a hub first, and a blocked hub hides everything
+behind it (which is the right behaviour, but not what the test is about).
+
+`vm-encryption` grew two things. Phase 6 now shows the recovery key once
+(the key file the front end reads), keeps it out of `RECOVERY.txt`, and
+wipes the install passphrase slot; the test asserts all three. A new
+subtest boots the installed target normally (TPM and PIN), then runs
+`nixie security reenroll` with the phase-6 recovery key and a PIN: phase 6
+with `--force` removes the old TPM binding, binds again, enrols a fresh
+recovery key and wipes the old one, sets a new lockout password and
+regenerates the attestation secret; phase 7 verifies. The outer layer ends
+with exactly one recovery slot and the TPM token; the new key opens it
+(`cryptsetup open --test-passphrase`) and the old one does not; the
+header bundle in `/var/lib/nixie/setup/` is newer than setup's. The
+duress subtest that follows opens the outer layer with the PIN, which
+proves the new binding works across a boot. Passed on 2026-09-11: "test
+script finished in 1258s" (reenroll subtest 322 s).
+
+Two things are hardware-only, stated plainly: phase 7 reports "Secure Boot
+not enabled" in this OVMF (see Slice (b)), so the reenroll command exits 1
+after a complete phase 6 and keeps its markers for a resume, and the test
+accepts exactly that; and the recovery key unlocking a *fresh* TPM at the
+boot prompt rides on systemd-cryptsetup's own fallback ("TPM2 operation
+failed, falling back to traditional unlocking", which `nixie doctor`
+greps for). A run with swtpm's state deleted did reach that fallback
+(the log shows the PIN prompt, two unseal failures, then the passphrase
+prompt), but feeding three answers through the SSH relay with fixed gaps
+was not reliable, so that boot is not in the automated test.
+
+Bugs the tests found: `nixie security reenroll` moved the new header
+bundle only after phase 7 succeeded, so a failed verification lost it
+(now moved as soon as phase 6 writes it); the reenroll command needed the
+installer's phase scripts on the installed host (the CLI now carries them).
+The eval-matrix check was writing derivation paths with their string
+context, which made it build every host's whole build closure (an
+unrelated Python test suite failed there); it now drops the context and is
+the evaluation check it was meant to be.
+
 ## Console
 
 `vm-console`: tty1 shows the front panel (OCR finds the wordmark and the
@@ -229,6 +280,7 @@ the verification session; its summary is the table.
 | vm-installer-lan (172 s) | pass |
 | vm-console (258 s) | pass |
 | vm-desktop (49 s) | pass |
-| vm-encryption (626 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b) |
+| vm-encryption (1258 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b); reenroll subtest added in slice (o) |
 | vm-backup (27 s) | pass (change request, slice (m)) |
 | vm-rollback (132 s) | pass (change request, slice (n)) |
+| vm-hardware (29 s) | pass (change request, slice (o)) |

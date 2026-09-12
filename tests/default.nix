@@ -47,7 +47,10 @@ let
   # Throwaway sites: the platform must evaluate for every hardware shape.
   matrix = lib.mapAttrs (
     file: _:
-    (testHost ./sites (import (./sites + "/${file}")) "host").config.system.build.toplevel.drvPath
+    # The check is that every combination evaluates; the context is dropped so
+    # writing the paths does not pull each host's whole build closure.
+    builtins.unsafeDiscardStringContext
+      (testHost ./sites (import (./sites + "/${file}")) "host").config.system.build.toplevel.drvPath
   ) (lib.filterAttrs (n: _: lib.hasSuffix ".nix" n) (builtins.readDir ./sites));
 
   # Units the platform authors, taken from the built systems: every one must
@@ -295,6 +298,15 @@ in
   };
 
   vm-rollback = import ./vm/rollback.nix {
+    inherit
+      pkgs
+      inputs
+      nixieLib
+      exampleSite
+      ;
+    nixieCli = self.packages.x86_64-linux.nixie-cli;
+  };
+  vm-hardware = import ./vm/hardware.nix {
     inherit
       pkgs
       inputs

@@ -37,6 +37,13 @@ with the LUKS headers, the host's age key, the restic secrets, a fresh
 recovery key for the TPM layer and the rebuild steps; the README's "Rebuild
 from nothing" section walks through using it.
 
+Board, TPM or firmware replaced: boot with the recovery key at the
+passphrase prompt (the TPM prompt fails first), then run
+`nixie security reenroll` from a terminal or the front panel (`e`). It asks
+for the recovery key and a PIN, walks Secure Boot enrolment (one reboot
+when the firmware is in Setup Mode), rebinds the TPM, regenerates the
+attestation secret and shows the new recovery key and QR once.
+
 Disk headers: setup wrote `header-backup.tar.age` (all LUKS headers, the TPM
 lockout password and the attestation reseal password), encrypted to the
 host's age key and every recipient in `.sops.yaml`. Decrypt with
