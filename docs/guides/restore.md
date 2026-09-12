@@ -16,8 +16,18 @@ database are never included.
 Local history: `nixie.backups.snapshots` keeps hourly, daily and weekly ZFS
 snapshots of `state/`, and `nixie apply` takes one (`@pre-apply-<label>`,
 last five kept) before it changes anything; guests get an Incus snapshot
-`pre-apply-<label>` before an apply replaces them. `nixie rollback data`
-and `nixie rollback guest` restore from these (rollback slice).
+`pre-apply-<label>` before an apply replaces them. `nixie rollback data <name> [--snapshot s]` copies a state directory from one
+beside the live one (`<name>.restored-<time>`), or over it with
+`--in-place`; `nixie rollback data state` clones or rolls back the whole
+dataset. `nixie rollback guest <name> [--snapshot s]` restores a guest's root
+disk from an Incus snapshot; its `state/` mount is outside the snapshot.
+
+Host generations: `nixie rollback --list` shows every kept generation with
+its site commit, date and kernel; `nixie rollback` goes back one now,
+`--generation N` to a specific one, `--boot-previous` only for the next
+boot. The tty1 front panel offers the first and the last with one key. An
+`apply --confirm-within 10m` reverts on its own unless `nixie apply
+--confirm` follows.
 
 `nixie apply` afterwards recreates any instance that was missing; its state
 is the restored directory.

@@ -22,6 +22,17 @@ in
         order = 1;
       };
     };
+    keepGenerations = mkOption {
+      type = lib.types.ints.positive;
+      default = 10;
+      description = ''
+        How many earlier versions of this machine's system stay bootable. Each
+        `nixie apply` adds one; the boot menu, `nixie rollback --list` and the
+        History page show them with the site commit, date and kernel. Older
+        ones go with the weekly clean-up, and with Secure Boot on only these
+        stay signed.
+      '';
+    };
     siteRevision = mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;

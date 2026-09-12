@@ -109,6 +109,8 @@ in
       systemd.services."getty@${panelTty}".enable = false;
       systemd.services.nixie-panel = {
         description = "Nixie front panel on ${panelTty}";
+        # `r`/`b` on the panel run the nixie CLI from the system profile.
+        path = [ "/run/current-system/sw" ];
         wantedBy = [ "multi-user.target" ];
         after = [
           "incus.service"

@@ -61,6 +61,7 @@ let
     ) sys.config.systemd.units;
   documentedExposure = [
     "nixie-backup-check"
+    "nixie-gc"
     "nixie-fetch"
     "nixie-setup"
     "nixie-tailscale-serve"
@@ -293,6 +294,15 @@ in
     nixieCli = self.packages.x86_64-linux.nixie-cli;
   };
 
+  vm-rollback = import ./vm/rollback.nix {
+    inherit
+      pkgs
+      inputs
+      nixieLib
+      exampleSite
+      ;
+    nixieCli = self.packages.x86_64-linux.nixie-cli;
+  };
   vm-backup = import ./vm/backup.nix {
     inherit pkgs nixieLib exampleSite;
     nixieCli = self.packages.x86_64-linux.nixie-cli;

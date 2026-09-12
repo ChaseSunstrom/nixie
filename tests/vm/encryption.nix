@@ -236,6 +236,8 @@ pkgs.testers.runNixOSTest {
         print(doc)
         assert "RESEAL NEEDED" not in doc, doc
         target.succeed("nixie reseal")
+        # The sealed generation label on the ESP matches the running system.
+        target.succeed("diff <(cat /boot/nixie/attestation-generation) /run/current-system/nixos-version")
         target.shutdown()
 
     with subtest("duress passphrase wipes every key slot and powers off"):

@@ -8,6 +8,7 @@ pkgs.writeShellApplication {
   runtimeInputs = with pkgs; [
     coreutils
     curl
+    util-linux # logger
     jq
     qrencode
     iproute2
@@ -78,15 +79,22 @@ pkgs.writeShellApplication {
       qy=3; qx=$(( cols - ''${#ql[0]} - 4 )); [ "$qx" -lt 60 ] && qx=60
       for l in "''${ql[@]}"; do printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$INK"; printf '%s' "$l"; r; qy=$((qy+1)); done
       printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$MUTED"; printf '%s' "$url"; r
-      printf '\033[%d;1H' "$((rows-1))"; b "$BG"; c "$MUTED"; printf '  press any key to log in · Ctrl+Alt+F3 for a plain console'; r
+      printf '\033[%d;1H' "$((rows-1))"; b "$BG"; c "$MUTED"; printf '  any key: log in · r: roll back to the previous system · b: boot the previous one next time · Ctrl+Alt+F3: plain console'; r
     }
     stty -echo 2>/dev/null || true
     while true; do
       draw
-      if read -r -t 5 -n 1 -s; then
+      if read -r -t 5 -n 1 -s k; then
         stty sane 2>/dev/null || true
         printf '\033[H\033[2J'
-        exec login
+        case "$k" in
+          # A broken new generation is undone from here, no UI needed.
+          # Their output also lands in the journal, so an action taken at the
+          # console can be read back later.
+          r) nixie rollback 2>&1 | tee >(logger -t nixie-panel) | tail -3; sleep 3; stty -echo 2>/dev/null || true ;;
+          b) nixie rollback --boot-previous 2>&1 | tee >(logger -t nixie-panel) | tail -2; sleep 3; stty -echo 2>/dev/null || true ;;
+          *) exec login ;;
+        esac
       fi
     done
   '';

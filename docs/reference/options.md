@@ -415,6 +415,16 @@ installed and, on a server, whether guests may be given the GPU.
 Whether the installer found a TPM 2.0 chip. TPM binding and attestation
 need one.
 
+## `nixie.host.keepGenerations`
+
+*positive integer, meaning >0*, default: `10`.
+
+How many earlier versions of this machine's system stay bootable. Each
+`nixie apply` adds one; the boot menu, `nixie rollback --list` and the
+History page show them with the site commit, date and kernel. Older
+ones go with the weekly clean-up, and with Secure Boot on only these
+stay signed.
+
 ## `nixie.host.name`
 
 *string matching the pattern ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$*, required. Wizard section: network.

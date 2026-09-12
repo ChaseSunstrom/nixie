@@ -155,6 +155,10 @@ grep -q 'gpu = true' guests.nix
 | `nixie fetch` | fills `cache/` from `data.nix`; idempotent ([VERIFICATION.md#data](VERIFICATION.md#data)) |
 | `nixie backup now\|list\|verify\|kit <file>` | run a backup, list snapshots, check the repository, write the disaster kit ([VERIFICATION.md#slice-m-backups](VERIFICATION.md#slice-m-backups)) |
 | `nixie restore <snapshot> [--path <p>] [--to <dir>]` | puts `state/` (or one path) back in place, or beside the live data with `--to` |
+| `nixie apply --confirm-within 10m` | as above, and reverts host and touched guests unless `nixie apply --confirm` arrives in time ([VERIFICATION.md#slice-n-rollback](VERIFICATION.md#slice-n-rollback)) |
+| `nixie rollback [--list \| --generation N \| --boot-previous]` | back to the previous system now, list generations (site commit, date, kernel), or boot the previous one next time |
+| `nixie rollback guest <name> [--snapshot s]` | restore a guest's root disk from a snapshot; its `state/` is untouched |
+| `nixie rollback data <name> [--snapshot s] [--in-place]` | a state directory from a ZFS snapshot, beside the live one or in place |
 | `nixie reseal` | reseals attestation to the running boot chain |
 | `nixie doctor` | TPM, attestation, Secure Boot, key slots, guests, disk space |
 | `nixie export <instance>` | a `guests.nix` entry for a scratch instance |
@@ -218,6 +222,7 @@ Version 0.1.0, unreleased. By section of the brief:
 | 4 option tree | done ([VERIFICATION.md#slice-a](VERIFICATION.md#slice-a)) |
 | 5 guests: schema, derivations, declared/scratch, Export | done; Declare from the panel waits for a host agent |
 | 6 data and manifest, backups, restore | done; change request: local snapshots, verify, kit, restore beside ([VERIFICATION.md#slice-m-backups](VERIFICATION.md#slice-m-backups)) |
+| 11 rollback (change request) | done: generations kept and labelled, `nixie rollback`, `apply --confirm-within`, front-panel rollback ([VERIFICATION.md#slice-n-rollback](VERIFICATION.md#slice-n-rollback)) |
 | 7 security features | done; lockdown integrity is an option that rebuilds the kernel and is documented, not runtime-verified |
 | 8 networking, exit-node egress | done for managed-nat; exit-node needs managed-nat by design |
 | 9 monitoring and backups | done |

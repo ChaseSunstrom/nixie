@@ -38,6 +38,9 @@ let
 
   hostModules =
     siteDir: name: host:
+    hostModulesRev null siteDir name host;
+  hostModulesRev =
+    rev: siteDir: name: host:
     unfreeModule host
     ++ [
       self.nixosModules.nixie
@@ -46,26 +49,31 @@ let
       (secretsModule siteDir host)
       {
         nixie.host.name = lib.mkDefault name;
+        nixie.host.siteRevision = rev;
         nixie.guests = host.guests or { };
         nixie.data.manifest = host.data or { };
       }
     ];
 
   mkHost =
-    siteDir: name: host:
+    rev: siteDir: name: host:
     lib.nixosSystem {
       inherit system;
       specialArgs = {
         inherit inputs;
       };
-      modules = hostModules siteDir name host;
+      modules = hostModulesRev rev siteDir name host;
     };
 
+  # `mkSite ./site.nix`, or `mkSite { site = ./site.nix; rev = self.shortRev or null; }`
+  # so generations carry the site commit (pure evaluation cannot read .git).
   mkSite =
-    sitePath:
+    arg:
     let
+      sitePath = if lib.isAttrs arg then arg.site else arg;
+      rev = if lib.isAttrs arg then (arg.rev or null) else null;
       site = import sitePath;
-      hosts = lib.mapAttrs (mkHost (dirOf sitePath)) site.hosts;
+      hosts = lib.mapAttrs (mkHost rev (dirOf sitePath)) site.hosts;
     in
     {
       nixosConfigurations = hosts;

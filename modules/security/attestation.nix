@@ -56,7 +56,18 @@ in
       };
       script = ''
         echo
-        if code=$(${pkgs.tpm2-totp}/bin/tpm2-totp calculate 2>/dev/null); then
+        # The secret is sealed for one boot chain; on another generation the
+        # code could not match, so say so instead of showing a wrong one. The
+        # sealed generation's label sits on the ESP (phase 6, `nixie reseal`).
+        sealed=""
+        esp=${config.fileSystems."/boot".device or ""}
+        if [ -n "$esp" ] && [ -e "$esp" ]; then
+          mkdir -p /run/nixie-esp && mount -o ro "$esp" /run/nixie-esp 2>/dev/null && sealed=$(cat /run/nixie-esp/nixie/attestation-generation 2>/dev/null || true); umount /run/nixie-esp 2>/dev/null || true
+        fi
+        if [ -n "$sealed" ] && [ "$sealed" != "${config.system.nixos.label}" ]; then
+          echo "  Attestation unavailable for this generation (booted ${config.system.nixos.label}, sealed for $sealed)."
+          echo "  Run 'nixie reseal' on the generation you want to keep."
+        elif code=$(${pkgs.tpm2-totp}/bin/tpm2-totp calculate 2>/dev/null); then
           echo "  Attestation code: $code"
         else
           echo "  ATTESTATION FAILED: the boot chain does not match the sealed measurements."
@@ -65,6 +76,12 @@ in
         echo
       '';
     };
+    # Reading the ESP in the initrd needs the vfat driver and its charsets.
+    boot.initrd.kernelModules = [
+      "vfat"
+      "nls_cp437"
+      "nls_iso8859-1"
+    ];
     environment.systemPackages = [ pkgs.tpm2-totp ];
   };
 }

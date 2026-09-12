@@ -6,8 +6,13 @@ pkgs.writeShellApplication {
     coreutils
     cryptsetup
     git
+    gnugrep
+    gnused
+    rsync
+    zfs
     incus-lts.client
     jq
+    nix # nix-env for generations; a transient unit's PATH has no system profile
     nixos-rebuild
     (opentofu.withPlugins (p: [ p.lxc_incus ]))
     systemd
@@ -20,16 +25,27 @@ pkgs.writeShellApplication {
     layout() { jq -r "$1" /run/current-system/etc/nixie/layout.json; }
     feature() { [ "$(layout ".features.$1")" = true ]; }
     site=''${NIXIE_SITE:-/etc/nixie/site}
-    host=$(hostname)
+    host=$(uname -n) # coreutils: a transient unit's PATH has no hostname(1)
     cmd=''${1:-help}; shift || true
     case "$cmd" in
       apply)
-        yes=0; skip_host=0
-        for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; --skip-host) skip_host=1 ;; esac; done
+        yes=0; skip_host=0; within=""; confirm=0
+        while [ $# -gt 0 ]; do case "$1" in --yes|-y) yes=1 ;; --skip-host) skip_host=1 ;; --confirm-within) within=$2; shift ;; --confirm) confirm=1 ;; esac; shift; done
+        if [ "$confirm" = 1 ]; then
+          systemctl stop nixie-apply-confirm.timer 2>/dev/null || true
+          rm -f /run/nixie/apply-pending.json; echo "apply confirmed; automatic rollback cancelled"; exit 0
+        fi
+        prof=/nix/var/nix/profiles/system
+        # No profile yet (a test VM, a hand-installed host): no previous generation.
+        prev_gen=$( { readlink "$prof" 2>/dev/null || true; } | sed -n 's/.*system-\([0-9]*\)-link/\1/p')
+        touched=""
         if [ "$skip_host" = 0 ]; then
           if [ -n "$(git -C "$site" remote 2>/dev/null)" ]; then git -C "$site" pull --ff-only || echo "site pull failed; applying the checkout as is" >&2; fi
           # Refuse the one change that needs a reinstall before touching anything.
-          want=$(nix eval --raw "$site#nixosConfigurations.$host.config.nixie.security.encryption.enable")
+          # A prebuilt system answers from its own layout, so no evaluation (and
+          # no network) is needed on the host.
+          if [ -n "''${NIXIE_TOPLEVEL:-}" ]; then want=$(jq -r .features.encryption "$NIXIE_TOPLEVEL/etc/nixie/layout.json")
+          else want=$(nix eval --raw "$site#nixosConfigurations.$host.config.nixie.security.encryption.enable"); fi
           if [ "$want" != "$(layout .features.encryption)" ]; then
             echo "nixie apply: nixie.security.encryption.enable cannot be changed on an installed system; reinstall from the ISO to change it." >&2
             exit 3
@@ -38,7 +54,13 @@ pkgs.writeShellApplication {
           label="$(date +%Y%m%d-%H%M%S)-$(git -C "$site" rev-parse --short HEAD 2>/dev/null || echo nosite)"
           if command -v nixie-snapshot >/dev/null; then nixie-snapshot pre-apply "$label"; fi
           # Step 1: the host, so every derived piece exists before a guest has an interface.
-          nixos-rebuild switch --flake "$site#$host"
+          # A prebuilt system (deploy, tests) is switched to directly.
+          if [ -n "''${NIXIE_TOPLEVEL:-}" ]; then
+            nix-env --profile "$prof" --set "$NIXIE_TOPLEVEL"
+            "$NIXIE_TOPLEVEL/bin/switch-to-configuration" switch
+          else
+            nixos-rebuild switch --flake "$site#$host"
+          fi
         fi
         : "''${label:=$(date +%Y%m%d-%H%M%S)}"
         [ -e /run/current-system/etc/nixie/tofu/config.tf.json ] || { echo "no guests to manage on this host"; exit 0; }
@@ -63,11 +85,22 @@ pkgs.writeShellApplication {
           for g in $(jq -r '.declared | keys[]' /run/current-system/etc/nixie/guests.json); do
             incus info "$g" >/dev/null 2>&1 || continue
             incus snapshot create "$g" "pre-apply-$label"
+            touched="$touched $g"
             incus snapshot list "$g" -f csv -c n | grep '^pre-apply-' | sort | head -n -5 | while read -r sn; do incus snapshot delete "$g" "$sn"; done
           done
         fi
         if [ "$yes" = 1 ]; then tofu apply -input=false plan.bin; else
           read -r -p "apply this plan? [y/N] " ans; [ "$ans" = y ] && tofu apply -input=false plan.bin
+        fi
+        # --confirm-within: unless `nixie apply --confirm` arrives in time, the
+        # host goes back to the generation before this apply and the touched
+        # guests to their pre-apply snapshots.
+        if [ -n "$within" ]; then
+          mkdir -p /run/nixie
+          jq -n --arg prev "''${prev_gen:-}" --arg label "$label" --arg guests "$touched" \
+            '{prev: $prev, label: $label, guests: ($guests | split(" ") | map(select(. != "")))}' >/run/nixie/apply-pending.json
+          systemd-run --quiet --unit=nixie-apply-confirm --on-active="$within" --timer-property=AccuracySec=1s nixie rollback --auto
+          echo "confirm within $within with: nixie apply --confirm"
         fi ;;
       export)
         name=''${1:?instance name}
@@ -125,7 +158,7 @@ pkgs.writeShellApplication {
       reseal)
         feature attestation || { echo "attestation is off; nothing to reseal"; exit 0; }
         tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery 2>/dev/null)" -p 4,7,8,9 </dev/null \
-          && echo "attestation resealed to the current boot chain" ;;
+          && { mkdir -p /boot/nixie; cat /run/current-system/nixos-version >/boot/nixie/attestation-generation; echo "attestation resealed to the current boot chain"; } ;;
       menu)
         command -v nixie-menu >/dev/null || { echo "the menu is part of the desktop profile" >&2; exit 2; }
         exec nixie-menu "$@" ;;
@@ -138,8 +171,76 @@ pkgs.writeShellApplication {
       backup)
         command -v nixie-backup >/dev/null || { echo "backups are off on this host" >&2; exit 2; }
         exec nixie-backup "$@" ;;
+      rollback)
+        prof=/nix/var/nix/profiles/system
+        root=$(layout .dataRoot 2>/dev/null); [ -n "$root" ] && [ "$root" != null ] || root=/data
+        gen_num() { { readlink "$1" 2>/dev/null || true; } | sed -n 's/.*system-\([0-9]*\)-link/\1/p'; }
+        switch_gen() {
+          nix-env --profile "$prof" --switch-generation "$1"
+          "$(readlink -f "$prof")/bin/switch-to-configuration" switch
+          echo "now on generation $1"
+        }
+        cur=$(gen_num "$prof")
+        case "''${1:-}" in
+          --list)
+            printf '%-4s %-17s %-40s %-14s %s\n' gen date label kernel marks
+            newest=0; for l in "$prof"-*-link; do n=''${l##*system-}; n=''${n%-link}; [ "$n" -gt "$newest" ] && newest=$n; done
+            for n in $(for m in "$prof"-*-link; do g=''${m##*system-}; echo "''${g%-link}"; done | sort -n); do
+              l="$prof-$n-link"; marks=""
+              [ "$(readlink -f "$l")" = "$(readlink -f /run/current-system)" ] && marks="$marks current"
+              [ "$(readlink -f "$l")" = "$(readlink -f /run/booted-system 2>/dev/null)" ] && marks="$marks booted"
+              [ "$n" = "$newest" ] && marks="$marks boot-default"
+              printf '%-4s %-17s %-40s %-14s %s\n' "$n" "$(date -r "$l" '+%F %R')" "$(cat "$l/nixos-version")" "$(basename "$(readlink -f "$l/kernel")" | sed 's/^[a-z0-9]*-linux-//' | cut -c1-14)" "$marks"
+            done ;;
+          --generation) switch_gen "$2" ;;
+          --boot-previous)
+            id=$(bootctl list --json=short | jq -r --arg n "$((cur - 1))" '.[] | select(.id | test("generation-" + $n + "([-.]|$)")) | .id' | head -1)
+            [ -n "$id" ] || { echo "no boot entry for generation $((cur - 1))" >&2; exit 1; }
+            bootctl set-oneshot "$id"; echo "next boot: generation $((cur - 1)) ($id)" ;;
+          --auto)
+            p=/run/nixie/apply-pending.json; [ -e "$p" ] || exit 0
+            prev=$(jq -r .prev "$p"); label=$(jq -r .label "$p")
+            for g in $(jq -r '.guests[]' "$p"); do
+              incus stop -f "$g" 2>/dev/null || true; incus snapshot restore "$g" "pre-apply-$label" && incus start "$g" || true
+            done
+            rm -f "$p"
+            if [ -n "$prev" ] && [ "$prev" != "$cur" ]; then echo "apply not confirmed; rolling back"; switch_gen "$prev"; fi ;;
+          guest)
+            name=''${2:?guest name}; snap=""; shift 2
+            while [ $# -gt 0 ]; do case "$1" in --snapshot) snap=$2; shift ;; esac; shift; done
+            [ -n "$snap" ] || snap=$(incus snapshot list "$name" -f csv -c n | grep '^pre-apply-' | sort | tail -1)
+            [ -n "$snap" ] || { echo "no snapshot for $name" >&2; exit 1; }
+            incus stop -f "$name" 2>/dev/null || true
+            incus snapshot restore "$name" "$snap"; incus start "$name"; echo "$name restored to $snap" ;;
+          data)
+            name=''${2:?state name (or 'state' for all)}; snap=""; in_place=0; yes=0; shift 2
+            while [ $# -gt 0 ]; do case "$1" in --snapshot) snap=$2; shift ;; --in-place) in_place=1 ;; --yes|-y) yes=1 ;; esac; shift; done
+            ds=$(zfs list -H -o name "$root/state" 2>/dev/null) || { echo "$root/state is not a ZFS dataset" >&2; exit 1; }
+            [ -n "$snap" ] || snap=$(zfs list -H -t snapshot -o name -s creation "$ds" | sed 's/.*@//' | grep '^pre-apply-' | tail -1)
+            [ -n "$snap" ] || { echo "no snapshot of $ds" >&2; exit 1; }
+            ts=$(date +%Y%m%d-%H%M%S)
+            if [ "$name" = state ]; then
+              if [ "$in_place" = 1 ]; then
+                [ "$yes" = 1 ] || { read -r -p "roll $root/state back to $snap, discarding everything newer? [y/N] " a; [ "$a" = y ] || exit 1; }
+                zfs rollback -r "$ds@$snap"; echo "$root/state rolled back to $snap"
+              else
+                zfs clone -o mountpoint="$root/state.restore-$ts" "$ds@$snap" "$ds-restore-$ts"; echo "snapshot $snap mounted beside at $root/state.restore-$ts"
+              fi
+            else
+              src="$root/state/.zfs/snapshot/$snap/$name"
+              [ -d "$src" ] || { echo "$name is not in snapshot $snap" >&2; exit 1; }
+              if [ "$in_place" = 1 ]; then
+                [ "$yes" = 1 ] || { read -r -p "replace $root/state/$name with its copy from $snap? [y/N] " a; [ "$a" = y ] || exit 1; }
+                rsync -a --delete "$src/" "$root/state/$name/"; echo "$root/state/$name restored in place from $snap"
+              else
+                cp -a "$src" "$root/state/$name.restored-$ts"; echo "restored beside at $root/state/$name.restored-$ts"
+              fi
+            fi ;;
+          "") [ -n "$cur" ] && [ "$cur" -gt 1 ] || { echo "no earlier generation" >&2; exit 1; }; switch_gen "$((cur - 1))" ;;
+          *) echo "usage: nixie rollback [--list | --generation N | --boot-previous | guest <name> [--snapshot s] | data <name>|state [--snapshot s] [--in-place] [--yes]]" >&2; exit 2 ;;
+        esac ;;
       *)
-        echo "usage: nixie apply [--yes] [--skip-host] | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | doctor | menu" >&2; exit 2 ;;
+        echo "usage: nixie apply [--yes] [--skip-host] [--confirm-within <duration>] | apply --confirm | rollback ... | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | doctor | menu" >&2; exit 2 ;;
     esac
   '';
 }

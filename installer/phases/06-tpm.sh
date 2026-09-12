@@ -56,6 +56,9 @@ if feature attestation; then
     tpm2-totp generate -P "$(cat /var/lib/nixie/totp-recovery)" -p 4,7,8,9 >"$(secret_file attestation-qr)" 2>&1
     log "attestation secret created; show $(secret_file attestation-qr) to the person once"
   fi
+  # The initrd compares its own generation label with this to refuse showing
+  # a code that cannot match on another generation.
+  mkdir -p /boot/nixie && cat /run/current-system/nixos-version >/boot/nixie/attestation-generation
 fi
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

@@ -156,6 +156,30 @@ age key, the restic password, the recovery-key note and the rebuild steps.
 takes an Incus `pre-apply-<label>` snapshot first. Result: filled in below
 after the run.
 
+## Slice (n): rollback
+
+Change request (ARCHITECTURE 4.11, D19, D20). `vm-rollback`: a second,
+broken generation (the panel moved to another port) is switched to; `nixie
+rollback --list` shows both with marks; one key on the tty1 front panel
+rolls back and the panel answers again. `nixie apply --confirm-within 20s`
+against the broken system, unconfirmed, reverts the host and restores the
+touched guest's pre-apply snapshot; confirmed, it stays. `nixie rollback
+guest web --snapshot s1` restores the guest's root disk while its
+`/data/state` keeps the newer content; `nixie rollback data web` restores a
+state directory beside, then in place. `vm-encryption` additionally checks
+the sealed-generation label phase 6 writes to the ESP. Passed on 2026-09-11:
+`vm-rollback` "test script finished in 132.37s" (panel key 12 s, unconfirmed
+apply revert 88 s, guest snapshot 18 s, data snapshot 0.3 s);
+`vm-encryption` with the label check "test script finished in 625.84s"
+(the unlock agent now exits once the root file system is up, which took
+about four minutes off the run). Two test-environment notes: the test VM
+boots its kernel directly and has no ESP, so the node's boot loader is off
+and `--boot-previous` (bootctl) is not exercised; and `incus exec` output
+must never be piped into `grep -q` in a test, since the early exit leaves
+the Incus client hanging on its websocket. Bugs the test found in the CLI:
+three tools it borrowed from an interactive PATH (`hostname`, `sed`, `nix-env`)
+are now runtime inputs, since a transient unit has none of them.
+
 ## Console
 
 `vm-console`: tty1 shows the front panel (OCR finds the wordmark and the
@@ -205,5 +229,6 @@ the verification session; its summary is the table.
 | vm-installer-lan (172 s) | pass |
 | vm-console (258 s) | pass |
 | vm-desktop (49 s) | pass |
-| vm-encryption (891 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b) |
+| vm-encryption (626 s) | pass; Secure Boot firmware enrolment is hardware-only, see Slice (b) |
 | vm-backup (27 s) | pass (change request, slice (m)) |
+| vm-rollback (132 s) | pass (change request, slice (n)) |
