@@ -131,6 +131,12 @@ pkgs.testers.runNixOSTest {
         pair()
         hw = api("GET", "/api/hardware")
         assert any(d["path"] == "/dev/vda" for d in hw["disks"]), hw
+        # Every disk the kernel has must be offered. A disk with no
+        # /dev/disk/by-id link used to be dropped from this list entirely,
+        # which leaves the wizard with nothing to install on.
+        disks = installer.succeed("lsblk -d -n -o TYPE,PATH").splitlines()
+        paths = sorted(ln.split()[1] for ln in disks if ln.split()[0] == "disk")
+        assert sorted(d["path"] for d in hw["disks"]) == paths, (hw["disks"], paths)
         opts = api("GET", "/api/options")
         assert any(o["path"] == "nixie.security.encryption.enable" and o["section"] == "security" for o in opts)
 

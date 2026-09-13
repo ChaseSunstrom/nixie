@@ -51,6 +51,9 @@ function Wizard() {
   const [st, setSt] = useState<State | null>(null);
   const [opts, setOpts] = useState<Opt[]>([]);
   const [hw, setHw] = useState<Hardware | null>(null);
+  // A scan that fails must say so: the step used to sit on "Looking at
+  // the hardware…" for ever with the reason thrown away.
+  const [hwErr, setHwErr] = useState("");
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
@@ -84,7 +87,11 @@ function Wizard() {
       init["nixie.security.encryption.enable"] = true;
       setValues((v) => ({ ...init, ...v }));
     });
-    api.hardware().then(setHw).catch(() => undefined);
+    // The endpoint answers 200 with {error} when the scan itself failed;
+    // taking that as hardware crashes the step on hw.disks.map.
+    api.hardware()
+      .then((h) => ((h as unknown as { error?: string }).error ? setHwErr((h as unknown as { error: string }).error) : setHw(h)))
+      .catch((e) => setHwErr((e as Error).message));
   }, [paired]);
   useEffect(() => { logRef.current?.scrollTo(0, logRef.current.scrollHeight); }, [lines]);
 
@@ -233,6 +240,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
           </div>
         );
       case "hardware":
+        if (hwErr) return <div className="empty" style={{ color: "var(--err)" }}>The hardware scan failed: {hwErr}</div>;
         return !hw ? <div className="empty">Looking at the hardware…</div> : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div><div style={{ fontWeight: 500 }}>System disk (wiped)</div>{hw.disks.map((d) => <label key={d.path} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px 200px", cursor: "pointer" }}><input type="radio" name="disk" checked={disk === (d.id ?? d.path)} onChange={() => setDisk(d.id ?? d.path)} /><span className="mono">{d.id ?? d.path}</span><Bytes b={d.size} /><span className="muted">{d.model ?? ""}</span></label>)}</div>

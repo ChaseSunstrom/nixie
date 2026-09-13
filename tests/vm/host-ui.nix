@@ -60,14 +60,20 @@ pkgs.testers.runNixOSTest {
         assert r in ("401", "200"), r
         conv = host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation' || true")
         print(conv)
-        if "x-conversation" in conv.lower():
-            import base64, re
-            tok = re.findall(r"X-Conversation: (\S+)", conv, re.I)[0]
-            ok = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok} {base64.b64encode(code.encode()).decode()}' https://127.0.0.1:9090/cockpit/login").strip()
-            assert ok == "200", ok
-            tok2 = re.findall(r"X-Conversation: (\S+)", host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation'"), re.I)[0]
-            bad = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok2} {base64.b64encode(b'000000').decode()}' https://127.0.0.1:9090/cockpit/login").strip()
-            assert bad == "401", bad
+        # The second factor is configured, so the conversation must be offered.
+        # Skipping this quietly let a login that never worked look verified:
+        # `text` had replaced Cockpit's whole PAM stack with the OATH rule, so
+        # no password was ever checked and every login was refused.
+        assert "x-conversation" in conv.lower(), (
+            "the password was not accepted for the first factor: " + repr(conv)
+        )
+        import base64, re
+        tok = re.findall(r"X-Conversation: (\S+)", conv, re.I)[0]
+        ok = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok} {base64.b64encode(code.encode()).decode()}' https://127.0.0.1:9090/cockpit/login").strip()
+        assert ok == "200", ok
+        tok2 = re.findall(r"X-Conversation: (\S+)", host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation'"), re.I)[0]
+        bad = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok2} {base64.b64encode(b'000000').decode()}' https://127.0.0.1:9090/cockpit/login").strip()
+        assert bad == "401", bad
         # cockpit-session reports each attempt through PAM's audit records.
         host.succeed("journalctl -b --no-pager | grep -E 'PAM:authentication.*acct=.admin.' | grep -q cockpit-session")
 

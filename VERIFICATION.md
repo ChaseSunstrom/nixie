@@ -377,7 +377,7 @@ listing tolerates a missing instance now. The lesson both share is that a
 report which gathers from several sources has to survive each of them being
 absent, because on a fresh host most of them are.
 
-## Slice (s): the gallery, and four defects it found
+## Slice (s): the gallery, and the defects it found
 
 The showcase slice: `nix run .#media` regenerates `docs/media/` from six runs
 in VMs, `docs/media/SHOTLIST.md` maps every file to the run and commit that
@@ -386,8 +386,8 @@ drawn by hand. The gallery is committed as ordinary files: each video is
 kept under 8 MB and the whole directory under 100 MB, and the generator
 fails rather than exceed either, so no large-file storage is needed.
 
-Running it for the first time end to end found four defects, each in a
-feature that shipped without a test.
+Running it for the first time end to end found seven defects, each in a
+feature that no test covered, or that a test covered too politely.
 
 1. **Prometheus and Cockpit both listened on 9090.** A host with
    `nixie.monitoring.enable` and `nixie.hostUi.enable` had one of the two
@@ -415,6 +415,79 @@ feature that shipped without a test.
    Lua dispatchers, and `vm-desktop` runs the commands out of the generated
    `hypridle.conf` and asserts the monitor's `dpmsStatus` goes off and back
    on.
+
+5. **The installer offered the wrong disks, or none.** `nixie-discover`
+   built each disk's record with `id: ($byid[] | select(.dev == $d.path) |
+   .id)`. In jq an object whose value expression yields nothing is not built
+   at all, and one that yields several is built several times, so a disk with
+   no `/dev/disk/by-id` link disappeared from the wizard's list entirely and
+   a disk with more than one link appeared once per link. The build host's
+   own `nvme0n1` carries three links (`nvme-eui.*` and two
+   `nvme-Samsung_SSD_*`), so on that machine every NVMe drive would have been
+   offered three times; in the media run's VM the target disk had no link and
+   the wizard offered nothing at all, which is why the run timed out waiting
+   for `input[name=disk]`. The id is now `[...] | first`, which is null when
+   there is no link — what the UI already expected, since it renders
+   `d.id ?? d.path`. `vm-installer-lan` now asserts the wizard is offered
+   exactly the disks `lsblk` reports, by path.
+6. **The boot media run never answered the passphrase prompt.** Its target
+   sets `console=tty0` so the prompts are drawn on screen for the pictures,
+   which means the serial console the driver reads never carries their text:
+   `wait_for_console_text("Please enter passphrase")` waited until the test
+   timed out, an hour of VM time later. The prompt is now detected by the
+   password agent starting, which does reach serial, and answered with
+   `send_chars`, which reaches the screen's keyboard.
+
+Noticed and left alone: the wizard offers every block device the kernel
+calls a disk, which in a QEMU VM includes `/dev/fd0` at 4 KB. Filtering by
+size would be a behaviour change that could hide a legitimately small disk,
+so the installer still lists it and the media run names the disk it wants
+instead of taking the first radio.
+
+Dropped from the gallery, and why: **the guests terminal recording**. Its
+asciinema session writes to a terminal of its own, and those escape sequences
+land in the same shell channel the test driver frames its commands over: the
+driver decoded a reply as base64 and got "Incorrect padding". Running the
+recording as a transient unit with no terminal did not help either — the run
+then blocked inside the driver until the hour-long global timeout, twice. The
+guests themselves are verified by `vm-guests`, and the control panel's
+instance screens in the gallery show them running, so `nix run .#media` no
+longer includes the run rather than spending an hour a pass on it.
+
+Not verified, and why: **`podman info` inside the example's `builder`
+guest never returns** in the recording VM. The container itself is healthy —
+it is created with `security.nesting`, boots to "Permit User Sessions" and
+stays RUNNING, and `incus exec` into the `db` guest beside it answers in
+0.07 s — but every `incus exec builder -- podman info` was killed by its own
+timeout having printed nothing, at 30 s and at 60 s. The platform's part
+(creating a nested container and keeping it running) is asserted; what a
+container runtime does inside one is the example guest's own business and is
+left out of the recording rather than claimed. Anyone relying on the
+`builder` example should confirm podman on real hardware first.
+
+A test-harness lesson with teeth: `wait_until_succeeds` cannot retry a
+command that hangs rather than fails, so one stuck `incus exec` held a run
+for 31 minutes until it was killed by hand. Every `incus exec` in the media
+runs now carries its own `timeout`.
+
+7. **Nobody could log in to the host page.** `nixie.hostUi` set
+   `security.pam.services.cockpit.text`, which replaces the generated PAM
+   stack rather than adding to it, so Cockpit's service consisted of exactly
+   one rule — `auth required pam_oath.so` — with no module that checks a
+   password. Every login was refused with `401 Authentication failed` before
+   any second factor was asked for, and the journal recorded
+   `op=PAM:authentication grantors=?` for each attempt. The rule is now added
+   through `security.pam.services.cockpit.rules.auth.oath`, ordered after
+   `pam_unix`, so the password is the first factor and the one-time code the
+   second.
+
+   `vm-host-ui` had covered this the whole time and passed anyway: it
+   accepted `401` as well as `200` for the password, and it wrapped the
+   second-factor assertions in `if "x-conversation" in conv.lower():`, so
+   when the conversation was never offered the test skipped its own subject
+   and reported success. The assertions are now unconditional, and with the
+   PAM fix the check proves a real login: the password is accepted, the
+   conversation is offered, the right code gives 200 and a wrong one 401.
 
 `vm-desktop` gained two subtests for the features that had none: the
 overview key and screen recording (`wf-recorder`, the thing `Super+Shift+R`

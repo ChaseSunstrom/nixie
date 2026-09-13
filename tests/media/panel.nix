@@ -70,6 +70,12 @@ let
             await page.screenshot(path=f"{OUT}/hostui-login.png")
             await page.fill("#login-user-input", "admin"); await page.fill("#login-password-input", "nixie"); await page.click("#login-button")
             await page.wait_for_timeout(2500); await page.screenshot(path=f"{OUT}/hostui-second-factor.png")
+            # Say what the page is showing if the second factor never appears.
+            try:
+                await page.wait_for_selector("#conversation-input:visible", timeout=20000)
+            except Exception:
+                print("LOGIN STUCK:", repr(await page.inner_text("body"))[:1500], flush=True)
+                raise
             await page.fill("#conversation-input", code); await page.click("#login-button"); await page.wait_for_timeout(5000)
             await page.screenshot(path=f"{OUT}/hostui-overview.png")
             for path, name in [("/files", "files"), ("/system/terminal", "terminal"), ("/system/logs", "journal")]:
@@ -137,6 +143,10 @@ pkgs.testers.runNixOSTest {
     host.succeed("openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 -subj /CN=media -keyout /root/client.key -out /root/client.crt 2>/dev/null && incus config trust add-certificate /root/client.crt")
     host.succeed("sleep 20")  # a little history for the charts
     host.succeed("python3 ${script} >&2")
+    # The second factor is a PAM module reading a file another unit writes:
+    # logging in before it exists is refused as a wrong password.
+    host.wait_for_unit("cockpit.socket")
+    host.wait_for_unit("nixie-oath-users.service")
     host.succeed("python3 ${cockpit} >&2")
     host.succeed("ls /tmp/media >&2")
     host.copy_from_vm("/tmp/media", "media")

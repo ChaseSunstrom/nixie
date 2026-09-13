@@ -177,10 +177,13 @@ ShellRoot {
   function copy(s) { Quickshell.execDetached(["sh", "-c", "printf %s " + shq(s) + " | wl-copy"]) }
   function sh(cmd) { Quickshell.execDetached(["sh", "-c", cmd]) }
 
-  Src { id: calc; stdout: StdioCollector { onStreamFinished: root.results = text.trim() ? [{ label: text.trim(), hint: "copy", run: () => root.copy(text.trim()) }] : [] } }
-  Src { id: clip; stdout: StdioCollector { onStreamFinished: root.results = text.trim().split("\n").filter(l => l && l.toLowerCase().includes(root.query.toLowerCase())).slice(0, 14).map(l => ({ label: l.replace(/^\d+\t/, ""), hint: "paste", run: () => Quickshell.execDetached(["sh", "-c", "printf %s " + root.shq(l.split("\t")[0]) + " | cliphist decode | wl-copy"]) })) } }
-  Src { id: files; stdout: StdioCollector { onStreamFinished: root.results = text.trim().split("\n").filter(l => l).map(l => ({ label: l.replace(Quickshell.env("HOME"), "~"), hint: "open", run: () => Quickshell.execDetached(["xdg-open", l]) })) } }
-  Src { id: emoji; stdout: StdioCollector { onStreamFinished: root.results = text.trim().split("\n").filter(l => l).map(l => ({ label: l, hint: "copy", run: () => root.copy(l.split(" ")[0]) })) } }
+  // A source that finishes after the launcher has moved on must not write its
+  // answer over the new mode's: the calculator showed the file list this way.
+  function stale(mode) { return root.mode !== "launcher" || root.launcherMode !== mode }
+  Src { id: calc; stdout: StdioCollector { onStreamFinished: { if (root.stale("calculator")) return; root.results = text.trim() ? [{ label: text.trim(), hint: "copy", run: () => root.copy(text.trim()) }] : [] } } }
+  Src { id: clip; stdout: StdioCollector { onStreamFinished: { if (root.stale("clipboard")) return; root.results = text.trim().split("\n").filter(l => l && l.toLowerCase().includes(root.query.toLowerCase())).slice(0, 14).map(l => ({ label: l.replace(/^\d+\t/, ""), hint: "paste", run: () => Quickshell.execDetached(["sh", "-c", "printf %s " + root.shq(l.split("\t")[0]) + " | cliphist decode | wl-copy"]) })) } } }
+  Src { id: files; stdout: StdioCollector { onStreamFinished: { if (root.stale("files")) return; root.results = text.trim().split("\n").filter(l => l).map(l => ({ label: l.replace(Quickshell.env("HOME"), "~"), hint: "open", run: () => Quickshell.execDetached(["xdg-open", l]) })) } } }
+  Src { id: emoji; stdout: StdioCollector { onStreamFinished: { if (root.stale("emoji")) return; root.results = text.trim().split("\n").filter(l => l).map(l => ({ label: l, hint: "copy", run: () => root.copy(l.split(" ")[0]) })) } } }
 
   // Wallpapers for the picker.
   property var wallpaperList: []
@@ -482,6 +485,9 @@ ShellRoot {
       height: root.mode === "cheatsheet" ? 540 : (root.mode === "launcher" ? Math.min(560, 64 + root.results.length * 44 + 44) : Math.min(560, 64 + Math.max(1, root.mode === "notifications" ? root.notifs.length : 5) * 66 + 24))
       anchors.horizontalCenter: parent.horizontalCenter; y: 110
       color: root.cS1; border.color: root.accent; border.width: 1; radius: root.radius
+      // The card's height is capped; without this the rows past the cap drew
+      // outside it, under the shadow and over the wallpaper.
+      clip: true
       MouseArea { anchors.fill: parent }
 
       // launcher

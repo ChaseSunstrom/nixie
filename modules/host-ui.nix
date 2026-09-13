@@ -61,6 +61,17 @@ in
         order = 6;
       };
     };
+    extraOrigins = mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "https://server.example.com:9090" ];
+      description = ''
+        Other addresses this page is opened at, each with its scheme and port.
+        The machine's own name, localhost and this host's addresses are
+        already accepted; add a name here if you reach the page by one the
+        machine does not know about, such as a DNS alias.
+      '';
+    };
     port = mkOption {
       type = lib.types.port;
       default = 9090;
@@ -82,6 +93,19 @@ in
         WebService = {
           AllowUnencrypted = false;
           LoginTitle = "nixie host";
+          # Without this cockpit-ws refuses the browser's websocket with
+          # "received request from bad Origin" and the page, having logged the
+          # person in, says only "Connection failed".
+          Origins = lib.concatStringsSep " " (
+            lib.unique (
+              [
+                "https://${config.nixie.host.name}:${port}"
+                "https://localhost:${port}"
+                "https://127.0.0.1:${port}"
+              ]
+              ++ cfg.extraOrigins
+            )
+          );
         };
         Session.IdleTimeout = 15;
       };
@@ -94,10 +118,21 @@ in
 
     # The second factor: TOTP from the enrolled secret, checked by PAM after
     # the password. Every login and privileged action is in the journal.
+    # `text` would replace the whole generated stack, leaving a service whose
+    # only auth rule is this one: no password is ever checked and every login
+    # is refused before the second factor is asked for. A rule is added to
+    # the stack instead, after pam_unix so the password is the first factor.
     security.pam.services.cockpit = lib.mkIf (config.nixie.auth.secondFactor == "totp") {
-      text = lib.mkAfter ''
-        auth required ${pkgs.oath-toolkit}/lib/security/pam_oath.so usersfile=/run/nixie/oath/users window=1 digits=6
-      '';
+      rules.auth.oath = {
+        order = config.security.pam.services.cockpit.rules.auth.unix.order + 10;
+        control = "required";
+        modulePath = "${pkgs.oath-toolkit}/lib/security/pam_oath.so";
+        settings = {
+          usersfile = "/run/nixie/oath/users";
+          window = 1;
+          digits = 6;
+        };
+      };
     };
     sops.secrets.totp-secret = lib.mkIf (config.nixie.auth.secondFactor == "totp") { };
     # pam_oath wants "HOTP/T30/6 user - secret" with the secret in hex.

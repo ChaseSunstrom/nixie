@@ -11,6 +11,8 @@
 }:
 let
   inherit (pkgs) lib;
+  clientKey = ../keys/client_ed25519;
+  clientPub = lib.fileContents ../keys/client_ed25519.pub;
   target = inputs.nixpkgs.lib.nixosSystem {
     system = "x86_64-linux";
     specialArgs = {
@@ -26,8 +28,17 @@ let
             tpm.enable = true;
             attestation.enable = true;
             duress.enable = true;
+            # The prompts are answered over the initrd's SSH, the way
+            # vm-encryption does it: they are drawn on tty0 for the pictures
+            # (console=tty0 below) and nothing types on that console.
+            remoteUnlock.enable = true;
           };
-          nixie.network.bridge.uplinks = lib.mkForce [ "52:54:00:12:01:02" ];
+          nixie.auth.sshKeys = [ clientPub ];
+          # The client node is first, so the target is machine 3: its interface
+          # is 52:54:00:12:01:03 and the initrd needs the address statically,
+          # there being no DHCP server in the test network.
+          nixie.network.bridge.uplinks = lib.mkForce [ "52:54:00:12:01:03" ];
+          nixie.network.address = "192.168.1.3/24";
           nixie.disks.system = lib.mkForce "/dev/vda";
           # Prompts on the screen for the camera; the serial console stays for the driver.
           boot.kernelParams = lib.mkAfter [ "console=tty0" ];
@@ -73,6 +84,9 @@ in
 pkgs.testers.runNixOSTest {
   name = "media-boot";
   nodes = {
+    client = {
+      environment.systemPackages = [ pkgs.openssh ];
+    };
     installer = {
       imports = [ shared ];
       virtualisation.emptyDiskImages = [ 1024 ];
@@ -112,10 +126,28 @@ pkgs.testers.runNixOSTest {
     installer.succeed(f"{env} nixie-phase 1 >&2 && {env} nixie-phase 2 >&2 && {env} nixie-phase 3 >&2")
     installer.shutdown()
 
+    client.start(); client.wait_for_unit("multi-user.target")
+    client.succeed("cp ${clientKey} /root/client_ed25519 && chmod 600 /root/client_ed25519")
+    ssh = "ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -i /root/client_ed25519 -p 2222 root@192.168.1.3"
+
+    def remote_unlock(answers, gap=25):
+        # Same relay as vm-encryption: each answer is fed to the prompt that
+        # is pending, in order. The prompts themselves are drawn on tty0 for
+        # the pictures, and nothing in the driver can type on that console.
+        client.succeed("ip neigh flush all")
+        client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=120)
+        feed = "; ".join(f"sleep {2 if i == 0 else gap}; printf %s\\n '{a}'" for i, a in enumerate(answers))
+        client.succeed("timeout 180 sh -c \"(" + feed + "; sleep 5) | " + ssh + "\" || true")
+
     target.start()
-    target.wait_for_console_text("Please enter passphrase")
-    target.sleep(1); target.screenshot("boot-passphrase-first")
-    target.send_chars("hunter2\n"); target.wait_for_console_text("Please enter passphrase for disk.*rpool"); target.send_chars("hunter2\n")
+    # The prompt is drawn on tty0, so the serial console the driver reads does
+    # not carry it: waiting for its text there never returns. The initrd's SSH
+    # port opening is the signal that the prompt is up, the same one
+    # vm-encryption uses.
+    client.succeed("ip neigh flush all")
+    client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=180)
+    target.sleep(3); target.screenshot("boot-passphrase-first")
+    remote_unlock(["hunter2", "hunter2"])
     target.wait_for_unit("multi-user.target")
     target.succeed(keys); target.succeed("nixie-phase 4 >&2 && nixie-phase 6 >&2")
     target.succeed("cat /run/nixie/keys/attestation-qr | head -40 > /tmp/attestation-qr.txt || true")
@@ -123,6 +155,16 @@ pkgs.testers.runNixOSTest {
     target.shutdown()
 
     target.start()
+    # The relay answers in the background so the frames keep coming while the
+    # PIN and passphrase prompts are on the screen being photographed. It is
+    # detached with its pipes closed: a child holding them open would make
+    # the driver wait for EOF instead of returning.
+    client.succeed("ip neigh flush all")
+    client.succeed(
+        "systemd-run --collect --unit=nixie-unlock /bin/sh -c "
+        "'until nc -z 192.168.1.3 2222; do sleep 1; done; "
+        "{ sleep 2; printf \"1234\\n\"; sleep 25; printf \"hunter2\\n\"; sleep 5; } | " + ssh + "'"
+    )
     import os, time
     os.makedirs("frames", exist_ok=True)
     i = 0
@@ -132,8 +174,8 @@ pkgs.testers.runNixOSTest {
         i += 1
         time.sleep(0.1)
         if i == 60: target.screenshot("boot-attestation-code")
-        if i == 120: target.screenshot("boot-pin-prompt"); target.send_chars("1234\n")
-        if i == 220: target.screenshot("boot-passphrase-prompt"); target.send_chars("hunter2\n")
+        if i == 120: target.screenshot("boot-pin-prompt")
+        if i == 220: target.screenshot("boot-passphrase-prompt")
     target.wait_for_unit("multi-user.target")
     target.screenshot("boot-front-panel")
   '';

@@ -51,25 +51,56 @@ let
         async with async_playwright() as p:
             b = await p.chromium.launch(args=["--ignore-certificate-errors"])
             page = await (await b.new_context(viewport={"width": 1280, "height": 900}, ignore_https_errors=True)).new_page()
+            page.on("response", lambda r: print("RESP", r.status, r.url, flush=True) if "/api/" in r.url else None)
             await page.goto(base); await shot(page, "pair" if mode != "continuation" else "continuation-pair")
-            await page.fill("input", code); await page.click("text=Pair"); await page.wait_for_timeout(2500)
+            await page.fill("input", code)
+            # "text=Pair" matches the panel's own heading, "Pair this browser",
+            # and clicking a heading does nothing: name the button.
+            await page.click("button:has-text(\"Pair\")")
+            # Pairing is done when its own input is gone: the continuation view
+            # returns before the step heading, so waiting for an h1 hangs there.
+            await page.wait_for_selector("input[placeholder=\"123456\"]", state="detached", timeout=30000)
+            await page.wait_for_timeout(1500)
             if mode == "continuation":
                 await shot(page, "continuation"); await b.close(); return
             await shot(page, "profile")
-            await page.click("text=Next"); await shot(page, "hardware")
-            await page.click("input[name=disk]"); await page.click("input[type=checkbox]"); await page.click("text=Next"); await shot(page, "site")
-            await page.fill("input[placeholder*=lowercase]", "server"); await page.click("text=Next"); await shot(page, "security")
-            await page.fill("input[type=password]", "hunter2"); await page.click("text=Next"); await shot(page, "auth")
-            inputs = await page.query_selector_all("input.input.mono")
+            await page.click("button:has-text(\"Next\")"); await shot(page, "hardware")
+            # Say which step the wizard is actually on if the disks are not there.
+            try:
+                await page.wait_for_selector("input[name=disk]", timeout=20000)
+            except Exception:
+                body = await page.evaluate("document.body.innerText")
+                print("WIZARD STUCK, page says:", repr(body)[:1500], flush=True)
+                raise
+            # The first radio is whatever the kernel lists first, which here is
+            # a 4 KB floppy; name the disk this VM is meant to be installed on.
+            await page.click("label:has-text(\"virtio-root\") input[name=disk]")
+            await page.click("input[type=checkbox]"); await page.click("button:has-text(\"Next\")"); await shot(page, "site")
+            await page.fill("input[placeholder*=lowercase]", "server"); await page.click("button:has-text(\"Next\")"); await shot(page, "security")
+            await page.fill("input[type=password]", "hunter2"); await page.click("button:has-text(\"Next\")"); await shot(page, "auth")
+            # The step needs the administrator's name as well as the password:
+            # without it its Next button stays disabled.
+            await page.fill("input.input.mono", "admin")
             await page.fill("input[type=password]", "nixie")
-            await page.click("text=Next"); await shot(page, "network")
-            await page.click("text=Next"); await page.wait_for_timeout(6000); await shot(page, "review")
-            await page.click("text=Next"); await shot(page, "install-ready")
-            await page.click("text=Install"); await page.wait_for_timeout(4000); await shot(page, "install-streaming")
+            await page.click("button:has-text(\"Next\")"); await shot(page, "network")
+            await page.click("button:has-text(\"Next\")"); await page.wait_for_timeout(6000); await shot(page, "review")
+            await page.click("button:has-text(\"Next\")"); await shot(page, "install-ready")
+            # The step is called Install and so is its nav entry: a bare
+            # "text=Install" clicks a label and phases 2 and 3 never run.
+            await page.click("button:has-text(\"Install\")"); await page.wait_for_timeout(4000); await shot(page, "install-streaming")
+            done = False
             for _ in range(120):
-                if await page.query_selector("text=phase 3 done"): break
+                if await page.query_selector("text=phase 3 done"):
+                    done = True
+                    break
                 await page.wait_for_timeout(5000)
             await shot(page, "install-done")
+            # Carrying on regardless left the target with nothing to boot and
+            # the run hanging at its passphrase prompt half an hour later.
+            if not done:
+                print("INSTALL DID NOT FINISH:",
+                      repr(await page.evaluate("document.body.innerText"))[-2500:], flush=True)
+                raise SystemExit("the wizard never reported phase 3 done")
             await b.close()
     asyncio.run(main())
   '';
@@ -137,6 +168,8 @@ pkgs.testers.runNixOSTest {
     installer.wait_for_text("(Profile|Pair|nixie)", timeout=300)
     installer.screenshot("installer-kiosk-wizard")
     installer.send_key("ctrl-alt-f2"); installer.sleep(3); installer.screenshot("installer-console-banner"); installer.send_key("ctrl-alt-f1")
+    # What the wizard's hardware step will be given, straight from the source.
+    print("DISCOVER:", installer.succeed("nixie-discover 2>&1 || true")[:1200])
     banner = installer.succeed("cat /var/lib/nixie/setup/banner.txt")
     code = re.findall(r"Pairing code: (\d{6})", banner)[0]
     client.wait_until_succeeds("curl -sk https://192.168.1.2:9443/api/pair | grep -q needsCode", timeout=120)
