@@ -3,14 +3,19 @@
 { lib }:
 rec {
   # Incus nic device: the host side is veth-<name> so firewall chains, scrape
-  # labels and the UI all key on it; the guest side is always "uplink".
-  nic = g: bridge: {
-    type = "nic";
-    nictype = "bridged";
-    parent = bridge;
-    name = "uplink";
-    host_name = "veth-${g.name}";
-  };
+  # labels and the UI all key on it. A NixOS guest calls its side "uplink"; a
+  # foreign container image keeps "eth0", the name its own network setup
+  # (cloud-init's included) configures, and a VM names its own.
+  nic =
+    g: bridge:
+    {
+      type = "nic";
+      nictype = "bridged";
+      parent = bridge;
+      host_name = "veth-${g.name}";
+    }
+    // lib.optionalAttrs (g.kind == "nixos") { name = "uplink"; }
+    // lib.optionalAttrs (g.kind == "image") { name = "eth0"; };
 
   mountDevices =
     g:

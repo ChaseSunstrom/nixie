@@ -42,12 +42,16 @@ pkgs.testers.runNixOSTest {
   testScript = ''
     panel.start()
     panel.wait_for_unit("nixie-panel.service")
-    panel.wait_for_text("(nixie|press any key)", timeout=180)
+    panel.wait_for_unit("incus-preseed.service")
+    # A lane to show: "instances" alone also matched "no instances", which
+    # the panel printed while it asked a socket path that does not exist.
+    panel.succeed("incus create --empty probe")
+    # The wordmark is drawn in block glyphs OCR cannot read; the lane and the
+    # pool line are plain text, so they stand in for the page. The panel
+    # redraws every few seconds, so a single read can land on a blank screen.
+    panel.wait_for_text("probe", timeout=180)
+    panel.wait_for_text("pool", timeout=60)
     panel.screenshot("front-panel")
-    # The wordmark is drawn in block glyphs OCR cannot read; the lane list is
-    # plain text, so it stands in for the page.
-    text = panel.get_screen_text()
-    assert "instances" in text.lower(), text
     panel.send_key("ret")
     panel.wait_for_text("login", timeout=60)
     panel.screenshot("front-panel-login")

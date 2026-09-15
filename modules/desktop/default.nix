@@ -338,7 +338,7 @@ in
       mkOption {
         type = t.listOf t.str;
         default = [ ];
-        description = "Package names in the ${c} category, chosen in the installer.";
+        description = "Package names in the ${c} category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).";
         nixieUi = {
           section = "desktop";
           order = 6;

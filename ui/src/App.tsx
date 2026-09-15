@@ -9,7 +9,7 @@ import { Images, Profiles, Networks, Storage, Operations, Settings } from "./pag
 import { Dashboards } from "./pages/Dashboards";
 import { History } from "./pages/History";
 import { RANGES, fmtBytes } from "./lib/series";
-import { finishes } from "./tokens";
+import { STATS } from "./lib/ui-config";
 
 function Trust() {
   const { auth } = useStore();
@@ -39,7 +39,7 @@ incus config trust add-certificate client.crt`}</pre>
 
 export function App() {
   const route = useHashRoute();
-  const { instances, history, range, setRange, finish, setFinish, site, demo, auth, operations } = useStore();
+  const { instances, history, range, setRange, site, ui, demo, auth, operations } = useStore();
   const [palette, setPalette] = useState(false);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -67,6 +67,14 @@ export function App() {
   const gpu = history["gpu.util.0"]?.at(-1);
   const memUsed = instances.reduce((a, i) => a + (i.state?.memory?.usage ?? 0), 0);
   const ops = operations.filter((o) => o.status === "Running").length;
+  const figures: Record<string, [string, string]> = {
+    cpu: [cpu.toFixed(0), "%"],
+    memory: [mem.toFixed(0), "%"],
+    guests: [`${running}`, `/ ${instances.length}`],
+    "guest-memory": fmtBytes(memUsed).split(" ") as [string, string],
+    gpu: gpu === undefined ? ["–", ""] : [gpu.toFixed(0), "%"],
+    operations: [`${ops}`, "running"],
+  };
   const stat = (label: string, value: string, unit?: string) => (
     <div className="stat" key={label}>
       <span className="label">{label}</span>
@@ -81,25 +89,16 @@ export function App() {
         <a className="brand" href="#/overview">
           <Mark />
           <span className="wordmark">nixie</span>
+          {ui.title && <span className="muted" style={{ fontSize: 13, whiteSpace: "nowrap" }}>{ui.title}</span>}
           {demo && <span className="chip hot" style={{ fontSize: 10 }}>demo</span>}
         </a>
         <div className="stats">
-          {stat("CPU", cpu.toFixed(0), "%")}
-          {stat("Memory", mem.toFixed(0), "%")}
-          {stat("Guests", `${running}`, `/ ${instances.length}`)}
-          {stat("Guest memory", fmtBytes(memUsed).split(" ")[0], fmtBytes(memUsed).split(" ")[1])}
-          {stat("GPU", gpu === undefined ? "–" : gpu.toFixed(0), gpu === undefined ? "" : "%")}
-          {stat("Operations", `${ops}`, "running")}
+          {(ui.stats ?? STATS.map(([id]) => id)).filter((id) => figures[id]).map((id) => stat(STATS.find((s) => s[0] === id)![1], ...figures[id]))}
         </div>
         <div className="header-right">
           <div className="tray">
             {Object.keys(RANGES).map((r) => (
               <button key={r} className="seg" aria-pressed={range === r} onClick={() => setRange(r)}>{r}</button>
-            ))}
-          </div>
-          <div className="tray" role="group" aria-label="Finish">
-            {finishes.map((f) => (
-              <button key={f} className="swatch" aria-pressed={finish === f} aria-label={f} title={f} onClick={() => setFinish(f)} style={{ background: f === "graphite" ? "#1f2226" : f === "umber" ? "#231b16" : "#e4e1da" }} />
             ))}
           </div>
           <button className="palette-btn" onClick={() => setPalette(true)}>
@@ -109,17 +108,22 @@ export function App() {
           <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="muted">
             <span className="dot live" /> live · {new Date().toTimeString().slice(0, 5)}
           </span>
+          <button className="btn icon" aria-label="Settings" title="Settings: theme, header, Overview layout, navigation" aria-pressed={page === "settings"} onClick={() => go("settings")}>
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+              <path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z" />
+            </svg>
+          </button>
         </div>
       </header>
       <nav className="nav" aria-label="Primary">
-        {PAGES.map((p) => (
+        {PAGES.filter((p) => p !== "Settings" && !(ui.hiddenPages ?? []).includes(p)).map((p) => (
           <a key={p} href={`#/${p.toLowerCase()}`} aria-current={page === p.toLowerCase() ? "page" : undefined}>
             {p}
             {p === "Operations" && ops > 0 && <span className="badge">{ops}</span>}
           </a>
         ))}
         {site.hostUiUrl && <a href={site.hostUiUrl}>Host</a>}
-        {site.links.map((l) => (
+        {[...site.links, ...(ui.links ?? [])].map((l) => (
           <a key={l.url} href={l.url}>{l.label}</a>
         ))}
       </nav>

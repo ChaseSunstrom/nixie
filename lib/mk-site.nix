@@ -18,10 +18,11 @@ let
           null;
     };
 
-  # The NVIDIA driver is the one unfree package a host may need. The
-  # decision is made from the hardware file before evaluation so hosts
-  # without it never define nixpkgs.config at all (tests hand in a read-only
-  # package set).
+  # Unfree packages a host may need: the NVIDIA driver, and desktop packages
+  # the site names (a name chosen is a licence chosen: Steam, Discord, VS
+  # Code). The decision is made from the site's files before evaluation so
+  # hosts without either never define nixpkgs.config at all (tests hand in a
+  # read-only package set).
   hardwareFacts =
     host:
     let
@@ -30,10 +31,21 @@ let
     if lib.isAttrs h then h else { };
   unfreeModule =
     host:
-    lib.optional ((hardwareFacts host).nixie.hardware.gpu or "none" == "nvidia") {
+    let
+      nvidia = (hardwareFacts host).nixie.hardware.gpu or "none" == "nvidia";
+      categories =
+        if lib.isAttrs host.settings then host.settings.nixie.desktop.packages.categories or { } else { };
+      chosen = map (n: lib.last (lib.splitString "." n)) (lib.concatLists (lib.attrValues categories));
+    in
+    lib.optional (nvidia || chosen != [ ]) {
       nixpkgs.config.allowUnfreePredicate =
         pkg:
-        lib.hasPrefix "nvidia-x11" (lib.getName pkg) || lib.hasPrefix "nvidia-settings" (lib.getName pkg);
+        let
+          name = lib.getName pkg;
+        in
+        (nvidia && (lib.hasPrefix "nvidia-x11" name || lib.hasPrefix "nvidia-settings" name))
+        # The dash admits the pieces a package is built from (steam-unwrapped).
+        || lib.any (n: name == n || lib.hasPrefix "${n}-" name) chosen;
     };
 
   hostModules =

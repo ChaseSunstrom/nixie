@@ -753,6 +753,12 @@ and `jetbrains-mono` packages at build time.
   (`INCUS_UI` serving), websocket for exec and events, `/1.0/metrics` for the
   rolling history, Prometheus `query_range` adapter for long history. Demo
   mode with the design's seeded random-walk generator when no daemon answers.
+- Settings (the header's gear) keeps the panel's own settings: the finish
+  every browser starts in, the header figures, the starting time range, the
+  Overview panels' order, width and visibility, the navigation's pages and
+  extra links. They are one JSON value in the daemon's free-form
+  `user.nixie.ui` server key (D31); a browser's own finish and range choice
+  still wins over them, and `nixie.ui.*` is what they start from.
 - `ui/nixie-setup`: React, the wizard steps of brief section 11, rendering
   option descriptions from the metadata JSON the backend serves.
 
@@ -883,7 +889,7 @@ and runs `nixie apply`.
 | `systemd-security` | every platform unit at "OK" or a `# exposure:` comment |
 | `profiles-disjoint` | `nix why-depends` both directions on the examples |
 | `option-docs` | every `nixie.*` option has a description |
-| `eval-matrix` | throwaway sites: no GPU, one NIC, no TPM, no data disk, VM; evaluation only (the derivation paths are written without string context, so the check does not build each host's build closure) |
+| `eval-matrix` | throwaway sites: no GPU, one NIC, no TPM, no data disk, VM, and a server and a desktop with every installer-wizard option on; evaluation only (the derivation paths are written without string context, so the check does not build each host's build closure) |
 | `vm-boot-plain` | example server boots, incusd up |
 | `vm-encryption` | OVMF + swtpm: LUKS root unlock, TPM layer + PIN, attestation code shown, duress wipes, remote unlock |
 | `vm-egress` | declared and undeclared guest cannot reach the internet directly under exit-node |
@@ -1055,6 +1061,14 @@ and runs `nixie apply`.
   boots and phase 1, which every front end runs first, stops before touching
   a disk and says to turn on UEFI. `checks.iso-config` asserts both boot
   kinds, the file name and the three entries.
+- **D31 The control panel's settings live in the daemon's configuration.**
+  Asked for a settings button and a customisable dashboard, the choices
+  were browser storage (lost per browser, invisible to anyone else), a site
+  option (a commit and an apply to move a panel) or a small store on the
+  host. Incus keeps free-form `user.*` keys in its server configuration,
+  behind the same client certificate as everything else the panel does, so
+  the settings are one JSON value there: shared by every browser, no new
+  process or port, and `nixie.ui.*` in the site stays the starting point.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the

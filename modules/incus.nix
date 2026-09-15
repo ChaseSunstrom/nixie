@@ -262,6 +262,15 @@ in
               path = "/";
               pool = "default";
             };
+            # A scratch instance (the control panel's Create, `incus launch`)
+            # joins the bridge too; a declared guest's own device of the same
+            # name replaces this one.
+            devices.uplink = {
+              type = "nic";
+              nictype = "bridged";
+              parent = config.nixie.network.bridge.name;
+              name = "eth0";
+            };
           }
         ];
       };
@@ -275,6 +284,9 @@ in
       config.nixie.hardware.gpu == "nvidia" && lib.any (g: g.gpu) (lib.attrValues guests)
     ) true;
 
+    # The control panel's "not trusted yet" page has the administrator make
+    # a browser certificate with openssl on this host.
+    environment.systemPackages = [ pkgs.openssl ];
     environment.etc."nixie/tofu/config.tf.json".source = tofuConfig;
     environment.etc."nixie/guests.json".text = guestsLib.declaredJson guests images;
     # Mount sources must exist before an instance starts, owned so the shifted

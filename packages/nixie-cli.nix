@@ -76,11 +76,21 @@ pkgs.writeShellApplication {
           if command -v nixie-snapshot >/dev/null; then nixie-snapshot pre-apply "$label"; fi
           # Step 1: the host, so every derived piece exists before a guest has an interface.
           # A prebuilt system (deploy, tests) is switched to directly.
+          # Status 4 is "switched, but some units did not start". A user's own
+          # units missing their reload (a login ending mid-switch did it) must
+          # not leave the guests unapplied; a failed system unit still stops here.
+          switched() {
+            rc=0; "$@" || rc=$?
+            if [ "$rc" = 4 ] && [ -z "$(systemctl --failed --no-legend --plain)" ]; then
+              echo "nixie apply: the switch reported units that did not start, but no system unit failed; continuing" >&2; rc=0
+            fi
+            return "$rc"
+          }
           if [ -n "''${NIXIE_TOPLEVEL:-}" ]; then
             nix-env --profile "$prof" --set "$NIXIE_TOPLEVEL"
-            "$NIXIE_TOPLEVEL/bin/switch-to-configuration" switch
+            switched "$NIXIE_TOPLEVEL/bin/switch-to-configuration" switch
           else
-            nixos-rebuild switch --flake "$site#$host"
+            switched nixos-rebuild switch --flake "$site#$host"
           fi
         fi
         : "''${label:=$(date +%Y%m%d-%H%M%S)}"
@@ -374,6 +384,8 @@ pkgs.writeShellApplication {
           echo "now on generation $1"
         }
         cur=$(gen_num "$prof")
+        # A generation's date is its profile link's own: `date -r` follows the
+        # link into the store, where every path is dated 1970.
         case "''${1:-}" in
           --list)
             printf '%-4s %-17s %-40s %-14s %s\n' gen date label kernel marks
@@ -383,12 +395,12 @@ pkgs.writeShellApplication {
               [ "$(readlink -f "$l")" = "$(readlink -f /run/current-system)" ] && marks="$marks current"
               [ "$(readlink -f "$l")" = "$(readlink -f /run/booted-system 2>/dev/null)" ] && marks="$marks booted"
               [ "$n" = "$newest" ] && marks="$marks boot-default"
-              printf '%-4s %-17s %-40s %-14s %s\n' "$n" "$(date -r "$l" '+%F %R')" "$(cat "$l/nixos-version")" "$(basename "$(readlink -f "$l/kernel")" | sed 's/^[a-z0-9]*-linux-//' | cut -c1-14)" "$marks"
+              printf '%-4s %-17s %-40s %-14s %s\n' "$n" "$(date -d "@$(stat -c %Y "$l")" '+%F %R')" "$(cat "$l/nixos-version")" "$(basename "$(readlink -f "$l/kernel")" | sed 's/^[a-z0-9]*-linux-//' | cut -c1-14)" "$marks"
             done ;;
           --json)
             gens=$(for m in "$prof"-*-link; do
               n=''${m##*system-}; n=''${n%-link}
-              jq -n --arg gen "$n" --arg date "$(date -r "$m" -Is)" --arg label "$(cat "$m/nixos-version" 2>/dev/null || echo unknown)" \
+              jq -n --arg gen "$n" --arg date "$(date -d "@$(stat -c %Y "$m")" -Is)" --arg label "$(cat "$m/nixos-version" 2>/dev/null || echo unknown)" \
                 --arg kernel "$(basename "$(readlink -f "$m/kernel")" 2>/dev/null | sed 's/^[a-z0-9]*-linux-//')" \
                 --argjson current "$([ "$(readlink -f "$m")" = "$(readlink -f /run/current-system)" ] && echo true || echo false)" \
                 --argjson booted "$([ "$(readlink -f "$m")" = "$(readlink -f /run/booted-system 2>/dev/null)" ] && echo true || echo false)" \

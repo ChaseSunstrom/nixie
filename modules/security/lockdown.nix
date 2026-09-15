@@ -21,10 +21,8 @@ in
       kernel modules, every driver that is not built in stops loading. Leave
       it at "none" unless you have checked your hardware.
     '';
-    nixieUi = {
-      section = "security";
-      order = 8;
-    };
+    # Not offered by the installer: one click would mean a kernel built from
+    # source during the install and drivers that no longer load.
   };
 
   config = lib.mkIf (cfg == "integrity") {
@@ -33,8 +31,9 @@ in
         name = "nixie-lockdown";
         patch = null;
         structuredExtraConfig = {
-          SECURITY_LOCKDOWN_LSM = lib.kernel.yes;
-          SECURITY_LOCKDOWN_LSM_EARLY = lib.kernel.yes;
+          # The stock configuration sets these to no at the same priority.
+          SECURITY_LOCKDOWN_LSM = lib.mkForce lib.kernel.yes;
+          SECURITY_LOCKDOWN_LSM_EARLY = lib.mkForce lib.kernel.yes;
         };
       }
     ];

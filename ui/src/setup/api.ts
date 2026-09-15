@@ -30,6 +30,7 @@ export const api = {
   attestation: () => j<{ text: string; recovery: string; recoveryQr: string }>("GET", "/api/attestation"),
   reboot: () => j<{ ok: boolean }>("POST", "/api/reboot", {}),
   finish: () => j<{ ok: boolean; output: string }>("POST", "/api/finish", {}),
+  finishStatus: () => j<{ failed: boolean; lines: string[] }>("GET", "/api/finish"),
   phase: (n: number, body: Record<string, unknown>, onLine: (l: string) => void) =>
     new Promise<{ rc: number; done: number[] }>((resolve, reject) => {
       fetch(`/api/phase/${n}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })

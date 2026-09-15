@@ -428,49 +428,49 @@ Every open window, and the workspace it is on, in one panel on Super+` as well a
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the browsers category, chosen in the installer.
+Package names in the browsers category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.categories.communication`
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the communication category, chosen in the installer.
+Package names in the communication category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.categories.creative`
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the creative category, chosen in the installer.
+Package names in the creative category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.categories.editors`
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the editors category, chosen in the installer.
+Package names in the editors category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.categories.gaming`
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the gaming category, chosen in the installer.
+Package names in the gaming category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.categories.media`
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the media category, chosen in the installer.
+Package names in the media category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.categories.office`
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the office category, chosen in the installer.
+Package names in the office category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.categories.terminals`
 
 *list of string*, default: `[]`. Wizard section: desktop.
 
-Package names in the terminals category, chosen in the installer.
+Package names in the terminals category, chosen in the installer. Naming a package here accepts its licence, so unfree ones such as Steam install too (when set in the host's settings in site.nix, where the installer writes them).
 
 ## `nixie.desktop.packages.extra`
 
@@ -940,7 +940,7 @@ Extra usbguard rules, added after the list of devices present when this host was
 
 ## `nixie.security.lockdown`
 
-*one of "none", "integrity" (none, integrity)*, default: `"none"`. Wizard section: security.
+*one of "none", "integrity" (none, integrity)*, default: `"none"`.
 
 Kernel lockdown. "integrity" stops even the administrator from changing
 the running kernel. The stock kernel is built without it, so choosing

@@ -126,7 +126,8 @@ export function Dashboards({ uid, guest }: { uid?: string; guest?: string }) {
   const { history, range, setRange, site, demo } = useStore();
   const [custom, setCustom] = useState<Dash[]>(loadCustom);
   const all = [...shipped, ...custom];
-  const dash = all.find((d) => d.uid === (uid === "guest" ? "nixie-guest" : uid)) ?? all[0];
+  // Short names (#/dashboards/gpu, the instance page's guest link) stand for the shipped nixie-* ones.
+  const dash = all.find((d) => d.uid === uid || d.uid === `nixie-${uid}`) ?? all[0];
   const minutes = RANGES[range] ?? 60;
   const points = Math.max(2, Math.round(minutes / 5)) * 12;
   const prom = localStorage.getItem("nixie.prometheus") || site.prometheusUrl;

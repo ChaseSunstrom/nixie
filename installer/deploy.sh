@@ -59,6 +59,10 @@ if [ "$local" = 1 ]; then
         admin=$(ask "administrator user name" --value admin)
         secret "administrator password" >/run/nixie/keys/admin-password
         keys=$(ask "SSH public key (optional, one)")
+        # Remote unlock is an SSH login; without a key the system cannot be built.
+        while [ "$ru" = true ] && [ -z "$keys" ]; do
+          keys=$(ask "SSH public key (needed: remote unlock is on)")
+        done
         # The same JSON the web wizard posts to /api/config, written by the same code.
         settings=$(jq -n --arg admin "$admin" --arg key "$keys" --arg mode "$mode" \
           --argjson enc "$enc" --argjson tpm "$tpm" --argjson att "$att" --argjson sb "$sb" --argjson dur "$dur" --argjson ru "$ru" \

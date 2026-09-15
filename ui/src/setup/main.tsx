@@ -28,6 +28,10 @@ const CONT = [
 ];
 // A desktop has no guest bridge and no Incus; NetworkManager configures it.
 const SERVER_ONLY = /^nixie\.(incus\.|network\.(address|gateway|dns|bridge\.|egress|exitNode))/;
+// Without a TPM these cannot work, so the step does not offer them.
+const TPM_ONLY = /^nixie\.security\.(tpm|attestation)\./;
+// Set by the wizard itself from what is typed elsewhere on the page.
+const WIZARD_WRITES = ["nixie.network.tailscale.authKeyFile"];
 const SECRET_LABEL: Record<string, string> = { passphrase: "Disk passphrase (asked every boot)", pin: "TPM PIN", duress: "Duress passphrase (destroys the disk if typed at boot)", tailscale: "Tailscale auth key", password: "Administrator password" };
 
 function Bytes({ b }: { b: number }) {
@@ -37,9 +41,11 @@ function Bytes({ b }: { b: number }) {
 function OptionField({ o, value, onChange }: { o: Opt; value: unknown; onChange: (v: unknown) => void }) {
   const desc = <div className="caption" style={{ whiteSpace: "pre-line", maxWidth: 640 }}>{o.description.trim()}</div>;
   const name = o.path.replace(/^nixie\./, "");
+  // Structured entries (monitors) have no form here; the site file takes them.
+  if (o.type.includes("submodule")) return null;
   if (o.type === "boolean") return <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><Toggle on={Boolean(value)} onChange={onChange} label={<span style={{ fontWeight: 500 }}>{name}</span>} />{desc}</div>;
   if (o.values.length) return <Field label={name}><div className="tray" style={{ alignSelf: "flex-start" }}>{o.values.map((v) => <button key={v} className="seg" aria-pressed={value === v} onClick={() => onChange(v)}>{v}</button>)}</div>{desc}</Field>;
-  if (o.type.startsWith("list of")) return <Field label={`${name} (one per line)`}><textarea className="input" rows={3} value={Array.isArray(value) ? value.join("\n") : ""} onChange={(e) => onChange(e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))} />{desc}</Field>;
+  if (o.type.startsWith("list of")) return <Field label={`${name} (one per line)`}><textarea className="input" rows={3} value={Array.isArray(value) ? value.join("\n") : ""} onChange={(e) => { const l = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean); onChange(o.type.includes("integer") ? l.map(Number).filter(Number.isInteger) : l); }} />{desc}</Field>;
   if (o.type.includes("integer") || o.type.includes("port")) return <Field label={name}><input className="input mono" type="number" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />{desc}</Field>;
   return <Field label={name}><input className="input mono" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value || null)} />{desc}</Field>;
 }
@@ -85,7 +91,9 @@ function Wizard() {
     api.options().then((o) => {
       setOpts(o);
       const init: Record<string, unknown> = {};
-      for (const x of o) if (x.section && !x.required && x.default !== null && typeof x.default !== "object") init[x.path] = x.default;
+      // Lists too, so a field shows its default ([7] reads "7") instead of
+      // looking empty; submitConfig leaves an unedited one out by identity.
+      for (const x of o) if (x.section && !x.required && x.default !== null && (typeof x.default !== "object" || Array.isArray(x.default))) init[x.path] = x.default;
       init["nixie.security.encryption.enable"] = true;
       setValues((v) => ({ ...init, ...v }));
     });
@@ -186,6 +194,23 @@ function Wizard() {
 
   if (cont) {
     const next = CONT.find((c) => !done.includes(c.n));
+    // Success ends this page with the service; a failure leaves it up, so it
+    // has to say why here rather than only in the journal.
+    const finishSetup = () => {
+      setBusy(true);
+      setErr("");
+      api.finish().then((r) => {
+        setLines((l) => [...l, r.output]);
+        if (!r.ok) return setBusy(false);
+        const t = setInterval(() => api.finishStatus().then((s) => {
+          if (!s.failed) return;
+          clearInterval(t);
+          setLines((l) => [...l, ...s.lines]);
+          setErr("Finish stopped; the lines above say why. Fix the site and press Finish again.");
+          setBusy(false);
+        }).catch(() => undefined), 3000);
+      }).catch((e) => { setErr((e as Error).message); setBusy(false); });
+    };
     return (
       <div className="app" style={{ gridTemplateRows: "64px 1fr" }}>
         {header}
@@ -193,8 +218,9 @@ function Wizard() {
           {!next ? (
             <Panel title="Finished" sub="the machine is yours">
               <p>Every phase is done. Finish switches to the normal system, removes the setup generation and this page; from then on the control panel is the only web page on this host.</p>
-              <button className="btn primary" disabled={busy} onClick={() => { setBusy(true); api.finish().then((r) => setLines((l) => [...l, r.output])).finally(() => setBusy(false)); }}>Finish</button>
+              <button className="btn primary" disabled={busy} onClick={finishSetup}>Finish</button>
               {log}
+              {err && <p style={{ color: "var(--err)", whiteSpace: "pre-wrap" }}>{err}</p>}
             </Panel>
           ) : (
             <Panel title={`${next.n}. ${next.title}`} sub={next.blurb}>
@@ -238,6 +264,21 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
   }
 
   const s = enabledSteps[step];
+  // Combinations the modules refuse, caught here instead of failing phase 3.
+  const problems = (): string[] => {
+    const on = (p: string) => Boolean(values[p]);
+    const out: string[] = [];
+    if (s.id === "security" && !on("nixie.security.encryption.enable")) {
+      const needs = ["tpm", "attestation", "duress", "remoteUnlock"].filter((f) => on(`nixie.security.${f}.enable`));
+      if (needs.length) out.push(`Needs disk encryption: ${needs.join(", ")}. Turn encryption on, or these off.`);
+    }
+    if (s.id === "network" && values["nixie.network.egress"] === "exit-node") {
+      if (values["nixie.network.bridge.mode"] !== "managed-nat") out.push("Exit-node egress needs the managed-nat bridge mode.");
+      if (!on("nixie.network.tailscale.enable")) out.push("Exit-node egress needs Tailscale.");
+      if (!values["nixie.network.exitNode"]) out.push("Exit-node egress needs the exit node's name.");
+    }
+    return out;
+  };
   const body = () => {
     switch (s.id) {
       case "profile":
@@ -278,7 +319,8 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
       case "desktop":
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
-            {(bySection[s.id] ?? []).filter((o) => o.path !== "nixie.host.name" && !(profile === "desktop" && SERVER_ONLY.test(o.path))).map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
+            {(bySection[s.id] ?? []).filter((o) => o.path !== "nixie.host.name" && !(profile === "desktop" && SERVER_ONLY.test(o.path)) && !(hw && !hw.tpm && TPM_ONLY.test(o.path)) && !WIZARD_WRITES.includes(o.path)).map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
+            {problems().map((m) => <p key={m} className="caption" style={{ color: "var(--err)" }}>{m}</p>)}
             {s.id === "security" && secretsNeeded.filter((k) => k !== "password" && k !== "tailscale").map((k) => <Field key={k} label={SECRET_LABEL[k] ?? k}><input className="input" type="password" value={secrets[k] ?? ""} onChange={(e) => setSecrets({ ...secrets, [k]: e.target.value })} /></Field>)}
             {s.id === "network" && Boolean(values["nixie.network.tailscale.enable"]) && <Field label="Tailscale auth key (optional; without it you log in from the control panel later)"><input className="input mono" type="password" value={secrets.tailscale ?? ""} onChange={(e) => setSecrets({ ...secrets, tailscale: e.target.value })} /></Field>}
           </div>
@@ -287,6 +329,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
             {(bySection.auth ?? []).filter((o) => !o.path.includes("passwordFile") && !o.path.includes("totpSecretFile")).map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
+            {Boolean(values["nixie.security.remoteUnlock.enable"]) && !(Array.isArray(values["nixie.auth.sshKeys"]) && (values["nixie.auth.sshKeys"] as string[]).length > 0) && <p className="caption" style={{ color: "var(--err)" }}>Remote unlock is on: add at least one SSH public key, the one you will unlock with.</p>}
             <Field label={SECRET_LABEL.password}><input className="input" type="password" value={secrets.password ?? ""} onChange={(e) => setSecrets({ ...secrets, password: e.target.value })} /></Field>
             {values["nixie.auth.secondFactor"] === "totp" && (
               <div className="panel" style={{ maxWidth: 520 }}>
@@ -327,8 +370,11 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
     // A desktop has no guest bridge, so no ports to choose.
     if (s.id === "hardware") return Boolean(disk) && (uplinks.length > 0 || profile === "desktop") && Boolean(hw?.efi);
     if (s.id === "site") return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(host);
+    if (problems().length) return false;
     if (s.id === "security") return secretsNeeded.filter((k) => k !== "password" && k !== "tailscale").every((k) => secrets[k]);
-    if (s.id === "auth") return Boolean(secrets.password) && Boolean(values["nixie.auth.admin.name"]) && (values["nixie.auth.secondFactor"] !== "totp" || totpOk);
+    // Remote unlock is an SSH login, so it needs a key to log in with.
+    const keys = values["nixie.auth.sshKeys"];
+    if (s.id === "auth") return Boolean(secrets.password) && Boolean(values["nixie.auth.admin.name"]) && (values["nixie.auth.secondFactor"] !== "totp" || totpOk) && (!values["nixie.security.remoteUnlock.enable"] || (Array.isArray(keys) && keys.length > 0));
     return true;
   };
   return (

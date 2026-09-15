@@ -200,6 +200,20 @@ type; keep it offline. Local ZFS snapshots (`nixie.backups.snapshots`, and
 one before every `apply`) cover mistakes on a healthy disk; restic covers
 losing the disk.
 
+## Control panel
+
+`https://<host>:8443/ui/` is the Incus daemon serving the panel: instances
+with their terminal, files, logs, snapshots and metrics, images, profiles,
+networks, storage, operations, dashboards and guest history. A browser gets
+in with a client certificate the daemon trusts; the panel's first page gives
+the commands. The gear in the header opens Settings: the finish, the figures
+in the header, the time range a browser starts with, which Overview panels
+show and in what order and width, the pages in the navigation and extra
+links. They are kept on the host for every browser, in the daemon's
+`user.nixie.ui` setting, and start from `nixie.ui.theme` and
+`nixie.ui.links`
+([VERIFICATION.md#a-server-installed-through-the-web-wizard](VERIFICATION.md#a-server-installed-through-the-web-wizard)).
+
 ## Console and kiosk
 
 The first text console shows a front panel (`nixie.console.frontPanel.enable`,

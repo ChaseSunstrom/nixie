@@ -23,7 +23,8 @@ export function Topology({ instances, networks }: { instances: Instance[]; netwo
         {shown.map((i, n) => {
           const x = 70 + n * gap;
           const up = n % 2 === 0;
-          const y = up ? 40 : H - 40;
+          // The lower row sits clear of the legend along the bottom edge.
+          const y = up ? 40 : H - 58;
           const frozen = i.status === "Frozen";
           const stopped = i.status === "Stopped";
           const ks = i.profiles?.includes("killswitch");
@@ -32,7 +33,7 @@ export function Topology({ instances, networks }: { instances: Instance[]; netwo
               <line x1={x} x2={x} y1={H / 2} y2={y} stroke="var(--net)" strokeWidth="1.5" strokeDasharray={frozen || stopped ? "3 3" : undefined} />
               {ks && <circle cx={x} cy={y} r="10" fill="none" stroke="var(--err)" strokeWidth="2" />}
               <circle cx={x} cy={y} r="6" fill={stopped ? "var(--muted)" : frozen ? "var(--ice)" : "var(--ok)"} />
-              <text x={x} y={up ? y - 12 : y + 20} fontSize="12" fontWeight="500" fill={frozen || stopped ? "var(--muted)" : "var(--ink)"} textAnchor="middle">
+              <text x={x} y={up ? y - 12 : y + 18} fontSize="12" fontWeight="500" fill={frozen || stopped ? "var(--muted)" : "var(--ink)"} textAnchor="middle">
                 {i.name}
               </text>
             </g>

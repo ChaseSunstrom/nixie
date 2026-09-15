@@ -84,9 +84,12 @@ pkgs.testers.runNixOSTest {
   };
 
   testScript = ''
-    def guest(name, addr):
-        host.succeed(f"ip link add veth-{name} type veth peer name g-{name}")
-        host.succeed(f"ip link set veth-{name} master nixie-br up")
+    # Declared guests' ports are veth-<name>; Incus names anyone else's
+    # veth<hex>, which a "veth-*" rule once let reach the host's SSH.
+    def guest(name, addr, port=None):
+        port = port or f"veth-{name}"
+        host.succeed(f"ip link add {port} type veth peer name g-{name}")
+        host.succeed(f"ip link set {port} master nixie-br up")
         host.succeed(f"ip netns add {name} && ip link set g-{name} netns {name}")
         host.succeed(f"ip -n {name} addr add {addr}/24 dev g-{name} && ip -n {name} link set g-{name} up && ip -n {name} link set lo up")
         host.succeed(f"ip -n {name} route add default via 10.90.0.1")
@@ -105,7 +108,7 @@ pkgs.testers.runNixOSTest {
     host.succeed("ip link show uplink0 && ip link show nixie-br && ip link show tailscale0")
     host.succeed("nft list chain bridge nixie-guests guest-web && nft list chain bridge nixie-guests guest-undeclared")
     guest("web", "10.90.0.10")
-    guest("scratch", "10.90.0.11")
+    guest("scratch", "10.90.0.11", port="veth8ddc20dc")
 
     with subtest("exit-node: guests reach only the tunnel side"):
         for ns in ["web", "scratch"]:
@@ -114,6 +117,7 @@ pkgs.testers.runNixOSTest {
 
     with subtest("guests cannot reach the host's SSH"):
         host.fail("ip netns exec web nc -z -w 2 10.90.0.1 22")
+        host.fail("ip netns exec scratch nc -z -w 2 10.90.0.1 22")
         internet.succeed("nc -z -w 2 192.168.1.2 22")
 
     with subtest("direct: guests reach the LAN through the host"):

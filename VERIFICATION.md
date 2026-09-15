@@ -797,6 +797,93 @@ afterwards (OVMF, Slice (b)); a USB stick on physical hardware (the stick
 path is exercised under OVMF with QEMU's USB storage); the TPM scenario in
 VirtualBox (its virtual TPM was not enabled for these runs).
 
+## Phase 3 evaluation errors from the web wizard (2026-09-15)
+
+The screenshot showed an install stopping at phase 3 with a Nix trace
+(`head` in `recursiveUpdateUntil`, then `value` in `lib/modules.nix`) and the
+message cut off. Every choice the wizard offers was evaluated on its own and
+in combination, first as options and then through the real path: a body
+shaped the way `ui/src/setup/main.tsx` builds it, `nixie-setup --configure`
+writing the site, a phase-1-style `hardware.nix`, and the `environment.etc`
+build phase 3 starts with. Against the committed platform, remote unlock
+(the early-boot root shell defined twice at one priority) and a desktop
+package with an unfree licence (Steam refused) give exactly the frames in the
+screenshot; lockdown integrity (a kernel option set twice) fails differently,
+and a TPM measurement list typed in the wizard arrived as text. All of them
+evaluate now; remote unlock without a key stops at its assertion, which
+both wizards now prevent. `tests/sites/wizard-server.nix` and
+`wizard-desktop.nix` put every wizard option on at once in `eval-matrix`;
+the desktop one fails against the committed platform (tried).
+
+## A server installed through the web wizard
+
+2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a
+64 GB disk, user networking with 9443, 8443, 9090, 22 and 2222 forwarded),
+driven by Playwright from the host exactly as a person would: the pairing
+code from the screen, clicks on the wizard's own buttons. Screenshots of each
+step are in `tests/artifacts/e2e-server/`.
+
+Install. Server profile, the virtio disk, the one port, a new site "atlas",
+encryption with remote unlock (the combination the report failed on), an
+SSH key, TOTP enrolled with a code from `oathtool`, a time zone. The new
+guard held Next with encryption off and remote unlock on. Review showed the
+generated `hardware.nix` and `site.nix`; phases 2 and 3 passed; the first
+boot asked for the passphrase; phases 4 to 7 passed in the browser.
+
+Guests. Before phase 8, three guests were declared in the site on the host:
+`web` (the static-web recipe over `/data/state/web`), `app` (nginx under
+podman with a mounted directory) and `legacy` (Debian trixie from
+images.linuxcontainers.org by fingerprint, with cloud-init). Phase 8 applies
+the installed system, not later site edits, so they came from `nixie apply`
+after Finish: all three created, `web` and `app` serving their mounted pages,
+`nixie doctor` listing each as RUNNING.
+
+What was broken, each found here, fixed, and checked again on this host with
+the platform in the site's lock pointed at the fixed tree:
+
+| found | fix | checked |
+|---|---|---|
+| remote unlock never answered: the initrd had only `lo` (no NIC driver; the scan copies storage drivers) | phase 1 adds each wired port's driver to `boot.initrd.availableKernelModules` | with the driver line, `ssh -tt -p 2222` got the prompt and the host booted with every guest running |
+| an SSH session without a terminal cancelled the passphrase prompt; the boot stopped in emergency mode with root locked | the relay refuses a session without a terminal | `ssh -T … true` refused; a terminal session dropped mid-prompt leaves the prompt pending; a normal unlock boots (`67-after-drop.png`) |
+| a failed Finish showed nothing on the page | `/api/finish` returns the unit's output since the button was pressed; the page shows it and enables Finish again | a patched backend beside the real one showed the evaluation error (`25-finish-failure-shown.png`) |
+| Finish stopped at `switch-to-configuration` status 4 when only a user's own units missed their reload (an SSH login ending mid-switch) | `nixie apply` continues when the switch reports 4 and no system unit failed | tested with a stub systemctl: 4 with no failed units continues, 4 with one stops, 1 stops |
+| the front panel showed "no instances" with guests running | the panel asks `/var/lib/incus/unix.socket` | four lanes and the pool line (`60-front-panel-patched.png`); `vm-console` now waits for a created instance's name, and the old "instances" match was satisfied by "no instances" |
+| the control panel's terminal opened an exec session on every refresh: 929 exec calls and 3740 requests in 10 s, `ERR_INSUFFICIENT_RESOURCES`, a blank terminal | a stable `toast`, the terminal effect tied to the instance only, refreshes coalesced | 8 requests in 15 s with a shell open; commands answer (`44-terminal-fixed.png`) |
+| memory read 0 %: the panel and the guest dashboard asked for `incus_memory_Usage_bytes`, which incusd does not export | `MemTotal - MemAvailable` | the header reads the real figure; the Prometheus query returns each guest; `vm-guests` asserts the names on the real daemon |
+| History crashed the panel: it fetched `/nixie/history.json`, which nothing serves | guest snapshots from the Incus API, host history on the host page | lists the snapshot taken from the panel (`55-history.png`); the host page's History lists generations, snapshots and a backup (`64-hostui-history.png`) |
+| an instance with podman showed `10.88.0.1` | the platform's nic before bridges the guest made | `app 10.0.2.17` |
+| a scratch instance from Create had no network device | the default profile has a bridged `uplink` nic, which a declared guest's own device replaces | `scratchy` got an address; `web` kept `veth-web` |
+| a scratch instance's port (`veth8ddc20dc`) reached the host's SSH: the rules matched `veth-*` | `veth*` | reached before, blocked after, on the host; `vm-egress` now names its scratch port the Incus way and asserts it |
+| the Debian guest had no address: its nic was named `uplink`, cloud-init configured `eth0` | foreign container images keep `eth0` | DHCP, `curl` installed by cloud-init, the runcmd ran |
+| "not trusted yet" told the admin to run `openssl`, which a server lacked | `openssl` on hosts with Incus | on the path after apply |
+| `nixie rollback --list` and History dated generations 1969 | the profile link's own mtime | 09:57, 10:25, 10:47 |
+| the wizard offered TPM features without a TPM, showed the Tailscale key-file path, left `pcrs` looking empty; the site's files were read-only; phase 6 warned of a duplicate age recipient | hidden, hidden, defaults shown, `chmod u+w`, recipients deduplicated | the Security step without TPM rows and Network without the key file in a browser |
+| smaller: `#/dashboards/gpu` showed the host dashboard, an empty log read "select a log file", the heat strip drew `#` on the console, the scratch chip and topology legend overlapped | short dashboard names, "this log is empty", block glyphs, a wider name column, the lower topology row raised | screenshots |
+
+Also exercised and working without change: the file browser (the mounted
+page edited and saved from the panel, served by the guest at once),
+snapshots, stop and start, Export, Create from a remote alias, the Images,
+Profiles, Networks, Storage and Operations pages, Settings, the host page
+with password and TOTP, `nixie backup now|list|verify` (restic check: no
+errors), Prometheus scraping incus and node, the three Grafana dashboards
+provisioned, `nixie rollback guest` restoring a snapshot while leaving the
+mounted state alone, `nixie export` of a scratch instance, `nixie hardware
+scan`, and a reboot with every guest starting again.
+
+Settings, added afterwards at the user's request, checked on the same host
+against the real daemon: the gear opens Settings; theme, title, header
+figures, starting range, Overview order, width and visibility, hidden pages
+and an extra link were saved; `incus config get user.nixie.ui` held the JSON;
+a fresh browser context with no stored state opened in that layout and
+finish (`82-fresh-browser-overview.png`); Reset returned `{}` and the site's
+defaults.
+
+Not verified: a USB stick and a real NIC on physical hardware (the driver
+list comes from the running installer, so it follows the hardware);
+Cockpit's podman page; the Finish path end to end after the apply fix (this
+host's Finish had already stopped before it existed, and `test-iso` below
+runs Finish on the fixed tree).
+
 ## Console
 
 `vm-console`: tty1 shows the front panel (OCR finds the wordmark and the

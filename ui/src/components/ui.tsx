@@ -142,9 +142,9 @@ export function HeatStrip({ series, scale = 1, row }: { series: Series; scale?: 
   );
 }
 
-export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
+export function Toggle({ on, onChange, label, ariaLabel }: { on: boolean; onChange: (v: boolean) => void; label: ReactNode; ariaLabel?: string }) {
   return (
-    <button type="button" role="switch" aria-checked={on} className="toggle" onClick={() => onChange(!on)} style={{ background: "none", border: 0, padding: 0 }}>
+    <button type="button" role="switch" aria-checked={on} aria-label={ariaLabel} className="toggle" onClick={() => onChange(!on)} style={{ background: "none", border: 0, padding: 0 }}>
       <span className="sw" />
       <span>{label}</span>
     </button>

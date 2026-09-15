@@ -31,7 +31,22 @@
    from then on the control panel is the only web page.
 
 Everything the wizard did is in the site checkout on the host; the phases
-are the same scripts `nixie-phase N` runs.
+are the same scripts `nixie-phase N` runs. If Finish stops, the setup page
+shows why (a site that no longer evaluates, for one); fix it and press
+Finish again.
+
+After setup:
+
+- **Unlocking.** The passphrase prompt is on the machine's screen; with
+  remote unlock on, `ssh -t -p 2222 root@<address>` with the administrator's
+  key asks the same.
+- **Control panel.** `https://<address>:8443/ui/`. The first visit explains
+  how to trust the browser: a client certificate made with `openssl` on the
+  host and `incus config trust add-certificate`. The gear opens Settings.
+- **Guests.** Add them to `guests.nix` in the site checkout
+  (`/etc/nixie/site`, as root), commit, and run `nixie apply`; see
+  [add-a-guest.md](add-a-guest.md). Instances made from the panel's Create
+  are scratch instances on the same bridge.
 
 ## Trying it in a virtual machine
 

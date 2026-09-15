@@ -186,7 +186,7 @@ function Logs({ name }: { name: string }) {
         </select>
         <span>{file ? "tail" : ""}</span>
       </div>
-      <pre className="well term" style={{ whiteSpace: "pre-wrap", overflow: "auto", maxHeight: 520 }}>{text || "select a log file"}</pre>
+      <pre className="well term" style={{ whiteSpace: "pre-wrap", overflow: "auto", maxHeight: 520 }}>{file ? text || "this log is empty" : "select a log file"}</pre>
     </Panel>
   );
 }

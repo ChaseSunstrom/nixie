@@ -54,7 +54,7 @@
       },
       "targets": [
         {
-          "expr": "incus_memory_Usage_bytes{name=~\"$guest\"}",
+          "expr": "incus_memory_MemTotal_bytes{name=~\"$guest\"} - incus_memory_MemAvailable_bytes{name=~\"$guest\"}",
           "legendFormat": "{{name}}",
           "refId": "A"
         }

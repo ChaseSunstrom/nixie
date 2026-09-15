@@ -13,6 +13,13 @@ export type PoolResources = { space: { used: number; total: number } };
 export type Volume = { name: string; type: string; content_type: string; used_by: string[]; config: Record<string, string> };
 export type Server = { auth: string; environment?: { server_name: string; kernel_version: string; server_version: string; storage: string; driver: string }; config?: Record<string, string>; auth_methods?: string[]; api_extensions?: string[] };
 
+// Where a guest is reached: the platform's nic ("uplink", or "eth0" in a
+// foreign image) before any bridge the guest made inside (podman0, docker0).
+export const address = (s?: State): string => {
+  const pick = (k: string) => s?.network?.[k]?.addresses.find((a) => a.family === "inet" && a.scope === "global")?.address;
+  return pick("uplink") ?? pick("eth0") ?? Object.keys(s?.network ?? {}).map(pick).find(Boolean) ?? "";
+};
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);

@@ -1,11 +1,14 @@
+import { Fragment, type ReactNode } from "react";
 import { useStore, tier } from "../lib/store";
+import { overviewLayout } from "../lib/ui-config";
 import { Panel, Chart, Ring, PoolRing, HeatStrip, Dot, Bar, useCursor, usePoll, go } from "../components/ui";
 import { at, slice, RANGES, fmtBytes, fmtAge } from "../lib/series";
 import { Topology } from "../components/Topology";
 import { demoSeries } from "../lib/demo";
+import { address } from "../lib/api";
 
 export function Overview() {
-  const { history, range, instances, operations, events, site, api, cursor, demo } = useStore();
+  const { history, range, instances, operations, events, site, api, cursor, demo, ui } = useStore();
   const minutes = RANGES[range] ?? 60;
   const points = Math.max(2, Math.round(minutes / 5)) * 12; // one sample per 5 s
   const last = (k: string, n = points) => (history[k] ?? []).slice(-n);
@@ -18,18 +21,25 @@ export function Overview() {
   const { onMove, onLeave } = useCursor();
   const running = operations.filter((o) => o.status === "Running");
 
-  return (
-    <div className="grid12" style={{ gridTemplateRows: "198px 252px auto" }}>
-      <Panel title="CPU" sub="host" value={<span style={{ color: "var(--cpu)" }}>{at(slice(hostCpu), frac).toFixed(0)} %</span>} span={3} dense>
+  // Each panel by id, drawn in the order and width Settings keeps (ui-config.ts).
+  const panels: Record<string, (span: number, height?: number) => ReactNode> = {
+    "cpu": (span, height) => (
+      <Panel title="CPU" sub="host" value={<span style={{ color: "var(--cpu)" }}>{at(slice(hostCpu), frac).toFixed(0)} %</span>} span={span} dense style={{ height }}>
         <Chart series={[hostCpu]} colors={["var(--cpu)"]} minutes={minutes} />
       </Panel>
-      <Panel title="Memory" sub="host" value={<span style={{ color: "var(--mem)" }}>{at(slice(hostMem), frac).toFixed(0)} %</span>} span={3} dense>
+    ),
+    "memory": (span, height) => (
+      <Panel title="Memory" sub="host" value={<span style={{ color: "var(--mem)" }}>{at(slice(hostMem), frac).toFixed(0)} %</span>} span={span} dense style={{ height }}>
         <Chart series={[hostMem]} colors={["var(--mem)"]} minutes={minutes} />
       </Panel>
-      <Panel title="GPU power" sub={gpus ? `${gpus} cards` : "no GPU"} value={site.gpuPowerCap ? <span style={{ color: "var(--err)" }}>cap {site.gpuPowerCap} W</span> : undefined} span={3} dense>
+    ),
+    "gpu-power": (span, height) => (
+      <Panel title="GPU power" sub={gpus ? `${gpus} cards` : "no GPU"} value={site.gpuPowerCap ? <span style={{ color: "var(--err)" }}>cap {site.gpuPowerCap} W</span> : undefined} span={span} dense style={{ height }}>
         {gpus ? <Chart series={Array.from({ length: gpus }, (_, i) => last(`gpu.power.${i}`))} colors={["var(--hot)", "var(--disk)"]} max={Math.max(300, site.gpuPowerCap ?? 0) * 1.2} cap={site.gpuPowerCap ?? undefined} unit=" W" minutes={minutes} /> : <div className="empty">No GPU on this host</div>}
       </Panel>
-      <Panel title="GPU temperature" span={3} dense>
+    ),
+    "gpu-temperature": (span, height) => (
+      <Panel title="GPU temperature" span={span} dense style={{ height }}>
         <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", flex: 1 }}>
           {gpus ? (
             Array.from({ length: gpus }, (_, i) => {
@@ -42,8 +52,9 @@ export function Overview() {
           )}
         </div>
       </Panel>
-
-      <Panel title="Instances" sub={`${instances.length} · ${instances.filter((i) => i.status === "Running").length} running`} span={7} dense style={{ padding: 0, overflow: "hidden" }}>
+    ),
+    "instances": (span, height) => (
+      <Panel title="Instances" sub={`${instances.length} · ${instances.filter((i) => i.status === "Running").length} running`} span={span} dense style={{ padding: 0, overflow: "hidden", height }}>
         <div className="lane-head">
           <span>name</span>
           <span>cpu · {range}</span>
@@ -61,7 +72,7 @@ export function Overview() {
                 <span className="name">
                   <Dot status={i.status} />
                   <span>{i.name}</span>
-                  <span className="ip">{i.state?.network ? Object.values(i.state.network).flatMap((n) => n.addresses).find((a) => a.family === "inet" && a.scope === "global")?.address ?? "" : ""}</span>
+                  <span className="ip">{address(i.state)}</span>
                   {tier(site, i.name) === "scratch" && <span className="chip hot" style={{ fontSize: 10, padding: "0 5px" }}>scratch</span>}
                 </span>
                 <HeatStrip series={i.status === "Running" ? s : []} scale={1.6} />
@@ -70,7 +81,7 @@ export function Overview() {
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <Bar pct={memTotal ? (mem / memTotal) * 100 : 0} />
-                  <span className="mono" style={{ fontSize: 11, width: 44, textAlign: "right" }}>
+                  <span className="mono" style={{ fontSize: 11, minWidth: 44, textAlign: "right", whiteSpace: "nowrap" }}>
                     {fmtBytes(mem)}
                   </span>
                 </span>
@@ -78,15 +89,17 @@ export function Overview() {
             );
           })}
           {!instances.length && <div className="empty">No instances yet</div>}
-          {cursor !== null && <div className="crosshair" style={{ left: `calc(176px + (100% - 176px - 190px) * ${cursor})` }} />}
+          {cursor !== null && <div className="crosshair" style={{ left: `calc(246px + (100% - 246px - 190px) * ${cursor})` }} />}
         </div>
       </Panel>
-
-      <Panel title="Bridge" sub="topology" span={5} dense>
+    ),
+    "topology": (span, height) => (
+      <Panel title="Bridge" sub="topology" span={span} dense style={{ height }}>
         <Topology instances={instances} networks={nets ?? []} />
       </Panel>
-
-      <Panel title="Storage" sub={pools?.[0]?.driver ?? ""} span={4} dense>
+    ),
+    "storage": (span, height) => (
+      <Panel title="Storage" sub={pools?.[0]?.driver ?? ""} span={span} dense style={{ height }}>
         <div style={{ display: "flex", justifyContent: "space-around", flex: 1, alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           {(pools ?? []).map((p) => {
             const used = p.res?.space.used ?? 0;
@@ -96,7 +109,9 @@ export function Overview() {
           {pools && !pools.length && <div className="empty">No storage pools</div>}
         </div>
       </Panel>
-      <Panel title="GPU utilization" sub="heatmap" span={5} dense>
+    ),
+    "gpu-utilization": (span, height) => (
+      <Panel title="GPU utilization" sub="heatmap" span={span} dense style={{ height }}>
         {gpus ? (
           <div style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: "6px 8px", alignItems: "center" }} onMouseMove={onMove} onMouseLeave={onLeave}>
             {Array.from({ length: gpus }, (_, i) => (
@@ -112,7 +127,9 @@ export function Overview() {
           <div className="empty">No GPU on this host</div>
         )}
       </Panel>
-      <Panel title="Operations" sub={`${running.length} running`} span={3} dense>
+    ),
+    "operations": (span, height) => (
+      <Panel title="Operations" sub={`${running.length} running`} span={span} dense style={{ height }}>
         <div className="table" style={{ gridTemplateColumns: "1fr 48px 32px" }}>
           {running.slice(0, 4).map((o) => (
             <a key={o.id} href="#/operations">
@@ -134,6 +151,14 @@ export function Overview() {
           ))}
         </div>
       </Panel>
+    ),
+  };
+  const shown = overviewLayout(ui.overview).filter((p) => !p.hidden);
+
+  return (
+    <div className="grid12" style={{ alignItems: "start" }}>
+      {shown.map((p) => <Fragment key={p.id}>{panels[p.id](p.span, p.height)}</Fragment>)}
+      {!shown.length && <div className="empty" style={{ gridColumn: "span 12" }}>Every panel is hidden; Settings › Overview brings them back.</div>}
     </div>
   );
 }

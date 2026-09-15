@@ -17,6 +17,13 @@ let
     name = "nixie-unlock-relay";
     runtimeInputs = [ config.boot.initrd.systemd.package ];
     text = ''
+      # Without a terminal the agent answers the boot's query with a
+      # cancellation, which systemd-cryptsetup takes as a failure: one
+      # `ssh -p <port> root@<host> true` left a machine in emergency mode.
+      if [ ! -t 0 ]; then
+        echo "remote unlock needs a terminal: ssh -t -p <port> root@<host>" >&2
+        exit 1
+      fi
       systemd-tty-ask-password-agent --query --watch &
       agent=$!
       until systemctl -q is-active initrd-root-fs.target; do sleep 1; done
@@ -103,6 +110,9 @@ in
       extraConfig = "HostKey /run/nixie/ssh_host_ed25519_key";
     };
     boot.initrd.systemd.storePaths = [ relay ];
-    boot.initrd.systemd.users.root.shell = lib.mkDefault "${relay}/bin/nixie-unlock-relay";
+    # Above mkDefault: nixpkgs sets this shell with mkDefault too, and two
+    # definitions at one priority stopped every host with remote unlock from
+    # evaluating. A site's own plain definition still wins.
+    boot.initrd.systemd.users.root.shell = lib.mkOverride 900 "${relay}/bin/nixie-unlock-relay";
   };
 }

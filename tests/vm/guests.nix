@@ -62,6 +62,11 @@ pkgs.testers.runNixOSTest {
         host.wait_until_succeeds("curl -sf --max-time 3 http://10.90.0.10/ | grep -q hello-from-web", timeout=120)
         host.succeed("ip link show veth-web")
         host.succeed("nft list chain bridge nixie-guests guest-web")
+        # The control panel and the guest dashboard read these names; both
+        # once asked for ones incusd does not export and showed 0 silently.
+        metrics = host.succeed("curl -s --unix-socket /var/lib/incus/unix.socket http://incus/1.0/metrics")
+        for name in ["incus_cpu_seconds_total", "incus_memory_MemTotal_bytes", "incus_memory_MemAvailable_bytes"]:
+            assert f'{name}{{' in metrics and 'name="web"' in metrics, name
         print(host.succeed("nixie doctor || true"))
 
     with subtest("a scratch instance is left alone by apply"):

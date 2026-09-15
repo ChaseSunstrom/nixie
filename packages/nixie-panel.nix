@@ -35,7 +35,7 @@ pkgs.writeShellApplication {
     c() { printf '\033[38;5;%sm' "$1"; }
     b() { printf '\033[48;5;%sm' "$1"; }
     r() { printf '\033[0m'; }
-    incus() { curl -s --unix-socket /var/run/incus/unix.socket "http://incus/1.0$1" 2>/dev/null; }
+    incus() { curl -s --unix-socket /var/lib/incus/unix.socket "http://incus/1.0$1" 2>/dev/null; }
     draw() {
       cols=$(tput cols 2>/dev/null || echo 120); rows=$(tput lines 2>/dev/null || echo 40)
       host=$(hostname); addrs=$(ip -4 -o addr show scope global | awk '{print $2": "$4}' | paste -sd '  ')
@@ -55,8 +55,9 @@ pkgs.writeShellApplication {
         case "$st" in Running) dot=$OK ;; Frozen) dot=$ACC ;; *) dot=$MUTED ;; esac
         c "$dot"; printf '  ● '; c "$INK"; printf '%-16s ' "$n"; c "$MUTED"; printf '%-10s ' "$st"
         heat=$(( cpu > 60 ? HOT : INK )); c "$heat"; printf '%8s ' "$cpu"; c "$INK"; printf '%9s' "$mem"
-        # heat strip: one cell per 5% of a 4-core budget
-        printf '  '; k=$(( cpu / 5 )); [ "$k" -gt 20 ] && k=20; for ((j=0;j<20;j++)); do if [ $j -lt $k ]; then c "$HOT"; printf '▮'; else c "$S1"; printf '▯'; fi; done
+        # heat strip: one cell per 5% of a 4-core budget, in the two block
+        # glyphs the console font has (it draws ▮ and ▯ both as #)
+        printf '  '; k=$(( cpu / 5 )); [ "$k" -gt 20 ] && k=20; for ((j=0;j<20;j++)); do if [ $j -lt $k ]; then c "$HOT"; printf '█'; else c "$S1"; printf '░'; fi; done
         r; printf '\n'; i=$((i+1))
       done <<<"$lanes"
       [ "$i" = 0 ] && { b "$BG"; c "$MUTED"; printf '  no instances (or incusd not running)\n'; r; }

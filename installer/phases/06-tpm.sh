@@ -92,8 +92,12 @@ done
   [ -s /var/lib/nixie/totp-recovery ] && echo "Attestation reseal password: $(cat /var/lib/nixie/totp-recovery)"
   echo "Restore a header with: cryptsetup luksHeaderRestore <device> --header-backup-file <name>.header"
 } >"$tmp/RECOVERY.txt"
-recipients=(-r "$(cat "$NIXIE_SETUP_DIR/age.pub" 2>/dev/null || age-keygen -y /var/lib/nixie/age.key)")
-while read -r r; do recipients+=(-r "$r"); done < <(grep -oE 'age1[0-9a-z]+' "$NIXIE_SITE/.sops.yaml" | sort -u)
+# The host's own key is in .sops.yaml as well; age warns about a repeat.
+recipients=()
+while read -r r; do recipients+=(-r "$r"); done < <({
+  cat "$NIXIE_SETUP_DIR/age.pub" 2>/dev/null || age-keygen -y /var/lib/nixie/age.key
+  grep -oE 'age1[0-9a-z]+' "$NIXIE_SITE/.sops.yaml"
+} | sort -u)
 tar -C "$tmp" -cf - . | age "${recipients[@]}" >"$NIXIE_SETUP_DIR/header-backup.tar.age"
 chmod 0600 "$NIXIE_SETUP_DIR/header-backup.tar.age"
 [ -z "$dest" ] || install -m 0600 "$NIXIE_SETUP_DIR/header-backup.tar.age" "$dest/nixie-$(host)-headers.tar.age"

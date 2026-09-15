@@ -40,6 +40,49 @@ keeps the installer's DHCP address (the bridge takes the uplink's MAC); the
 first boot after a reinstall goes to the new install, not a stale firmware
 entry.
 
+Choices in the web wizard no longer stop an install at phase 3 with a Nix
+evaluation error: remote unlock (the early-boot root shell was defined twice
+at one priority), a desktop package with an unfree licence such as Steam (a
+package named in the site now accepts its licence), and a TPM measurement
+list (the wizard sent the numbers as text). The wizard asks for an SSH key
+when remote unlock is on and holds Next on combinations the modules refuse
+(TPM, attestation, duress or remote unlock without encryption; exit-node
+egress without managed-nat, Tailscale or a node name); it no longer shows the
+monitor list, which it cannot fill. Kernel lockdown left the wizard (it
+rebuilds the kernel during the install and stops module loading) and
+evaluates again when a site sets it. Text the wizard writes into `site.nix`
+is escaped for Nix (`${`, non-ASCII). `eval-matrix` gained a server and a
+desktop with every wizard option on.
+
+A server installed from the image through the web wizard, then used for real,
+found more. Remote unlock never answered: the initrd had no network driver,
+since the hardware scan copied only storage drivers (phase 1 now adds the
+wired ports' drivers; a host installed earlier needs them added to its
+`hardware.nix`), and an SSH session without a terminal cancelled the boot's
+passphrase prompt into emergency mode (the relay now refuses such a session).
+A failed Finish said nothing on the page; it now shows the unit's output.
+Finish, or any `nixie apply`, stopped when only a user's own units missed
+their reload during the switch. The front panel asked a socket path that
+does not exist and always showed "no instances". The control panel's
+terminal opened a new exec session on every refresh, about 90 a second
+with 370 requests a second behind them; its memory figures read metric names
+incusd does not export (the guest Grafana dashboard too); its History page
+fetched a file nothing serves and crashed the whole panel (it now shows
+guest snapshots and points to the host page); an instance's address could be
+a bridge inside the guest. Scratch instances had no network device at all,
+and with one their ports were outside the catch-all chain that keeps guests
+away from the host's SSH and pages (`veth-*` against Incus's `veth<hex>`).
+Foreign images named their interface `uplink`, which their own network
+setup does not configure. The "not trusted yet" page told the administrator
+to run `openssl`, which servers did not have. `nixie rollback --list` and
+History dated every generation 1970. The wizard offered TPM features on
+machines without one, showed the Tailscale key file path and hid list
+defaults, and a new site's files kept the store's read-only modes.
+
+The control panel has a Settings button: the finish, header figures, the
+starting time range, the Overview panels' order, width and visibility, the
+navigation and extra links, kept on the host for every browser.
+
 First build of the platform against nixpkgs 26.05: option tree, `mkSite`,
 security stack, network and egress policy, Incus with declared guests, data
 manifest and backups, monitoring, control panel, installer (kiosk, LAN,

@@ -12,6 +12,15 @@ h=$(host); dir="$NIXIE_SITE/hosts/$h"; mkdir -p "$dir"
 
 generated=$(nixos-generate-config --show-hardware-config --no-filesystems 2>/dev/null || true)
 modules=$(printf '%s\n' "$generated" | sed -n 's/.*boot.initrd.availableKernelModules = \(\[.*\]\);/\1/p' | head -1)
+# nixos-generate-config lists storage drivers only; without the wired ports'
+# drivers the early-boot SSH server of remote unlock listens on no network.
+modules=$({
+  printf '%s\n' "$modules" | tr -d '[]"' | tr ' ' '\n'
+  for d in /sys/class/net/*/device/driver/module; do
+    if [ -e "$d" ] && [ ! -e "${d%/device/driver/module}/wireless" ]; then basename "$(readlink -f "$d")"; fi
+  done
+} | { grep . || true; } | sort -u | sed 's/.*/"&"/' | tr '\n' ' ')
+[ -z "$modules" ] || modules="[ $modules]"
 kmods=$(printf '%s\n' "$generated" | sed -n 's/.*boot.kernelModules = \(\[.*\]\);/\1/p' | head -1)
 micro=$(printf '%s\n' "$generated" | grep -E 'hardware.cpu.(intel|amd).updateMicrocode' | sed 's/^ *//' || true)
 uplinks=$(state '.uplinks | map("\"" + . + "\"") | join(" ")')

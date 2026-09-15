@@ -134,20 +134,21 @@ in
         '';
       };
       # Frames from a guest port pass its own chain before anything else; the
-      # catch-all handles instances the site does not declare.
+      # catch-all handles instances the site does not declare, whose ports
+      # Incus names veth<hex>, without the dash declared ones get.
       nixie-guests = {
         family = "bridge";
         content = ''
           chain input {
             type filter hook input priority filter; policy accept;
-            iifname "veth-*" tcp dport { ${hostPorts} } drop
+            iifname "veth*" tcp dport { ${hostPorts} } drop
             ${lib.concatMapStringsSep "\n" (g: ''iifname "veth-${g.name}" jump guest-${g.name}'') guests}
-            iifname "veth-*" jump guest-undeclared
+            iifname "veth*" jump guest-undeclared
           }
           chain forward {
             type filter hook forward priority filter; policy accept;
             ${lib.concatMapStringsSep "\n" (g: ''iifname "veth-${g.name}" jump guest-${g.name}'') guests}
-            iifname "veth-*" jump guest-undeclared
+            iifname "veth*" jump guest-undeclared
           }
           ${lib.concatMapStringsSep "\n" guestChain guests}
           chain guest-undeclared {

@@ -1,9 +1,10 @@
 // One store: which backend answers, the finish, the time range, the shared
 // chart cursor, the rolling metrics history and the site's declared guests.
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { incus, parseMetrics, type Backend, type Instance, type Op } from "./api";
 import { demo, demoSeries } from "./demo";
 import { applyFinish, type Finish, type Tokens } from "../tokens";
+import { UI_KEY, type UiConfig } from "./ui-config";
 
 export type SiteConfig = {
   theme: Finish;
@@ -42,7 +43,10 @@ type Store = {
   demo: boolean;
   site: SiteConfig;
   finish: Finish;
-  setFinish: (f: Finish) => void;
+  // null: follow the default every browser gets
+  setFinish: (f: Finish | null) => void;
+  ui: UiConfig;
+  saveUi: (next: UiConfig) => Promise<void>;
   range: string;
   setRange: (r: string) => void;
   cursor: number | null;
@@ -65,8 +69,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [api, setApi] = useState<Backend>(incus);
   const [auth, setAuth] = useState("unknown");
   const [site, setSite] = useState<SiteConfig>(defaultSite);
-  const [finish, setFinishState] = useState<Finish>((localStorage.getItem("nixie.finish") as Finish) || "graphite");
-  const [range, setRange] = useState(localStorage.getItem("nixie.range") || "1h");
+  const [ui, setUi] = useState<UiConfig>({});
+  // This browser's own choices win over the panel's settings, which win
+  // over the site's.
+  const [browserFinish, setBrowserFinish] = useState(localStorage.getItem("nixie.finish") as Finish | null);
+  const finish = browserFinish ?? ui.theme ?? site.theme;
+  const [browserRange, setBrowserRange] = useState(localStorage.getItem("nixie.range"));
+  const range = browserRange ?? ui.range ?? "1h";
+  const setRange = (r: string) => {
+    localStorage.setItem("nixie.range", r);
+    setBrowserRange(r);
+  };
   const [cursor, setCursor] = useState<number | null>(null);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [operations, setOperations] = useState<Op[]>([]);
@@ -75,31 +88,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const history = useRef<History>({});
   const [, tick] = useState(0);
 
-  const toast = (msg: string, err = false) => {
+  // Stable, so an effect that lists it runs once: the terminal listed a
+  // fresh one each render and opened a new exec session per refresh.
+  const toast = useCallback((msg: string, err = false) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, msg, err }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 5000);
-  };
+  }, []);
 
   // Site configuration is a file next to the bundle, written by the host.
   useEffect(() => {
     fetch("./nixie.json")
       .then((r) => (r.ok ? r.json() : defaultSite))
       .then((s: Partial<SiteConfig>) => {
-        const merged = resolveUrls({ ...defaultSite, ...s });
-        setSite(merged);
-        if (!localStorage.getItem("nixie.finish")) setFinishState(merged.theme);
+        setSite(resolveUrls({ ...defaultSite, ...s }));
       })
       .catch(() => undefined);
   }, []);
   useEffect(() => {
     applyFinish(finish, site.tokens);
   }, [finish, site]);
-  const setFinish = (f: Finish) => {
-    localStorage.setItem("nixie.finish", f);
-    setFinishState(f);
+  const setFinish = (f: Finish | null) => {
+    if (f) localStorage.setItem("nixie.finish", f);
+    else localStorage.removeItem("nixie.finish");
+    setBrowserFinish(f);
   };
-  useEffect(() => localStorage.setItem("nixie.range", range), [range]);
+
+  useEffect(() => {
+    if (auth !== "trusted") return;
+    (api.demo ? Promise.resolve(localStorage.getItem("nixie.ui") ?? "{}") : api.server().then((s) => (s.config ?? {})[UI_KEY] ?? "{}"))
+      .then((raw) => {
+        try {
+          setUi(JSON.parse(raw) as UiConfig);
+        } catch {
+          // A value edited by hand into something other than JSON: start from the site.
+          setUi({});
+        }
+      })
+      .catch(() => undefined);
+  }, [api, auth]);
+  const saveUi = async (next: UiConfig) => {
+    if (api.demo) localStorage.setItem("nixie.ui", JSON.stringify(next));
+    else await api.updateServer({ [UI_KEY]: JSON.stringify(next) });
+    setUi(next);
+  };
 
   // Pick the backend once: the daemon, or the seeded demo when it is silent.
   useEffect(() => {
@@ -126,14 +158,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // One refresh at a time: every operation and lifecycle event asks for one,
+  // and a burst of them gets a single follow-up instead of a request each.
+  const refreshing = useRef<"idle" | "busy" | "again">("idle");
   const refresh = async () => {
     if (auth !== "trusted") return;
+    if (refreshing.current !== "idle") {
+      refreshing.current = "again";
+      return;
+    }
+    refreshing.current = "busy";
     try {
       const [ins, ops] = await Promise.all([api.instances(), api.operations()]);
       setInstances(ins);
       setOperations(ops);
     } catch (e) {
       toast(String((e as Error).message), true);
+    } finally {
+      // Read afresh: an event may have asked again while this one ran.
+      const again = (refreshing.current as string) === "again";
+      refreshing.current = "idle";
+      if (again) setTimeout(() => void refresh(), 500);
     }
   };
 
@@ -173,8 +218,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       h["_prev"] = cpuNow as unknown as number[];
       push("host.cpu", Math.min(100, total));
-      const memUsed = m["incus_memory_Usage_bytes"]?.reduce((a, s) => a + s.value, 0) ?? 0;
-      const memTotal = m["incus_memory_Total_bytes"]?.[0]?.value ?? 0;
+      // incusd exports MemTotal and MemAvailable per instance; an instance
+      // without a memory limit reports the host's total.
+      const avail = Object.fromEntries((m["incus_memory_MemAvailable_bytes"] ?? []).map((s) => [s.labels.name, s.value]));
+      const totals = m["incus_memory_MemTotal_bytes"] ?? [];
+      const memUsed = totals.reduce((a, s) => a + Math.max(0, s.value - (avail[s.labels.name] ?? s.value)), 0);
+      const memTotal = Math.max(0, ...totals.map((s) => s.value));
       push("host.mem", memTotal ? (memUsed / memTotal) * 100 : 0);
       tick((x) => x + 1);
     } catch {
@@ -218,9 +267,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<Store>(
-    () => ({ api, demo: api.demo, site, finish, setFinish, range, setRange, cursor, setCursor, instances, operations, events, history: history.current, refresh, toast, toasts, auth, run }),
+    () => ({ api, demo: api.demo, site, finish, setFinish, ui, saveUi, range, setRange, cursor, setCursor, instances, operations, events, history: history.current, refresh, toast, toasts, auth, run }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [api, site, finish, range, cursor, instances, operations, events, toasts, auth],
+    [api, site, finish, ui, range, cursor, instances, operations, events, toasts, auth],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

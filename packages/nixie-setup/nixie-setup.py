@@ -12,6 +12,7 @@ import argparse, base64, hashlib, hmac, http.cookies, http.server, json, os, sec
 ARGS = None
 SESSIONS = set()
 PAIR_CODE = None
+FINISH_STARTED = None
 SECRETS = {}           # name -> bytes, in memory only
 LOCK = threading.Lock()
 RUNNING = None         # currently running phase subprocess
@@ -36,7 +37,9 @@ def to_nix(v, indent=0):
     if isinstance(v, (int, float)):
         return str(v)
     if isinstance(v, str):
-        return json.dumps(v)
+        # JSON's escapes are Nix's, except that Nix would interpolate ${ and
+        # does not know \u.
+        return json.dumps(v, ensure_ascii=False).replace("${", "\\${")
     if isinstance(v, list):
         if not v:
             return "[ ]"
@@ -115,6 +118,9 @@ def site_new(host, profile, settings, platform):
     site = ARGS.site
     if not os.path.exists(os.path.join(site, "site.nix")):
         shutil.copytree(ARGS.template, site, dirs_exist_ok=True)
+        # The template comes from the read-only store and copytree keeps its
+        # modes; the site is for editing.
+        sh(["chmod", "-R", "u+w", site])
         for p in ("site.nix", "flake.nix", ".sops.yaml"):
             try:
                 os.remove(os.path.join(site, p))
@@ -265,6 +271,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/hardware":
             r = sh(["nixie-discover"])
             return self.send_json(json.loads(r.stdout) if r.returncode == 0 else {"error": r.stderr})
+        if path == "/api/finish":
+            # Finish runs as a unit of its own; what it printed since the
+            # button was pressed is how a failure reaches the page.
+            if FINISH_STARTED is None:
+                return self.send_json({"failed": False, "lines": []})
+            out = sh(["journalctl", "-u", "nixie-finish", "--since", f"@{FINISH_STARTED}", "-o", "cat", "--no-pager"]).stdout.splitlines()
+            return self.send_json({"failed": any("nixie-finish.service: Failed" in l for l in out), "lines": out[-20:]})
         if path == "/api/options":
             with open(ARGS.options) as f:
                 return self.send_json(json.load(f))
@@ -422,6 +435,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # unit of its own and this answers before the switch gets here. A
         # transient unit starts with systemd's bare PATH; it gets this one.
         # Its output also goes to the console, the screen once the kiosk is gone.
+        global FINISH_STARTED
+        FINISH_STARTED = int(time.time())
         r = subprocess.run(["systemd-run", "--unit=nixie-finish", "--collect", f"--setenv=PATH={os.environ['PATH']}",
                             "-p", "StandardOutput=journal+console", "-p", "StandardError=journal+console",
                             shutil.which("nixie-finish")], capture_output=True, text=True)

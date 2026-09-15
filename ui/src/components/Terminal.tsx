@@ -14,12 +14,21 @@ const canned: Record<string, string> = {
   help: "demo terminal: uptime, free -h, ls, ip a, clear",
 };
 
+const themeFor = (finish: string) =>
+  finish === "paper" ? { background: "#d9d5cc", foreground: "#1c1b19", cursor: "#3f6bb8" } : { background: finish === "umber" ? "#1a130f" : "#181b1e", foreground: "#eceae5", cursor: "#7ebae4" };
+
 export function Terminal({ name }: { name: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  const termRef = useRef<XTerm | null>(null);
   const { api, toast, finish } = useStore();
+  // A new finish repaints the session instead of starting another one.
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = themeFor(finish);
+  }, [finish]);
   useEffect(() => {
     if (!ref.current) return;
-    const term = new XTerm({ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1.2, cursorBlink: true, theme: finish === "paper" ? { background: "#d9d5cc", foreground: "#1c1b19", cursor: "#3f6bb8" } : { background: finish === "umber" ? "#1a130f" : "#181b1e", foreground: "#eceae5", cursor: "#7ebae4" } });
+    const term = new XTerm({ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1.2, cursorBlink: true, theme: themeFor(finish) });
+    termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(ref.current);
@@ -75,7 +84,10 @@ export function Terminal({ name }: { name: string }) {
       ws?.close();
       control?.close();
       term.dispose();
+      termRef.current = null;
     };
-  }, [name, api, toast, finish]);
+    // One exec session per instance: finish is applied above, toast is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, api]);
   return <div ref={ref} className="well term" style={{ padding: 8 }} />;
 }

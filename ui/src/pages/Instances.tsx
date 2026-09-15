@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useStore, tier, exportEntry } from "../lib/store";
 import { Panel, Dot, go, Dialog, Field, Empty, usePoll } from "../components/ui";
 import { fmtBytes, fmtAge } from "../lib/series";
-import type { Instance } from "../lib/api";
+import { address, type Instance } from "../lib/api";
 
 export function Instances() {
   const { instances, site, api, run, toast } = useStore();
@@ -51,7 +51,7 @@ export function Instances() {
           <span className="h">age</span>
           <span className="h" />
           {instances.map((i) => {
-            const addr = i.state?.network ? Object.values(i.state.network).flatMap((n) => n.addresses).find((a) => a.family === "inet" && a.scope === "global")?.address : "";
+            const addr = address(i.state);
             const t = tier(site, i.name);
             return (
               <span key={i.name} style={{ display: "contents" }}>

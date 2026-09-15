@@ -10,7 +10,7 @@ are off by default except that the ISO pre-selects encryption.
 | `nixie.security.secureBoot.enable` | lanzaboote signs the boot chain with your own keys, kept in the site's secrets; systemd-boot enrols them from Setup Mode | a firmware visit to clear the vendor keys; unsigned media will not boot |
 | `nixie.security.attestation.enable` | a TOTP code from `tpm2-totp` sealed to PCRs 4, 7, 8, 9, shown before the passphrase prompt | comparing a code with your app at boot; `nixie reseal` after kernel updates |
 | `nixie.security.duress.enable` | a second passphrase (key slot 7) that erases every key slot on every layer and powers off | there is no undo |
-| `nixie.security.remoteUnlock.enable` | early-boot SSH on `remoteUnlock.port` with the administrator's keys; prompts are relayed in order | the early-boot host key lives on the unencrypted boot partition, like any initrd secret |
+| `nixie.security.remoteUnlock.enable` | early-boot SSH on `remoteUnlock.port` with the administrator's keys (`ssh -t -p 2222 root@<host>`); prompts are relayed in order; the installer puts the network ports' drivers in the initrd | the early-boot host key lives on the unencrypted boot partition, like any initrd secret; a session without a terminal is refused, since answering from one would cancel the boot's prompt |
 | `nixie.security.lockdown` | kernel lockdown integrity mode | rebuilds the kernel and refuses unsigned modules, which on NixOS means every module; leave it at `none` unless you have checked your hardware |
 | `nixie.security.hardening.*` | key-only SSH with modern ciphers, USBGuard with the setup-time allowlist, memory encryption and IOMMU parameters, remote journal | USBGuard blocks new devices until listed |
 

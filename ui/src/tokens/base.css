@@ -49,7 +49,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ink); pointer-events: none; }
 
 .lanes { display: flex; flex-direction: column; }
-.lane, .lane-head { display: grid; grid-template-columns: 150px 1fr 56px 96px; gap: 12px; align-items: center; padding: 0 14px; }
+.lane, .lane-head { display: grid; grid-template-columns: 220px 1fr 56px 96px; gap: 12px; align-items: center; padding: 0 14px; }
 .lane { height: 21px; color: var(--ink); }
 .lane:nth-child(even) { background: var(--s2); }
 .lane:hover { background: var(--s3); }
@@ -72,6 +72,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
 .btn.danger { color: var(--err); }
 .btn:disabled { opacity: 0.5; cursor: default; }
+.btn.icon { width: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.btn.icon:hover, .btn.icon[aria-pressed="true"] { color: var(--ink); }
 .group { display: flex; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; box-shadow: 0 4px 12px -8px var(--shadow); }
 .group .btn { border: 0; border-radius: 0; }
 .tray { display: flex; gap: 2px; padding: 3px; background: var(--s2); border-radius: 5px; box-shadow: inset 0 1px 2px var(--shadow); }

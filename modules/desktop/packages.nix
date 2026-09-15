@@ -54,6 +54,8 @@ in
   config = lib.mkIf cfg.enable {
     environment.systemPackages = map resolve (lib.unique chosen) ++ cfg.packages.extra;
     programs.fish.enable = lib.mkIf (lib.elem "fish" chosen) true;
+    # Steam needs its 32-bit graphics stack, which only the program module sets up.
+    programs.steam.enable = lib.mkIf (lib.elem "steam" chosen) true;
     programs.starship = {
       enable = true;
       settings = { };

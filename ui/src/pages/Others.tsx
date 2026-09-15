@@ -6,6 +6,9 @@ import { Panel, usePoll, Empty, Dialog, Field, KvEditor, Bar, Toggle } from "../
 import { fmtBytes, fmtAge } from "../lib/series";
 import type { Profile } from "../lib/api";
 import { finishes } from "../tokens";
+import { RANGES } from "../lib/series";
+import { PAGES } from "../components/Palette";
+import { STATS, UI_KEY, overviewLayout, type UiConfig } from "../lib/ui-config";
 import { Topology } from "../components/Topology";
 
 export function Images() {
@@ -158,39 +161,119 @@ export function Operations() {
 }
 
 export function Settings() {
-  const { api, run, finish, setFinish, site, demo, auth } = useStore();
+  const { api, run, finish, setFinish, site, demo, auth, ui, saveUi } = useStore();
   const [server] = usePoll(() => api.server(), [api], 60000);
   const [cfg, setCfg] = useState<Record<string, string> | null>(null);
   const config = cfg ?? server?.config ?? {};
   const [prom, setProm] = useState(localStorage.getItem("nixie.prometheus") ?? site.prometheusUrl ?? "");
+  // Edits stay a draft until saved, so a half-made layout never reaches
+  // the other browsers.
+  const [draft, setDraft] = useState<UiConfig | null>(null);
+  const d = draft ?? ui;
+  const edit = (patch: Partial<UiConfig>) => setDraft({ ...d, ...patch });
+  const layout = overviewLayout(d.overview);
+  const setLayout = (l: typeof layout) => edit({ overview: l.map(({ id, span, hidden }) => ({ id, span, hidden })) });
+  const move = (i: number, j: number) => {
+    const l = [...layout];
+    const [p] = l.splice(i, 1);
+    l.splice(j, 0, p);
+    setLayout(l);
+  };
+  const stats = d.stats ?? STATS.map(([id]) => id);
+  const hiddenPages = d.hiddenPages ?? [];
+  const links = d.links ?? [];
+  const ownFinish = localStorage.getItem("nixie.finish");
+  const swatch = (f: string) => (f === "graphite" ? "#1f2226" : f === "umber" ? "#231b16" : "#e4e1da");
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <Panel title="Control panel settings" sub="saved on this host, for every browser" value={draft ? "unsaved changes" : undefined} dense style={{ gridColumn: "span 2" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+          <span className="muted" style={{ flex: 1 }}>They start from the site's nixie.ui.* settings; Reset goes back to those.</span>
+          <button className="btn" disabled={!draft} onClick={() => setDraft(null)}>Discard</button>
+          <button className="btn" onClick={() => confirm("Reset the control panel settings to the site's defaults for every browser?") && run("reset panel settings", saveUi({})).then(() => setDraft(null))}>Reset</button>
+          <button className="btn primary" disabled={!draft} onClick={() => run("save panel settings", saveUi(d)).then(() => setDraft(null))}>Save</button>
+        </div>
+      </Panel>
+
       <Panel title="Appearance" dense>
         <div style={{ display: "flex", gap: 10, margin: "10px 0" }}>
           {finishes.map((f) => (
             <button key={f} className="btn" aria-pressed={finish === f} style={{ height: 40, borderColor: finish === f ? "var(--brand2)" : "var(--line2)", display: "flex", gap: 10, alignItems: "center" }} onClick={() => setFinish(f)}>
-              <span style={{ width: 20, height: 20, borderRadius: 4, border: "1px solid var(--line2)", background: f === "graphite" ? "#1f2226" : f === "umber" ? "#231b16" : "#e4e1da" }} />
+              <span style={{ width: 20, height: 20, borderRadius: 4, border: "1px solid var(--line2)", background: swatch(f) }} />
               {f[0].toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
-        <p className="muted" style={{ margin: 0 }}>The site's default finish is {site.theme}; this choice is kept in this browser.</p>
+        <p className="muted" style={{ margin: "0 0 8px" }}>
+          Every browser starts in {d.theme ?? site.theme} ({d.theme ? "set here" : "the site's nixie.ui.theme"}). {ownFinish ? `This browser keeps ${ownFinish}.` : "This browser follows that."}
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn" disabled={d.theme === finish} onClick={() => edit({ theme: finish })}>Start every browser in {finish}</button>
+          <button className="btn" disabled={!ownFinish} onClick={() => setFinish(null)}>This browser follows the default</button>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <Field label="Name shown beside the wordmark (empty: none)"><input className="input" value={d.title ?? ""} placeholder={server?.environment?.server_name ?? ""} onChange={(e) => edit({ title: e.target.value || undefined })} /></Field>
+        </div>
       </Panel>
+
+      <Panel title="Header" dense>
+        <div className="muted" style={{ margin: "8px 0 6px" }}>Figures shown</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {STATS.map(([id, label]) => (
+            <Toggle key={id} on={stats.includes(id)} label={label} onChange={(on) => edit({ stats: STATS.map(([x]) => x).filter((x) => (x === id ? on : stats.includes(x))) })} />
+          ))}
+        </div>
+        <div className="muted" style={{ margin: "14px 0 6px" }}>Time range a browser starts with</div>
+        <div className="tray" style={{ alignSelf: "flex-start" }}>
+          {Object.keys(RANGES).map((r) => (
+            <button key={r} className="seg" aria-pressed={(d.range ?? "1h") === r} onClick={() => edit({ range: r })}>{r}</button>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title="Overview" sub="which panels, in what order, how wide" dense>
+        <div className="table" style={{ gridTemplateColumns: "44px 1fr 120px 70px" }}>
+          <span className="h">show</span>
+          <span className="h">panel</span>
+          <span className="h">width</span>
+          <span className="h">order</span>
+          {layout.map((p, i) => (
+            <span key={p.id} style={{ display: "contents" }}>
+              <Toggle on={!p.hidden} label="" ariaLabel={`show ${p.title}`} onChange={(on) => setLayout(layout.map((x) => (x.id === p.id ? { ...x, hidden: !on } : x)))} />
+              <span style={{ color: p.hidden ? "var(--muted)" : undefined }}>{p.title}</span>
+              <select className="input" style={{ height: 26 }} value={p.span} aria-label={`${p.title} width`} onChange={(e) => setLayout(layout.map((x) => (x.id === p.id ? { ...x, span: Number(e.target.value) } : x)))}>
+                {[3, 4, 5, 6, 7, 8, 9, 12].map((n) => <option key={n} value={n}>{n === 12 ? "full width" : `${n} of 12`}</option>)}
+              </select>
+              <span style={{ display: "flex", gap: 2 }}>
+                <button className="btn icon" style={{ height: 24, width: 28 }} aria-label={`move ${p.title} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>↑</button>
+                <button className="btn icon" style={{ height: 24, width: 28 }} aria-label={`move ${p.title} down`} disabled={i === layout.length - 1} onClick={() => move(i, i + 1)}>↓</button>
+              </span>
+            </span>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title="Navigation" dense>
+        <div className="muted" style={{ margin: "8px 0 6px" }}>Pages in the bar (all stay in the command palette)</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {PAGES.filter((p) => p !== "Settings").map((p) => (
+            <Toggle key={p} on={!hiddenPages.includes(p)} label={p} onChange={(on) => edit({ hiddenPages: on ? hiddenPages.filter((x) => x !== p) : [...hiddenPages, p] })} />
+          ))}
+        </div>
+        <div className="muted" style={{ margin: "14px 0 6px" }}>Extra links{site.links.length ? ` (after the site's own: ${site.links.map((l) => l.label).join(", ")})` : ""}</div>
+        {links.map((l, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 2fr 32px", gap: 6, marginBottom: 6 }}>
+            <input className="input" placeholder="label" value={l.label} onChange={(e) => edit({ links: links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
+            <input className="input mono" placeholder="https://…" value={l.url} onChange={(e) => edit({ links: links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} />
+            <button className="btn icon" aria-label="remove link" onClick={() => edit({ links: links.filter((_, j) => j !== i) })}>×</button>
+          </div>
+        ))}
+        <button className="btn" style={{ alignSelf: "flex-start" }} onClick={() => edit({ links: [...links, { label: "", url: "" }] })}>Add link</button>
+      </Panel>
+
       <Panel title="History source" sub="dashboards" dense>
         <Field label="Prometheus URL (empty: rolling in-browser history only)"><input className="input mono" value={prom} onChange={(e) => { setProm(e.target.value); localStorage.setItem("nixie.prometheus", e.target.value); }} /></Field>
         {site.grafanaUrl && <p className="muted">Grafana: <a href={site.grafanaUrl} style={{ color: "var(--brand2)" }}>{site.grafanaUrl}</a></p>}
-      </Panel>
-      <Panel title="Daemon" sub={server?.environment?.server_version ?? ""} dense>
-        <div className="table" style={{ gridTemplateColumns: "140px 1fr" }}>
-          <span className="muted">auth</span><span>{auth}{demo ? " · demo mode" : ""}</span>
-          <span className="muted">name</span><span className="mono">{server?.environment?.server_name}</span>
-          <span className="muted">kernel</span><span className="mono">{server?.environment?.kernel_version}</span>
-          <span className="muted">storage</span><span className="mono">{server?.environment?.storage}</span>
-          <span className="muted">auth methods</span><span className="mono">{server?.auth_methods?.join(", ")}</span>
-        </div>
-        <div className="muted" style={{ marginTop: 8 }}>Server configuration</div>
-        <KvEditor value={config} onChange={setCfg} readOnlyKeys={/^$/} />
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><button className="btn primary" disabled={!cfg} onClick={() => run("save server config", api.updateServer(cfg!)).then(() => setCfg(null))}>Save</button></div>
       </Panel>
       <Panel title="Site" dense>
         <div className="table" style={{ gridTemplateColumns: "140px 1fr" }}>
@@ -198,6 +281,18 @@ export function Settings() {
           <span className="muted">site edits</span><span><Toggle on={site.allowSiteEdits} onChange={() => undefined} label={site.allowSiteEdits ? "Declare enabled (nixie.ui.allowSiteEdits)" : "off; set nixie.ui.allowSiteEdits to enable Declare"} /></span>
           <span className="muted">host page</span><span>{site.hostUiUrl ? <a href={site.hostUiUrl} style={{ color: "var(--brand2)" }}>{site.hostUiUrl}</a> : "off (nixie.hostUi.enable)"}</span>
         </div>
+      </Panel>
+      <Panel title="Daemon" sub={server?.environment?.server_version ?? ""} dense style={{ gridColumn: "span 2" }}>
+        <div className="table" style={{ gridTemplateColumns: "140px 1fr" }}>
+          <span className="muted">auth</span><span>{auth}{demo ? " · demo mode" : ""}</span>
+          <span className="muted">name</span><span className="mono">{server?.environment?.server_name}</span>
+          <span className="muted">kernel</span><span className="mono">{server?.environment?.kernel_version}</span>
+          <span className="muted">storage</span><span className="mono">{server?.environment?.storage}</span>
+          <span className="muted">auth methods</span><span className="mono">{server?.auth_methods?.join(", ")}</span>
+        </div>
+        <div className="muted" style={{ marginTop: 8 }}>Server configuration ({UI_KEY} holds the settings above)</div>
+        <KvEditor value={config} onChange={setCfg} readOnlyKeys={/^$/} />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><button className="btn primary" disabled={!cfg} onClick={() => run("save server config", api.updateServer(cfg!)).then(() => setCfg(null))}>Save</button></div>
       </Panel>
     </div>
   );
