@@ -19,6 +19,7 @@ pkgs.writeShellApplication {
       zfs
       jq
       nix # nix-env for generations; a transient unit's PATH has no system profile
+      openssh # the site's remote, and its key
       nixos-rebuild
       systemd
       tpm2-tools
@@ -46,7 +47,53 @@ pkgs.writeShellApplication {
     feature() { [ "$(layout ".features.$1")" = true ]; }
     site=''${NIXIE_SITE:-/etc/nixie/site}
     host=$(uname -n) # coreutils: a transient unit's PATH has no hostname(1)
+    # nixie.site.repo keeps a copy of the site: `nixie apply` pulls from it,
+    # commits hand edits, and pushes what it applied, with the host's own key.
+    sitekey=/var/lib/nixie/site-key
+    [ ! -e "$sitekey" ] || export GIT_SSH_COMMAND="ssh -i $sitekey -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+    siterepo=$(jq -r '.repo // empty' /run/current-system/etc/nixie/site.json 2>/dev/null || true)
+    siteref=$(jq -r '.ref // "main"' /run/current-system/etc/nixie/site.json 2>/dev/null || echo main)
+    push_site() {
+      { [ -d "$site/.git" ] && git -C "$site" remote get-url origin >/dev/null 2>&1; } || return 0
+      git -C "$site" push -q origin "HEAD:$siteref" \
+        || echo "nixie: applied, but the site was not pushed to $(git -C "$site" remote get-url origin); the remote needs the key 'nixie site key' prints" >&2
+    }
     cmd=''${1:-help}; shift || true
+    # One screen, grouped by what a person is doing; the old one-line usage
+    # wrapped into a wall of pipes and brackets.
+    usage() {
+      h() { if [ -t 1 ]; then printf '\n\033[1m%s\033[0m\n' "$1"; else printf '\n%s\n' "$1"; fi; }
+      c() { printf '  %-50s %s\n' "$1" "$2"; }
+      echo "nixie: this host, from its site in $site"
+      h "Everyday"
+      c "apply [--yes]" "commit site edits, switch, update guests, push the site"
+      c "apply --confirm-within 10m | --confirm" "apply, and undo it unless confirmed in time"
+      c "doctor" "boot security, keys, guests, backups, disk space"
+      h "Going back"
+      c "rollback [--list | --json]" "the previous system now, or list what there is"
+      c "rollback --generation N | --boot-previous" "a given generation now, or the previous at next boot"
+      if [ "$guests" = 1 ]; then c "rollback guest <name> [--snapshot s]" "a guest's disk from a snapshot"; fi
+      c "rollback data <name> [--snapshot s] [--in-place]" "a state directory from a ZFS snapshot"
+      h "Data"
+      c "fetch" "fill cache/ from data.nix"
+      c "backup now | list | verify | kit <file>" "back up, list, check, or write the disaster kit"
+      c "restore <snapshot> [--path p] [--to dir]" "put state/ (or one path) back, or beside it"
+      if [ "$guests" = 1 ]; then
+        h "Guests"
+        c "export <instance>" "a guests.nix entry for a scratch instance"
+      fi
+      h "Security and hardware"
+      c "reseal" "reseal attestation to this boot chain"
+      c "security reenroll" "Secure Boot, TPM, recovery key again, after a board or firmware change"
+      c "usb [--json] | usb allow <vendor:product>" "blocked USB devices, or allow one"
+      c "hardware scan | refresh | add-disk <by-id>" "compare with hardware.nix, rewrite it, add a disk"
+      h "Site"
+      c "site key" "the key a site repository needs to receive pushes"
+      if command -v nixie-menu >/dev/null; then
+        h "Desktop"
+        c "menu" "finish, wallpaper, packages, update, keybinds"
+      fi
+    }
     case "$cmd" in
       apply)
         yes=0; skip_host=0; within=""; confirm=0
@@ -60,7 +107,20 @@ pkgs.writeShellApplication {
         prev_gen=$( { readlink "$prof" 2>/dev/null || true; } | sed -n 's/.*system-\([0-9]*\)-link/\1/p')
         touched=""
         if [ "$skip_host" = 0 ]; then
-          if [ -n "$(git -C "$site" remote 2>/dev/null)" ]; then git -C "$site" pull --ff-only || echo "site pull failed; applying the checkout as is" >&2; fi
+          if [ -n "$siterepo" ] && [ -d "$site/.git" ] && ! git -C "$site" remote get-url origin >/dev/null 2>&1; then
+            git -C "$site" remote add origin "$siterepo"
+          fi
+          # Hand edits become a commit before anything is built, so every
+          # generation's label names the commit it came from.
+          if [ -d "$site/.git" ] && [ -n "$(git -C "$site" status --porcelain)" ]; then
+            git -C "$site" add -A
+            changed=$(git -C "$site" diff --cached --name-only | head -5 | paste -sd ' ')
+            git -C "$site" -c user.name="nixie on $host" -c user.email="nixie@$host" commit -qm "apply on $host: $changed"
+          fi
+          # A remote that has no branch yet gets its first push after the apply.
+          if [ -n "$(git -C "$site" remote 2>/dev/null)" ] && git -C "$site" ls-remote --exit-code --heads origin "$siteref" >/dev/null 2>&1; then
+            git -C "$site" pull --ff-only origin "$siteref" || echo "site pull failed; applying the checkout as is" >&2
+          fi
           # Refuse the one change that needs a reinstall before touching anything.
           # A prebuilt system answers from its own layout, so no evaluation (and
           # no network) is needed on the host.
@@ -94,7 +154,7 @@ pkgs.writeShellApplication {
           fi
         fi
         : "''${label:=$(date +%Y%m%d-%H%M%S)}"
-        [ -e /run/current-system/etc/nixie/tofu/config.tf.json ] || { echo "no guests to manage on this host"; exit 0; }
+        [ -e /run/current-system/etc/nixie/tofu/config.tf.json ] || { echo "no guests to manage on this host"; push_site; exit 0; }
         # Step 2: NixOS guest images, built with the host, imported by alias.
         while IFS=$'\t' read -r name alias path; do
           [ -z "$path" ] || [ "$path" = null ] && continue
@@ -132,7 +192,17 @@ pkgs.writeShellApplication {
             '{prev: $prev, label: $label, guests: ($guests | split(" ") | map(select(. != "")))}' >/run/nixie/apply-pending.json
           systemd-run --quiet --unit=nixie-apply-confirm --on-active="$within" --timer-property=AccuracySec=1s nixie rollback --auto
           echo "confirm within $within with: nixie apply --confirm"
-        fi ;;
+        fi
+        push_site ;;
+      site)
+        case "''${1:-}" in
+          key)
+            # Add this public key to the remote in nixie.site.repo with write
+            # access; `nixie apply` then pushes every change it applies.
+            [ -e "$sitekey" ] || ssh-keygen -q -t ed25519 -N "" -C "nixie site $host" -f "$sitekey"
+            cat "$sitekey.pub" ;;
+          *) echo "usage: nixie site key" >&2; exit 2 ;;
+        esac ;;
       export)
         need_guests
         name=''${1:?instance name}
@@ -395,13 +465,13 @@ pkgs.writeShellApplication {
               [ "$(readlink -f "$l")" = "$(readlink -f /run/current-system)" ] && marks="$marks current"
               [ "$(readlink -f "$l")" = "$(readlink -f /run/booted-system 2>/dev/null)" ] && marks="$marks booted"
               [ "$n" = "$newest" ] && marks="$marks boot-default"
-              printf '%-4s %-17s %-40s %-14s %s\n' "$n" "$(date -d "@$(stat -c %Y "$l")" '+%F %R')" "$(cat "$l/nixos-version")" "$(basename "$(readlink -f "$l/kernel")" | sed 's/^[a-z0-9]*-linux-//' | cut -c1-14)" "$marks"
+              printf '%-4s %-17s %-40s %-14s %s\n' "$n" "$(date -d "@$(stat -c %Y "$l")" '+%F %R')" "$(cat "$l/nixos-version")" "$(basename "$(dirname "$(readlink -f "$l/kernel")")" | sed 's/^[a-z0-9]*-linux-//' | cut -c1-14)" "$marks"
             done ;;
           --json)
             gens=$(for m in "$prof"-*-link; do
               n=''${m##*system-}; n=''${n%-link}
               jq -n --arg gen "$n" --arg date "$(date -d "@$(stat -c %Y "$m")" -Is)" --arg label "$(cat "$m/nixos-version" 2>/dev/null || echo unknown)" \
-                --arg kernel "$(basename "$(readlink -f "$m/kernel")" 2>/dev/null | sed 's/^[a-z0-9]*-linux-//')" \
+                --arg kernel "$(basename "$(dirname "$(readlink -f "$m/kernel")")" 2>/dev/null | sed 's/^[a-z0-9]*-linux-//')" \
                 --argjson current "$([ "$(readlink -f "$m")" = "$(readlink -f /run/current-system)" ] && echo true || echo false)" \
                 --argjson booted "$([ "$(readlink -f "$m")" = "$(readlink -f /run/booted-system 2>/dev/null)" ] && echo true || echo false)" \
                 '{generation: ($gen | tonumber), date: $date, label: $label, kernel: $kernel, current: $current, booted: $booted}'
@@ -466,8 +536,11 @@ pkgs.writeShellApplication {
           "") [ -n "$cur" ] && [ "$cur" -gt 1 ] || { echo "no earlier generation" >&2; exit 1; }; switch_gen "$((cur - 1))" ;;
           *) echo "usage: nixie rollback [--list | --json | --generation N | --boot-previous | guest <name> [--snapshot s] | data <name>|state [--snapshot s] [--in-place] [--yes]]" >&2; exit 2 ;;
         esac ;;
+      help | -h | --help) usage ;;
       *)
-        echo "usage: nixie apply [--yes] [--skip-host] [--confirm-within <duration>] | apply --confirm | rollback [--json] ... | export <instance> | fetch | backup now|list|verify|kit <file> | restore <snapshot> [--path <p>] [--to <dir>] | reseal | security reenroll | usb [--json] | usb allow <device> | hardware scan|refresh|add-disk <by-id> | doctor | menu" >&2; exit 2 ;;
+        echo "nixie: no command \"$cmd\"" >&2
+        usage >&2
+        exit 2 ;;
     esac
   '';
 }

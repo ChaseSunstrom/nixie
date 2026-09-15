@@ -1,5 +1,5 @@
 { self }:
-{ lib, ... }:
+{ config, lib, ... }:
 let
   inherit (import ../lib/option.nix lib) mkOption;
 in
@@ -12,15 +12,26 @@ in
     type = "path";
     path = self.outPath;
   };
+  # What `nixie apply` pushes to, read at run time.
+  config.environment.etc."nixie/site.json".text = builtins.toJSON {
+    inherit (config.nixie.site) repo ref;
+  };
+  # The checkout is root's; the administrator can still read its history.
+  config.programs.git = {
+    enable = true;
+    config.safe.directory = [ (toString config.nixie.site.path) ];
+  };
 
   options.nixie.site = {
     repo = mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
       description = ''
-        Git URL of the site repository. When set, `nixie apply` pulls it
-        before building; when empty, the checkout on the host is the only
-        copy.
+        A git repository that keeps a copy of the site. `nixie apply` pulls
+        from it before building and pushes each change it applied, hand edits
+        included, so the repository is the site's backup and its history.
+        Give the repository write access for the key `nixie site key` prints.
+        Empty means the checkout on this host is the only copy.
       '';
       nixieUi = {
         section = "site";

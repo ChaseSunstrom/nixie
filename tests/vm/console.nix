@@ -55,6 +55,16 @@ pkgs.testers.runNixOSTest {
     panel.send_key("ret")
     panel.wait_for_text("login", timeout=60)
     panel.screenshot("front-panel-login")
+    # The splash the initrd shows, started again on this display: the same
+    # theme, asking for a passphrase. The test VM's serial console would put
+    # Plymouth in text mode, as it does in test-iso, hence the flag.
+    panel.succeed("systemctl stop nixie-panel.service")
+    panel.succeed("plymouthd --mode=boot --tty=/dev/tty1 --ignore-serial-consoles && plymouth show-splash")
+    panel.succeed("(plymouth ask-for-password --prompt='Please enter passphrase for disk rpool' </dev/null >/dev/null 2>&1 &)")
+    panel.sleep(8)
+    panel.succeed("plymouth --ping")
+    panel.screenshot("boot-splash")
+    panel.execute("plymouth quit")
     panel.shutdown()
 
     kiosk.start()

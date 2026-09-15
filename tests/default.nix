@@ -265,6 +265,67 @@ in
     assert lib.assertMsg (failed == [ ]) "iso-config: ${lib.concatStringsSep "; " failed}";
     pkgs.writeText "iso-config" (lib.concatStringsSep "\n" (lib.attrNames facts));
 
+  # What an installed machine shows from power-on to Finish: no loader menu,
+  # the splash unless a feature needs the text console, and during setup the
+  # front end chosen at the image's boot menu, on a desktop as on a server.
+  boot-and-setup =
+    let
+      withSetup =
+        frontEnd:
+        (testHost ../examples/desktop-site {
+          hosts.laptop = desktopSite.hosts.laptop // {
+            settings = {
+              imports = [ desktopSite.hosts.laptop.settings ];
+              nixie.setup.pending = true;
+              nixie.setup.frontEnd = frontEnd;
+            };
+          };
+        } "laptop").config;
+      setupOf = frontEnd: (withSetup frontEnd).specialisation.nixie-setup.configuration;
+      duressHost = (testHost ./sites (import ./sites/wizard-server.nix) "host").config;
+      tty = u: u.serviceConfig.TTYPath;
+      facts = {
+        "no loader menu" = laptop.config.boot.loader.timeout == 0 && server.config.boot.loader.timeout == 0;
+        "the Nixie splash" =
+          laptop.config.boot.plymouth.enable && laptop.config.boot.plymouth.theme == "nixie";
+        "no splash with duress or attestation" = !duressHost.boot.plymouth.enable;
+        "the splash and the greeter follow the finish" =
+          let
+            paper =
+              (testHost ../examples/desktop-site {
+                hosts.laptop = desktopSite.hosts.laptop // {
+                  settings = {
+                    imports = [ desktopSite.hosts.laptop.settings ];
+                    nixie.desktop.finish = lib.mkForce "paper";
+                  };
+                };
+              } "laptop").config;
+            theme = c: (lib.head c.boot.plymouth.themePackages).drvPath;
+          in
+          theme paper != theme laptop.config
+          && lib.hasInfix paper.nixie.desktop.tokens.s1 paper.programs.regreet.extraCss;
+        "graphical setup: the wizard on screen, no desktop session yet" =
+          (setupOf "graphical").nixie.kiosk.enable && !(setupOf "graphical").services.greetd.enable;
+        "the desktop session after Finish" = laptop.config.services.greetd.enable;
+        "web setup: the address on tty1" =
+          !(setupOf "web").nixie.kiosk.enable
+          && (setupOf "web").systemd.services ? nixie-banner
+          && (setupOf "web").systemd.services ? nixie-setup;
+        "terminal setup: the text wizard on tty1, nothing listening" =
+          tty (setupOf "terminal").systemd.services.nixie-terminal == "/dev/tty1"
+          && !((setupOf "terminal").systemd.services ? nixie-setup);
+        "the plain entry says setup is unfinished" = lib.hasInfix "not finished" (withSetup "graphical")
+        .services.getty.greetingLine;
+        "the installer does not offer HyDE" =
+          (lib.findFirst (o: o.path == "nixie.desktop.hyde.enable") { } (
+            lib.importJSON self.packages.x86_64-linux.nixie-setup.passthru.optionsJson
+          )).section or null == null;
+      };
+      failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
+    in
+    assert lib.assertMsg (failed == [ ]) "boot-and-setup: ${lib.concatStringsSep "; " failed}";
+    pkgs.writeText "boot-and-setup" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
   # GRUB reads PNGs with 8 or 16 bits per channel only and otherwise stops at
   # "Press any key to continue", which shows on UEFI boots and nowhere else.
   iso-grub-theme =

@@ -152,4 +152,4 @@ hl.bind("SUPER + G", hl.dsp.exec_cmd("gimp"))
 | screenshots, recording, colour | grim + slurp + satty, wf-recorder, hyprpicker |
 | theme | adw-gtk3 with per-finish CSS, Papirus icons, Bibata cursor, Material Symbols glyphs |
 | terminal | kitty, fish + starship, fastfetch |
-| greeter | greetd + regreet, themed from the tokens |
+| greeter | greetd + regreet in the chosen finish, as is the boot splash (`nixie.host.bootSplash`); a site's own finish or an imported HyDE theme works for both when `nixie.desktop.finish` names it |

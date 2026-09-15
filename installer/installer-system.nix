@@ -11,39 +11,10 @@
 let
   inherit (import ../lib/option.nix lib) mkOption;
   cfg = config.nixie.installer;
-  graphical = cfg.mode == "graphical";
   web = cfg.mode != "terminal";
-  # The terminal wizard owns tty1 when it is the chosen front end and tty2
-  # otherwise, so it is always one key chord away.
-  wizardTty = if cfg.mode == "terminal" then "tty1" else "tty2";
-  # tty1 in web mode, and in graphical mode when the display cannot run the
-  # kiosk: the address, pairing code and fingerprint, redrawn when they change.
-  banner = pkgs.writeShellScript "nixie-banner" ''
-    f=/var/lib/nixie/setup/banner.txt; last=""
-    while :; do
-      now=$(${pkgs.coreutils}/bin/stat -c %Y "$f" 2>/dev/null || echo none)
-      if [ "$now" != "$last" ]; then
-        last=$now
-        printf '\033[2J\033[H'
-        ${pkgs.coreutils}/bin/cat "$f" 2>/dev/null || printf '\n  Starting the setup service...\n'
-        printf '\n  Terminal installer: press Alt+F2.\n'
-      fi
-      ${pkgs.coreutils}/bin/sleep 2
-    done
-  '';
-  onTty = tty: {
-    StandardInput = "tty";
-    StandardOutput = "tty";
-    StandardError = "tty";
-    TTYPath = "/dev/${tty}";
-    TTYReset = true;
-    TTYVHangup = true;
-    Restart = "always";
-    RestartSec = 2;
-  };
 in
 {
-  imports = [ ./kiosk.nix ];
+  imports = [ ./front-end.nix ];
 
   options.nixie.installer = {
     packages = mkOption {
@@ -125,53 +96,16 @@ in
       serviceConfig = {
         # exposure: runs the phase scripts as root; that is its whole purpose.
         ExecStart =
-          "${lib.getExe cfg.packages.nixie-setup} --mode iso --cert-dir /var/lib/nixie/setup-cert"
+          "${lib.getExe cfg.packages.nixie-setup} --mode iso --front-end ${cfg.mode} --cert-dir /var/lib/nixie/setup-cert"
           + lib.optionalString (cfg.toplevel != null) " --toplevel ${cfg.toplevel}"
           + lib.optionalString (cfg.disko != null) " --disko ${cfg.disko}";
         Restart = "on-failure";
-        # The kiosk user reads the local token the setup service writes.
-        ExecStartPost = lib.mkIf graphical (
-          pkgs.writeShellScript "share-token" ''
-            for _ in $(seq 50); do [ -e /run/nixie-setup/local-token ] && break; sleep 0.2; done
-            chgrp nixie-kiosk /run/nixie-setup /run/nixie-setup/local-token
-            chmod 750 /run/nixie-setup; chmod 640 /run/nixie-setup/local-token
-          ''
-        );
       };
     };
 
-    nixie.kiosk.enable = graphical;
-    # A display the kiosk cannot drive must still say where to go next.
-    systemd.services.cage-tty1.onFailure = lib.mkIf graphical [ "nixie-banner.service" ];
-
-    systemd.services.nixie-banner = lib.mkIf web {
-      description = "Nixie setup address on tty1";
-      wantedBy = lib.mkIf (!graphical) [ "multi-user.target" ];
-      after = [ "nixie-setup.service" ];
-      # exposure: root with a console; it only prints the banner file.
-      serviceConfig = onTty "tty1" // {
-        ExecStart = banner;
-      };
-    };
-
-    # tty1 always belongs to the installer, tty2 too unless the wizard is on
-    # tty1. logind spawns autovt@ttyN when someone switches to an unused VT,
-    # and a getty there fights the owner for the keyboard, so both instance
-    # names are masked.
-    systemd.services."getty@tty1".enable = false;
-    systemd.services."autovt@tty1".enable = false;
-    systemd.services."getty@tty2" = lib.mkIf web { enable = false; };
-    systemd.services."autovt@tty2" = lib.mkIf web { enable = false; };
-    systemd.services.nixie-terminal = {
-      description = "Nixie terminal wizard on ${wizardTty}";
-      wantedBy = [ "multi-user.target" ];
-      after = lib.optional web "nixie-setup.service";
-      # The wizard writes the site with nixie-setup and offers a shell.
-      path = [ "/run/current-system/sw" ];
-      # exposure: the installer itself; it partitions disks as root.
-      serviceConfig = onTty wizardTty // {
-        ExecStart = "${lib.getExe cfg.packages.deploy} --local";
-      };
+    nixie.frontEnd = {
+      inherit (cfg) mode;
+      terminal = "${lib.getExe cfg.packages.deploy} --local";
     };
   };
 }

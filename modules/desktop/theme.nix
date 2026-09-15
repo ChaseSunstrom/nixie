@@ -233,6 +233,13 @@ in
     description = "Internal: every finish this desktop offers, built in and from the site.";
   };
 
+  options.nixie.desktop.tokens = mkOption {
+    type = lib.types.attrs;
+    default = t;
+    readOnly = true;
+    description = "Internal: the colours of the chosen finish, for what draws before a session (the login screen, the boot splash).";
+  };
+
   options.nixie.desktop.wallpaperPath = mkOption {
     type = lib.types.str;
     # The generated set is reached through /etc so a finish switch can tell
@@ -249,6 +256,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = lib.elem cfg.finish finishes;
+        message = "nixie.desktop.finish is \"${cfg.finish}\", which is not one of this desktop's finishes: ${lib.concatStringsSep ", " finishes}";
+      }
+    ];
     environment.etc =
       lib.listToAttrs (map (f: lib.nameValuePair "nixie/desktop/${f}" { source = finishDir f; }) finishes)
       // {

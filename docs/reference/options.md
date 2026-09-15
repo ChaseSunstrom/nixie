@@ -253,11 +253,13 @@ Desktop entry ids pinned at the top of the launcher.
 
 ## `nixie.desktop.finish`
 
-*one of "graphite", "umber", "paper" (graphite, umber, paper)*, default: `"nixie.ui.theme"`. Wizard section: desktop.
+*string (graphite, umber, paper)*, default: `"nixie.ui.theme"`. Wizard section: desktop.
 
 The finish for the whole desktop: bar, windows, terminal, editor and
-apps. This is the default; the control centre can switch it for a
-person without a rebuild.
+apps, the login screen and the boot splash. graphite, umber or paper,
+or a finish the site adds in nixie.desktop.themes or imports from HyDE
+in nixie.desktop.hyde.themes. This is the default; the control centre
+can switch it for a person without a rebuild.
 
 ## `nixie.desktop.flatpak.enable`
 
@@ -279,7 +281,7 @@ The interface font.
 
 ## `nixie.desktop.hyde.enable`
 
-*boolean*, default: `false`. Wizard section: desktop.
+*boolean*, default: `false`.
 
 Hand the desktop to HyDE itself instead of the Nixie one. Nixie stops
 configuring the session, the shell, Hyprland and the theme, and your
@@ -288,6 +290,8 @@ rest of the platform is unchanged: the same installer, the same
 security options, the same `nixie` command. Off by default because
 HyDE is a large third-party desktop whose theme tool downloads themes
 at the moment you switch them, which the Nixie desktop never does.
+Not offered by the installer: a site it creates has no HyDE in it, so
+the machine would start with no desktop at all.
 
 ## `nixie.desktop.hyde.themes`
 
@@ -573,6 +577,15 @@ installed and, on a server, whether guests may be given the GPU.
 
 Whether the installer found a TPM 2.0 chip. TPM binding and attestation
 need one.
+
+## `nixie.host.bootSplash`
+
+*boolean*, default: `true`.
+
+Show the Nixie logo while the machine starts and ask for the disk
+passphrase on the same screen, in the installer's look. A machine with
+the duress passphrase or boot attestation keeps the plain text console
+either way, because both need it.
 
 ## `nixie.host.keepGenerations`
 
@@ -988,11 +1001,11 @@ Which boot measurements the TPM layer is tied to. 7 tracks the Secure
 Boot state. Adding more makes unlocking stricter and re-enrolment more
 frequent.
 
-## `nixie.setup.kiosk`
+## `nixie.setup.frontEnd`
 
-*boolean*, default: `true`.
+*one of "graphical", "web", "terminal" (graphical, web, terminal)*, default: `"graphical"`.
 
-Internal: show the continuation wizard on the local display (off on desktops, which continue in their own session).
+Internal: the front end chosen at the installer's boot menu, which setup keeps until Finish. The installer writes it next to nixie.setup.pending.
 
 ## `nixie.setup.packages`
 
@@ -1023,9 +1036,11 @@ Branch of the site repository to follow.
 
 *null or string*, default: `null`. Wizard section: site.
 
-Git URL of the site repository. When set, `nixie apply` pulls it
-before building; when empty, the checkout on the host is the only
-copy.
+A git repository that keeps a copy of the site. `nixie apply` pulls
+from it before building and pushes each change it applied, hand edits
+included, so the repository is the site's backup and its history.
+Give the repository write access for the key `nixie site key` prints.
+Empty means the checkout on this host is the only copy.
 
 ## `nixie.ui.allowSiteEdits`
 

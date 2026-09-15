@@ -1,21 +1,24 @@
 # shellcheck shell=bash
 # nixie-deploy: headless installer. Same phases, same markers, over SSH.
 set -euo pipefail
-site=""; host=""; target=""; local=0; yes=0
+site=""; host=""; target=""; local=0; continue=0; yes=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --site) site=$2; shift 2 ;;
     --host) host=$2; shift 2 ;;
     --local) local=1; shift ;;
+    --continue) continue=1; shift ;;
     --yes) yes=1; shift ;;
-    -h|--help) echo "usage: nixie-deploy --site <path> --host <name> [--yes] <user@target> | --local"; exit 0 ;;
+    -h|--help) echo "usage: nixie-deploy --site <path> --host <name> [--yes] <user@target> | --local | --continue"; exit 0 ;;
     *) target=$1; shift ;;
   esac
 done
 
 say() { gum style --foreground 4 "$*"; }
 ask() { gum input --placeholder "$1" "${@:2}"; }
-secret() { gum input --password --placeholder "$1"; }
+# Without the newline gum ends its output with: a key file keeps every byte,
+# and the passphrase typed at boot has no newline in it.
+secret() { gum input --password --placeholder "$1" | tr -d '\n'; }
 banner() { [ -s /var/lib/nixie/setup/banner.txt ] && gum style --border rounded --padding "0 1" "$(cat /var/lib/nixie/setup/banner.txt)" || true; }
 
 # ---------------------------------------------------------------- local mode
@@ -77,7 +80,7 @@ if [ "$local" = 1 ]; then
             "nixie.network.bridge.mode": $mode}')
         jq -n --arg h "$host" --arg p "$profile" --arg d "$disk" --arg dd "$data" --argjson u "$uplinks" --arg g "$(jq -r .gpu <<<"$hw")" --argjson t "$(jq .tpm <<<"$hw")" --argjson s "$settings" \
           '{host:$h, profile:$p, systemDisk:$d, dataDisk:(if $dd=="" then null else $dd end), uplinks:$u, gpu:$g, tpm:$t, settings:$s}' \
-          | nixie-setup --configure --site "$NIXIE_SITE" --state-dir "$NIXIE_SETUP_DIR"
+          | nixie-setup --configure --front-end terminal --site "$NIXIE_SITE" --state-dir "$NIXIE_SETUP_DIR"
         gum confirm "Write hardware.nix, keys and secrets, then wipe $disk and install?" || continue
         # A failed phase must leave its reason on screen: the unit restarts
         # the wizard, which clears it.
@@ -89,6 +92,61 @@ if [ "$local" = 1 ]; then
         say "Installed. Reboot to continue setup on the new system."
         gum confirm "Reboot now?" && systemctl reboot
         ;;
+    esac
+  done
+fi
+
+# ------------------------------------------------------------- continue mode
+# The setup generation's terminal front end: phases 4 to 8 and Finish, asking
+# for what each needs, as the web page does.
+if [ "$continue" = 1 ]; then
+  export NIXIE_SITE=/etc/nixie/site NIXIE_SETUP_DIR=/var/lib/nixie/setup NIXIE_KEYS=/run/nixie/keys NIXIE_TOPLEVEL=/run/current-system
+  mkdir -p "$NIXIE_KEYS"; chmod 700 "$NIXIE_KEYS"
+  feature() { [ "$(jq -r ".features.$1 // false" /run/current-system/etc/nixie/layout.json 2>/dev/null)" = true ]; }
+  titles=([4]="first boot" [5]="Secure Boot" [6]="TPM and attestation" [7]="verify" [8]="apply the site")
+  while true; do
+    clear; gum style --bold "Nixie setup (terminal)"
+    next=""; for n in 4 5 6 7 8; do [ -e "$NIXIE_SETUP_DIR/$n.done" ] || { next=$n; break; }; done
+    if [ -n "$next" ]; then first="Run phase $next: ${titles[$next]}"; else first="Finish: switch to the normal system and remove setup"; fi
+    choice=$(gum choose "$first" "Shell" "Reboot")
+    case "$choice" in
+      Shell) bash -l || true ;;
+      Reboot) systemctl reboot ;;
+      Finish*)
+        # The switch stops this wizard with the rest of the setup generation,
+        # so Finish runs as a unit of its own, as it does from the web page.
+        systemd-run --unit=nixie-finish --collect -p StandardOutput=journal+console -p StandardError=journal+console "$(command -v nixie-finish)"
+        journalctl -fu nixie-finish -o cat & follow=$!
+        while systemctl -q is-active nixie-finish; do sleep 1; done
+        kill "$follow" 2>/dev/null || true
+        rm -f "$NIXIE_KEYS"/*
+        # The switch usually ends this wizard first; if not, the marker says how it went.
+        [ ! -e "$NIXIE_SETUP_DIR/finished" ] || { say "Setup finished."; exit 0; }
+        say "Finish stopped; the lines above say why. Fix the site in $NIXIE_SITE and choose Finish again."
+        gum confirm "Back to the menu?" || true ;;
+      Run*)
+        rc=0
+        if [ "$next" = 6 ] && feature encryption; then
+          secret "Disk passphrase" >"$NIXIE_KEYS/passphrase"
+          if feature tpm; then secret "TPM PIN" >"$NIXIE_KEYS/pin"; fi
+          dest=$(ask "Also copy the header backup to this path (a USB stick), optional")
+          nixie-phase 6 ${dest:+--backup-dest "$dest"} || rc=$?
+        else
+          nixie-phase "$next" || rc=$?
+        fi
+        if [ "$next" = 6 ] && [ "$rc" = 0 ]; then
+          # Shown once, as the web page does, and not kept on the host.
+          [ -s "$NIXIE_KEYS/recovery-key" ] && gum style --border rounded --padding "0 1" "Recovery key (write it down): $(cat "$NIXIE_KEYS/recovery-key")"
+          [ -s "$NIXIE_KEYS/attestation-qr" ] && cat "$NIXIE_KEYS/attestation-qr"
+          say "The header backup is $NIXIE_SETUP_DIR/header-backup.tar.age; copy it off this machine."
+        fi
+        if [ "$rc" = 10 ] || { [ "$next" = 6 ] && [ "$rc" = 0 ] && { feature tpm || feature attestation; }; }; then
+          say "Reboot to continue; setup comes back here."
+          gum confirm "Reboot now?" && systemctl reboot
+        elif [ "$rc" != 0 ]; then
+          say "Phase $next stopped; the lines above say why. Choosing it again runs it again."
+          gum confirm "Back to the menu?" || true
+        fi ;;
     esac
   done
 fi

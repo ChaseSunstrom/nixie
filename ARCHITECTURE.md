@@ -1069,6 +1069,25 @@ and runs `nixie apply`.
   behind the same client certificate as everything else the panel does, so
   the settings are one JSON value there: shared by every browser, no new
   process or port, and `nixie.ui.*` in the site stays the starting point.
+- **D32 No loader menu; a splash instead.** Asked for a graphical boot
+  selection in the installer's look: systemd-boot draws no themed menu, and
+  lanzaboote, which Secure Boot needs, signs systemd-boot only, so a themed
+  GRUB would have meant a second boot path without Secure Boot. The chosen
+  resolution: `boot.loader.timeout = 0` (holding Space shows the text menu
+  for recovery; the front panel and `nixie rollback` choose generations), and
+  `nixie.host.bootSplash`, a Plymouth script theme in the Graphite finish
+  that also asks for the disk passphrase. It stays off with duress (the
+  duress check replaces the console password agent, which systemd does not
+  start under Plymouth) and with attestation (the code is printed on the
+  text console).
+- **D33 Setup keeps the installer's front end.** The installer's boot menu
+  chooses graphical, web or terminal; `nixie-setup --front-end` records it
+  as `nixie.setup.frontEnd` in `hosts/<name>/setup-pending.nix`, and the
+  setup generation imports the same `installer/front-end.nix` as the image:
+  the kiosk, the address banner, or the terminal wizard (`nixie-deploy
+  --continue`, phases 4 to 8 and Finish) on tty1, on a desktop as on a
+  server, with the greeter held back until Finish. Before, a desktop's setup
+  generation started its session with nothing leading back to setup.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the

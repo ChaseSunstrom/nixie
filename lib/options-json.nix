@@ -13,7 +13,8 @@ let
         {
           path = lib.showOption o.loc;
           type = typeName o.type;
-          values = enumValues o.type;
+          # A free-form option can still offer the wizard a list.
+          values = o.nixieUi.values or (enumValues o.type);
           default = if o ? defaultText then toString o.defaultText else o.default or null;
           required = !(o ? default);
           description = o.description or "";

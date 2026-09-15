@@ -7,6 +7,7 @@
     inputs.sops-nix.nixosModules.sops
     inputs.lanzaboote.nixosModules.lanzaboote
     ./base.nix
+    ./splash.nix
     ./profile.nix
     ./hardware.nix
     ./host.nix

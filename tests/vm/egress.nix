@@ -121,6 +121,9 @@ pkgs.testers.runNixOSTest {
         internet.succeed("nc -z -w 2 192.168.1.2 22")
 
     with subtest("direct: guests reach the LAN through the host"):
+        # The fake tunnel has no TUN device, so tailscaled restarts in a loop;
+        # caught between two tries, a switch that removes it reports status 4.
+        host.succeed("systemctl stop tailscaled.service; systemctl reset-failed")
         host.succeed("/run/current-system/specialisation/direct/bin/switch-to-configuration test >&2")
         host.wait_for_unit("nftables.service")
         assert can_fetch("web", "http://192.168.1.3/"), "declared guest cannot reach the LAN under direct"

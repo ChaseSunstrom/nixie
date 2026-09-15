@@ -822,6 +822,52 @@ site evaluates. The module now throws "nixie.auth.admin.name cannot be
 "root"…" before the collision (evaluated for root and nobody), and both
 wizards refuse those names.
 
+## After the install: boot, setup front ends, HyDE, the site (2026-09-15)
+
+Reported from VirtualBox: after installing a desktop with HyDE, choosing
+"nixie" in the text boot menu gave a TTY. Causes found: HyDE in the wizard
+switches the Nixie desktop off and a wizard-made site has no HyDE, so no
+session starts in either entry; a desktop's setup generation showed no
+wizard at all ("continue in their own session" was never implemented); the
+loader menu offered the plain entry while setup was unfinished.
+
+Changes (ARCHITECTURE D32, D33): no loader menu; a Plymouth theme in the
+Graphite finish (`nixie.host.bootSplash`), off with duress or attestation;
+the setup generation imports the image's own `installer/front-end.nix`
+with the front end recorded at install (`nixie.setup.frontEnd`), greetd held
+back until Finish; a terminal continuation (`nixie-deploy --continue`); the
+plain entry's getty says setup is unfinished; HyDE off the wizard with an
+assertion for a site that enables it without a session; clearer profile
+choice. Also: the wizard adds a host to an existing `site.nix` instead of
+moving the old one aside, and a reinstall from a cloned site is marked
+pending again; `nixie apply` commits hand edits and pushes to
+`nixie.site.repo`, `nixie site key`; a grouped `nixie` help; kernel
+versions in `rollback --list`.
+
+| check | result |
+|---|---|
+| `boot-and-setup` (new): no menu, splash on, splash off with duress, graphical/web/terminal setup screens, greetd only after Finish, the unfinished warning, HyDE not in the wizard | pass |
+| `iso-config` after moving the image's front end into `front-end.nix` | pass |
+| `eval-matrix`, fmt, statix, deadnix, option-reference, option-docs, readme, no-hardware-facts, systemd-security | pass |
+| `test-iso` plain on the new image: splash on, passphrase over the serial console (Plymouth falls back to text with `console=ttyS0`, `unlock-prompt.png`), setup and Finish | pass, 383 s |
+| `test-iso --profile desktop` (new): the setup generation shows the wizard on a desktop (`setup-generation.png`, "iso-test · desktop"), Finish hands over to the greeter (`finished.png`) | pass, 628 s |
+| site_new on a scratch site: a second host appended, both evaluate; a reinstall marked pending | pass |
+| the apply's commit, pull and push steps, run from the CLI's own text against a local bare repository: hand edits committed as "apply on <host>: <files>", pushed; no pull against an empty remote | pass |
+| splash: `vm-console` starts Plymouth on its display and asks for a passphrase; the Nixie theme draws the mark, the wordmark, the prompt and the field | pass; `tests/artifacts/e2e-server/92-boot-splash.png` (the booted system's font, not the initrd's Archivo) |
+| greeter: `vm-desktop` with the rewritten stylesheet (regreet 0.3's `frame.background`, entries, combo buttons, suggested and destructive buttons) | pass, 120 s; `tests/artifacts/e2e-server/90-greeter-graphite.png` |
+| `boot-and-setup`: the splash theme and the greeter's stylesheet change with `nixie.desktop.finish` (graphite against paper) | pass |
+| the terminal continuation (`nixie-deploy --continue`) under a pseudo-terminal with the phase engine, systemd-run and Finish stubbed: phases 4 to 8 in order, the passphrase and backup path asked at 6, Finish run as its own unit | pass |
+| full gate on the previous commit: 27 of 29, with option-reference (run between an edit and the regenerated file) and vm-egress (tailscaled's restart loop counted as a failed unit at the switch; the test now stops it first) | see text |
+| rerun on this tree: vm-console, vm-desktop, vm-egress, vm-installer-lan, vm-ui | pass |
+
+Not verified here: the splash during a real boot without a serial console
+(`vm-console` starts Plymouth on its display after boot with
+`--ignore-serial-consoles`); the terminal continuation on a real machine;
+HyDE with hydenix in a site; a push to a real remote with the host's key.
+Seen at first and fixed in the rows above: the greeter's login box drawn
+white with light text (`finished.png`), its stylesheet naming widgets
+regreet 0.3 does not have.
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

@@ -9,7 +9,7 @@
 let
   inherit (import ../../lib/option.nix lib) mkOption;
   cfg = config.nixie.desktop;
-  t = (import ../../lib/tokens.nix { inherit lib; }).forFinish cfg.finish;
+  t = cfg.tokens;
 in
 {
   options.nixie.desktop.enable = mkOption {
@@ -44,15 +44,34 @@ in
           "poweroff"
         ];
       };
+      # regreet 0.3 draws the login box and the clock as frame.background
+      # over the wallpaper, the rest in stock GTK 4 widgets. Rules for class
+      # names it does not use left GTK's light frame under this finish's light
+      # text.
       extraCss = ''
-        window { background: ${t.bg}; color: ${t.ink}; }
-        .login-box, box.horizontal > box { background: ${t.s1}; border: 1px solid ${t.line}; border-radius: 12px; padding: 28px; }
-        entry { background: ${t.s2}; color: ${t.ink}; border: 1px solid ${t.line}; border-radius: 8px; padding: 8px 12px; }
-        entry:focus { border-color: ${t.brand2}; }
-        button { background: ${t.brand}; color: #fff; border-radius: 8px; border: 0; padding: 8px 16px; }
-        button:hover { background: ${t.brand2}; }
-        label { color: ${t.ink}; }
-        .dim-label { color: ${t.muted}; }
+        window { background-color: ${t.bg}; color: ${t.ink}; }
+        frame.background { background-color: ${t.s1}; color: ${t.ink}; border: 1px solid ${t.line}; border-radius: 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35); }
+        frame.background > border { border: none; }
+        frame label { color: ${t.ink}; }
+        entry, combobox button.combo {
+          background-image: none; background-color: ${t.s2}; color: ${t.ink};
+          border: 1px solid ${t.line}; border-radius: 8px; box-shadow: none; min-height: 38px;
+        }
+        entry:focus-within, combobox button.combo:focus { border-color: ${t.brand2}; outline: none; }
+        combobox button.combo cellview, entry text { color: ${t.ink}; }
+        popover contents, popover.menu contents { background-color: ${t.s1}; color: ${t.ink}; border: 1px solid ${t.line}; border-radius: 8px; }
+        popover contents :hover { background-color: ${t.s3}; }
+        button {
+          background-image: none; background-color: ${t.s3}; color: ${t.ink};
+          border: 1px solid ${t.line}; border-radius: 8px; box-shadow: none; min-height: 34px; padding: 0 16px;
+        }
+        button:hover { background-color: ${t.line}; }
+        button:checked { background-color: ${t.brand}; border-color: ${t.brand}; color: #fff; }
+        button.suggested-action { background-color: ${t.brand}; border-color: ${t.brand}; color: #fff; }
+        button.suggested-action:hover { background-color: ${t.brand2}; border-color: ${t.brand2}; }
+        button.destructive-action { background-color: ${t.s1}; }
+        button.destructive-action:hover { background-color: ${t.err}; border-color: ${t.err}; color: #fff; }
+        .error, label.error { color: ${t.err}; }
       '';
     };
     # regreet runs the login shell unless its cache names a session for the

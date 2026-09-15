@@ -79,6 +79,25 @@ History dated every generation 1970. The wizard offered TPM features on
 machines without one, showed the Tailscale key file path and hid list
 defaults, and a new site's files kept the store's read-only modes.
 
+After the install, the machine goes straight to setup: the loader menu is
+hidden (hold Space for it), boot shows a Nixie splash that asks for the
+passphrase in the installer's look (the text console stays with duress or
+attestation), and setup continues in the front end chosen at the image's
+boot menu, the wizard on screen, the address for a browser, or the terminal
+wizard, on desktops too, where it used to start the desktop session with no
+way back to setup. The plain entry says setup is unfinished. The wizard no
+longer offers HyDE, which left a desktop with no session at all, and a site
+that turns it on without HyDE is refused with the reason; the Profile step
+shows the choice clearly and Review and setup name the profile. `nixie
+apply` commits hand edits in the site checkout and pushes to
+`nixie.site.repo`, whose key `nixie site key` prints.
+
+The login screen draws in the chosen finish: its box was GTK's light frame
+with the finish's light text, the stylesheet naming widgets regreet no longer
+has. The greeter and the boot splash take the colours of
+`nixie.desktop.finish`, which now also accepts a site's own finish or an
+imported HyDE theme.
+
 An administrator named root (or nobody) stopped the install with
 "users.users.root.shell is defined multiple times": the platform makes the
 administrator a normal user, which on root collides with NixOS's own

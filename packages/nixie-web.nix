@@ -33,7 +33,7 @@ let
   };
 in
 {
-  inherit web;
+  inherit web archivo;
   nixie-ui = pkgs.runCommand "nixie-ui" { } ''
     mkdir -p $out
     cp -r ${web}/assets ${web}/fonts ${web}/index.html $out/

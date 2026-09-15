@@ -26,10 +26,14 @@ in
       default = import ../packages { inherit pkgs inputs self; };
       description = "Internal: the platform packages the setup generation runs.";
     };
-    kiosk = mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Internal: show the continuation wizard on the local display (off on desktops, which continue in their own session).";
+    frontEnd = mkOption {
+      type = lib.types.enum [
+        "graphical"
+        "web"
+        "terminal"
+      ];
+      default = "graphical";
+      description = "Internal: the front end chosen at the installer's boot menu, which setup keeps until Finish. The installer writes it next to nixie.setup.pending.";
     };
   };
 
@@ -44,12 +48,29 @@ in
     '';
     # lanzaboote writes loader.conf from its settings; its entries are UKIs.
     boot.lanzaboote.settings.default = "nixos-generation-*-specialisation-nixie-setup-*";
+    # The plain entry is only reached by holding Space at boot (the menu is
+    # hidden); it has no wizard, so it says where setup went.
+    services.getty.greetingLine = lib.mkOverride 900 "<<< Setup is not finished on this machine. Restart it and let it start by itself: setup continues where it stopped. >>>";
     specialisation.nixie-setup.configuration = {
-      imports = [ ../installer/kiosk.nix ];
+      imports = [ ../installer/front-end.nix ];
       system.nixos.tags = [ "setup" ];
-      nixie.kiosk.enable = cfg.kiosk && config.nixie.profile == "server";
-      environment.systemPackages = [ cfg.packages.nixie-installer ];
-      systemd.services.nixie-setup = {
+      services.getty.greetingLine = lib.mkForce "<<< Nixie setup >>>";
+      # The same front end as at the installer's boot menu, on every reboot
+      # until Finish: the wizard, the address for a browser, or the terminal.
+      nixie.frontEnd = {
+        mode = cfg.frontEnd;
+        terminal = "${lib.getExe cfg.packages.deploy} --continue";
+      };
+      # Setup owns the screen until Finish, on a desktop as on a server; a
+      # desktop session came up here before and nothing led back to setup.
+      services.greetd.enable = lib.mkForce false;
+      programs.regreet.enable = lib.mkForce false;
+      environment.systemPackages = [
+        cfg.packages.nixie-installer
+        cfg.packages.deploy
+        cfg.packages.nixie-setup.passthru.finish
+      ];
+      systemd.services.nixie-setup = lib.mkIf (cfg.frontEnd != "terminal") {
         description = "Nixie setup service (continuation)";
         wantedBy = [ "multi-user.target" ];
         after = [ "network-online.target" ];
@@ -63,17 +84,10 @@ in
           Restart = "on-failure";
         };
       };
-      systemd.services.nixie-setup.serviceConfig.ExecStartPost =
-        lib.mkIf (cfg.kiosk && config.nixie.profile == "server")
-          (
-            pkgs.writeShellScript "share-token" ''
-              for _ in $(seq 50); do [ -e /run/nixie-setup/local-token ] && break; sleep 0.2; done
-              chgrp nixie-kiosk /run/nixie-setup /run/nixie-setup/local-token
-              chmod 750 /run/nixie-setup; chmod 640 /run/nixie-setup/local-token
-            ''
-          );
-      networking.firewall.allowedTCPPorts = [ 9443 ];
-      nixie.network.firewall.extraInputRules = ''iifname "${config.nixie.network.firewall.lanInterface}" tcp dport 9443 accept'';
+      networking.firewall.allowedTCPPorts = lib.mkIf (cfg.frontEnd != "terminal") [ 9443 ];
+      nixie.network.firewall.extraInputRules = lib.mkIf (
+        cfg.frontEnd != "terminal"
+      ) ''iifname "${config.nixie.network.firewall.lanInterface}" tcp dport 9443 accept'';
     };
   };
 }

@@ -27,21 +27,24 @@ in
       description = "The account that gets the desktop session.";
     };
     finish = mkOption {
-      type = t.enum [
-        "graphite"
-        "umber"
-        "paper"
-      ];
+      type = t.str;
       default = config.nixie.ui.theme;
       defaultText = "nixie.ui.theme";
       description = ''
         The finish for the whole desktop: bar, windows, terminal, editor and
-        apps. This is the default; the control centre can switch it for a
-        person without a rebuild.
+        apps, the login screen and the boot splash. graphite, umber or paper,
+        or a finish the site adds in nixie.desktop.themes or imports from HyDE
+        in nixie.desktop.hyde.themes. This is the default; the control centre
+        can switch it for a person without a rebuild.
       '';
       nixieUi = {
         section = "desktop";
         order = 1;
+        values = [
+          "graphite"
+          "umber"
+          "paper"
+        ];
       };
     };
     wallpaper = mkOption {
@@ -303,11 +306,9 @@ in
         security options, the same `nixie` command. Off by default because
         HyDE is a large third-party desktop whose theme tool downloads themes
         at the moment you switch them, which the Nixie desktop never does.
+        Not offered by the installer: a site it creates has no HyDE in it, so
+        the machine would start with no desktop at all.
       '';
-      nixieUi = {
-        section = "desktop";
-        order = 9;
-      };
     };
     hyde.themes = mkOption {
       type = t.attrsOf t.path;

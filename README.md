@@ -159,7 +159,8 @@ grep -q 'gpu = true' guests.nix
 
 | command | does |
 |---|---|
-| `nixie apply [--yes]` | host switch, guest images by hash, `tofu apply`; shows a plan first ([VERIFICATION.md#guests](VERIFICATION.md#guests)) |
+| `nixie apply [--yes]` | commits hand edits in `/etc/nixie/site`, host switch, guest images by hash, `tofu apply`, then pushes the site to `nixie.site.repo` when set; shows a plan first ([VERIFICATION.md#guests](VERIFICATION.md#guests)) |
+| `nixie site key` | the host's key for the site repository: give it write access there and apply pushes every change |
 | `nixie fetch` | fills `cache/` from `data.nix`; idempotent ([VERIFICATION.md#data](VERIFICATION.md#data)) |
 | `nixie backup now\|list\|verify\|kit <file>` | run a backup, list snapshots, check the repository, write the disaster kit ([VERIFICATION.md#slice-m-backups](VERIFICATION.md#slice-m-backups)) |
 | `nixie restore <snapshot> [--path <p>] [--to <dir>]` | puts `state/` (or one path) back in place, or beside the live data with `--to` |

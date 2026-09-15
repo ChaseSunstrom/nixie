@@ -114,6 +114,16 @@ def qr_text(data):
 
 
 # ------------------------------------------------------------------- site
+def mark_pending(host):
+    """Setup continues after the first boot while this file says so, in the
+    front end chosen at the installer's boot menu; Finish empties it."""
+    hdir = os.path.join(ARGS.site, "hosts", host)
+    os.makedirs(hdir, exist_ok=True)
+    with open(os.path.join(hdir, "setup-pending.nix"), "w") as f:
+        f.write("# Managed by setup: true until Finish, then empty.\n{\n  nixie.setup.pending = true;\n"
+                f"  nixie.setup.frontEnd = {json.dumps(ARGS.front_end)};\n}}\n")
+
+
 def site_new(host, profile, settings, platform):
     site = ARGS.site
     if not os.path.exists(os.path.join(site, "site.nix")):
@@ -134,18 +144,9 @@ def site_new(host, profile, settings, platform):
                 f"  inputs.nixie.url = {json.dumps(platform)};\n"
                 "  outputs = { nixie, ... }: nixie.lib.mkSite ./site.nix;\n}\n"
             )
-    hosts = {}
     sp = os.path.join(site, "site.nix")
-    if os.path.exists(sp):
-        # Keep other hosts: the file is data, re-emitted with this host replaced.
-        r = sh(["nix", "eval", "--json", "--file", sp, "hosts"], cwd=site)
-        if r.returncode == 0:
-            hosts = {k: None for k in json.loads(r.stdout)}
-    hdir = os.path.join(site, "hosts", host)
-    os.makedirs(hdir, exist_ok=True)
     os.makedirs(os.path.join(site, "secrets"), exist_ok=True)
-    with open(os.path.join(hdir, "setup-pending.nix"), "w") as f:
-        f.write("# Managed by setup: true until Finish, then empty.\n{ nixie.setup.pending = true; }\n")
+    mark_pending(host)
     entry = (
         "  hosts." + host + " = {\n"
         f"    hardware = ./hosts/{host}/hardware.nix;\n"
@@ -155,14 +156,16 @@ def site_new(host, profile, settings, platform):
         + "".join(f"      {k} = {to_nix(v, 3)};\n" for k, v in sorted(settings.items()))
         + "    };\n  };\n"
     )
-    others = ""
-    if hosts and os.path.exists(sp):
-        # Preserve the other hosts' text verbatim by keeping the old file as a module.
-        old = os.path.join(site, f"site-{int(time.time())}.nix.bak")
-        shutil.move(sp, old)
-        others = f"  # previous hosts kept in {os.path.basename(old)}; merge by hand\n"
+    text = open(sp).read() if os.path.exists(sp) else ""
+    if text.rstrip().endswith("}"):
+        # A site that already has machines keeps them: the new one goes in as
+        # one more entry before the closing brace, their text untouched.
+        head = text.rstrip()[:-1]
+        text = head.rstrip() + "\n" + entry + "}\n"
+    else:
+        text = "# Plain data. One entry per machine.\n{\n" + entry + "}\n"
     with open(sp, "w") as f:
-        f.write("# Plain data. One entry per machine.\n{\n" + others + entry + "}\n")
+        f.write(text)
     if not os.path.exists(os.path.join(site, ".git")):
         sh(["git", "init", "-q"], cwd=site)
         sh(["git", "config", "user.email", "nixie@localhost"], cwd=site)
@@ -190,8 +193,12 @@ def apply_config(b):
     settings = dict(b.get("settings", {}))
     settings["nixie.profile"] = b["profile"]
     settings["nixie.host.name"] = host
-    # An existing site already declares the host; phase 1 only (re)writes hardware.nix.
-    if not b.get("existingSite"):
+    # An existing site already declares the host; phase 1 only (re)writes
+    # hardware.nix. A reinstall still needs setup after the first boot, and
+    # that host's Finish emptied the file that says so.
+    if b.get("existingSite"):
+        mark_pending(host)
+    else:
         site_new(host, b["profile"], settings, ARGS.platform)
 
 
@@ -528,6 +535,7 @@ def main():
     ap.add_argument("--age-key", default=None)
     ap.add_argument("--toplevel", default=None)
     ap.add_argument("--disko", default=None)
+    ap.add_argument("--front-end", choices=["graphical", "web", "terminal"], default="graphical", help="the installer's front end, which setup keeps until Finish")
     ap.add_argument("--configure", action="store_true", help="read the wizard's choices as JSON on stdin, write state and site, exit")
     ARGS = ap.parse_args()
     ARGS.static = os.path.realpath(ARGS.static)

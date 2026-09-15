@@ -6,6 +6,8 @@
 # tests/artifacts/.
 #
 #   --usb                 the image is a USB stick instead of a CD
+#   --profile desktop     install a desktop: setup shows the wizard on its
+#                         screen too, and Finish hands over to the greeter
 #   --security plain      encryption only (default)
 #   --security tpm        and TPM with PIN, attestation, duress, to Finish
 #   --security secureboot and Secure Boot, until the keys are staged: firmware
@@ -31,17 +33,18 @@ pkgs.writeShellApplication {
   text = ''
     out=''${NIXIE_ARTIFACTS:-tests/artifacts}; mkdir -p "$out"
     iso=$(ls ${nixie-iso}/iso/nixie_*.iso)
-    medium=(-cdrom "$iso" -boot d); security=plain
+    medium=(-cdrom "$iso" -boot d); security=plain; profile=server
     while [ $# -gt 0 ]; do
       case "$1" in
         --usb) medium=(-drive "if=none,id=stick,format=raw,readonly=on,file=$iso" -device qemu-xhci -device "usb-storage,drive=stick,bootindex=0") ;;
         --security) security=$2; shift ;;
-        *) echo "usage: nixie-test-iso [--usb] [--security plain|tpm|secureboot]" >&2; exit 2 ;;
+        --profile) profile=$2; shift ;;
+        *) echo "usage: nixie-test-iso [--usb] [--security plain|tpm|secureboot] [--profile server|desktop]" >&2; exit 2 ;;
       esac
       shift
     done
-    echo "== medium ''${medium[0]}, security $security" | tee -a "$out/run.log"
-    disk="$out/target.qcow2"; qemu-img create -q -f qcow2 "$disk" 40G
+    echo "== medium ''${medium[0]}, security $security, profile $profile" | tee -a "$out/run.log"
+    disk="$out/target.qcow2"; qemu-img create -q -f qcow2 "$disk" 40G; rm -f "$out/unlock-prompt.png"
     vars="$out/efi-vars.fd"; cp ${ovmf}/FV/OVMF_VARS.fd "$vars"; chmod +w "$vars"
     # A failed run must not leave the VM holding the disk for the next one.
     trap 'pkill -f "$out/serial.sock" || true; pkill -f "tpmstate dir=$out/tpm" || true' EXIT
@@ -101,6 +104,9 @@ pkgs.writeShellApplication {
         fresh | grep -q 'Pairing code:' && return 0
         n=$(fresh | grep -c 'Please enter passphrase' || true)
         p=$(fresh | grep -c 'Please enter.*PIN' || true)
+        # The first prompt's screen: the splash, or the text console with
+        # duress or attestation.
+        [ $((n + p)) -gt 0 ] && [ ! -e "$out/unlock-prompt.png" ] && shot unlock-prompt
         if [ "$p" -gt "$pins" ]; then sleep "$wait_first"; console 1234; pins=$p; wait_first=2
         elif [ "$n" -gt "$words" ]; then sleep "$wait_first"; console hunter2; words=$n; wait_first=2; fi
         sleep 2
@@ -124,7 +130,7 @@ pkgs.writeShellApplication {
     [ "$security" != secureboot ] || features='{"nixie.security.encryption.enable":true,"nixie.security.secureBoot.enable":true}'
     # The installed system's console is the serial port, so its prompts and
     # banner reach this script.
-    api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --argjson f "$features" '{host:"iso-test",profile:"server",systemDisk:$d,uplinks:[$m],settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
+    api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --arg p "$profile" --argjson f "$features" '{host:"iso-test",profile:$p,systemDisk:$d,uplinks:(if $p == "server" then [$m] else [] end),settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
     echo "== phases 1 to 3: the site flake is evaluated and built on the ISO" | tee -a "$out/run.log"
     start=$(date +%s)
     phase 1 && phase 2 && phase 3
@@ -168,7 +174,8 @@ pkgs.writeShellApplication {
     gone=0
     for _ in $(seq 300); do curl -sk --max-time 3 https://127.0.0.1:9443/api/state >/dev/null || { gone=1; break; }; sleep 2; done
     [ "$gone" = 1 ] || { echo "the setup service still answers" >&2; exit 1; }
-    curl -sfk --max-time 10 https://127.0.0.1:8443/ui/ | grep -q '<title>nixie</title>'
+    # A server's control panel; a desktop's greeter is on the screenshot.
+    [ "$profile" = desktop ] || curl -sfk --max-time 10 https://127.0.0.1:8443/ui/ | grep -q '<title>nixie</title>'
     sleep 15; shot finished
     printf 'quit\n' | socat - UNIX-CONNECT:"$out/monitor.sock" >/dev/null 2>&1 || true
     stopped "$pid"

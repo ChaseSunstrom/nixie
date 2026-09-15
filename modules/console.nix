@@ -115,6 +115,8 @@ in
         after = [
           "incus.service"
           "systemd-user-sessions.service"
+          # The splash holds the console until it quits.
+          "plymouth-quit-wait.service"
         ];
         conflicts = [ "getty@${panelTty}.service" ];
         serviceConfig = {

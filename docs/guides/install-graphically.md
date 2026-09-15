@@ -23,8 +23,12 @@
 4. Install. Phases 1 to 3 run with streamed output: hardware facts, host
    identity and secrets, partition and install. Reboot; if the firmware starts
    the installer again, remove the USB stick or detach the ISO from the VM.
-5. The installed system boots into its setup generation and the same URL
-   continues on the machine's screen and in your browser: first boot, Secure
+5. The installed system starts straight into its setup generation, with no
+   boot menu (hold Space while it starts to see one) and the passphrase asked
+   on the Nixie splash. Setup continues in the front end chosen at the
+   image's boot menu: the wizard on the screen, the address and code for a
+   browser, or the terminal wizard, on a desktop as on a server. The same URL
+   works from a browser in the first two: first boot, Secure
    Boot enrolment (with the Setup Mode checklist), TPM and PIN enrolment with
    the attestation QR and the header-backup download, verification reboot,
    apply. Finish switches to the normal generation and removes the wizard;
@@ -43,6 +47,11 @@ After setup:
 - **Control panel.** `https://<address>:8443/ui/`. The first visit explains
   how to trust the browser: a client certificate made with `openssl` on the
   host and `incus config trust add-certificate`. The gear opens Settings.
+- **The site.** `/etc/nixie/site` is a git checkout owned by root: edit it
+  with `sudo`, then `sudo nixie apply`, which commits the edits first so
+  every generation names its commit. With `nixie.site.repo` set (the wizard's
+  Site step asks), apply also pushes what it applied there; `sudo nixie site
+  key` prints the key the repository needs write access for.
 - **Guests.** Add them to `guests.nix` in the site checkout
   (`/etc/nixie/site`, as root), commit, and run `nixie apply`; see
   [add-a-guest.md](add-a-guest.md). Instances made from the panel's Create

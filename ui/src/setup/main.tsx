@@ -182,8 +182,8 @@ function Wizard() {
   const features = (st?.layout?.features ?? {}) as Record<string, boolean>;
 
   const header = (
-    <header className="header" style={{ gridTemplateColumns: "200px 1fr auto" }}>
-      <div className="brand"><Mark /><span className="wordmark">nixie</span><span className="chip" style={{ fontSize: 10 }}>setup</span></div>
+    <header className="header" style={{ gridTemplateColumns: "auto 1fr auto" }}>
+      <div className="brand"><Mark /><span className="wordmark">nixie</span><span className="chip" style={{ fontSize: 10 }}>setup</span>{cont && st?.state?.host ? <span className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{String(st.state.host)} · {String(st.state.profile ?? "")}</span> : null}</div>
       <div style={{ display: "flex", alignItems: "center", padding: "0 20px", gap: 20 }} className="muted">
         {cont ? CONT.map((c) => <span key={c.n} style={{ color: done.includes(c.n) ? "var(--ok)" : "inherit" }}>{done.includes(c.n) ? "✓ " : ""}{c.title}</span>) : enabledSteps.map((s, i) => <span key={s.id} style={{ color: i === step ? "var(--ink)" : i < step ? "var(--ok)" : "inherit", borderBottom: i === step ? "2px solid var(--brand2)" : "none" }}>{s.title}</span>)}
       </div>
@@ -293,8 +293,11 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
         return (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {["server", "desktop"].map((p) => (
-              <button key={p} className="panel" aria-pressed={profile === p} style={{ textAlign: "left", cursor: "pointer", borderColor: profile === p ? "var(--brand2)" : "var(--line)" }} onClick={() => set("nixie.profile", p)}>
-                <div className="title">{p === "server" ? "Server" : "Desktop"}</div>
+              <button key={p} className="panel" aria-pressed={profile === p} style={{ textAlign: "left", cursor: "pointer", borderColor: profile === p ? "var(--brand2)" : "var(--line)", boxShadow: profile === p ? "0 0 0 1px var(--brand2)" : undefined, background: profile === p ? "var(--s3)" : undefined }} onClick={() => set("nixie.profile", p)}>
+                <div className="title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  {p === "server" ? "Server" : "Desktop"}
+                  {profile === p && <span className="chip brand" style={{ fontSize: 11 }}>selected</span>}
+                </div>
                 <p className="caption">{p === "server" ? "A hardened host that runs services as isolated Incus guests declared in Nix, with a web control panel. No desktop software at all." : "A complete Hyprland workstation with the same boot security, declared in the site. No Incus, monitoring or backups unless enabled."}</p>
               </button>
             ))}
@@ -317,6 +320,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
             <div className="tray" style={{ alignSelf: "flex-start" }}>{(["new", "clone", "upload"] as const).map((m) => <button key={m} className="seg" aria-pressed={siteMode === m} onClick={() => setSiteMode(m)}>{m === "new" ? "Start a new site here" : m === "clone" ? "Clone a git URL" : "Upload a tarball"}</button>)}</div>
             {siteMode === "clone" && <div style={{ display: "flex", gap: 8 }}><input className="input mono" style={{ flex: 1 }} placeholder="https://… or ssh://…" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} /><button className="btn" onClick={() => api.site({ mode: "clone", url: siteUrl }).then((r) => setSiteHosts(r.hosts)).catch((e) => setErr(e.message))}>Clone</button></div>}
             {siteMode === "upload" && <input className="input" type="file" accept=".tar,.tar.gz,.tgz" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; f.arrayBuffer().then((b) => api.site({ mode: "upload", tarball: btoa(String.fromCharCode(...new Uint8Array(b))) })).then((r) => setSiteHosts(r.hosts)).catch((x) => setErr(x.message)); }} />}
+            {siteMode === "new" && <Field label="Keep a copy in a git repository (optional)"><input className="input mono" placeholder="git@example.org:you/site.git" value={String(values["nixie.site.repo"] ?? "")} onChange={(e) => set("nixie.site.repo", e.target.value || null)} /><div className="caption">Every change `nixie apply` makes is pushed there. After setup, give the repository write access for the key `nixie site key` prints.</div></Field>}
             {siteHosts.length > 0 && <div className="caption">Hosts in this site: {siteHosts.join(", ")}. Use one of these names below to install it, or a new name to add a host.</div>}
             <Field label="This host's name"><input className="input mono" value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder="lowercase, digits, dashes" /></Field>
             {err && <p style={{ color: "var(--err)" }}>{err}</p>}
@@ -358,6 +362,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
       case "review":
         return !plan ? <div className="empty">Writing the plan…</div> : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <p style={{ gridColumn: "span 2", margin: 0 }}>Installing <b>{host}</b> as a <b>{profile}</b> on <span className="mono">{disk}</span>{Boolean(values["nixie.security.encryption.enable"]) ? ", encrypted" : ""}.</p>
             <Panel title={`hosts/${host}/hardware.nix`} sub="generated"><pre className="well term" style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{plan.hardware}</pre></Panel>
             <Panel title="site.nix" sub="your settings"><pre className="well term" style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{plan.site}</pre></Panel>
           </div>

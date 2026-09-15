@@ -19,6 +19,11 @@
   boot.initrd.systemd.enable = true;
   boot.loader.systemd-boot.enable = lib.mkDefault (!config.boot.lanzaboote.enable);
   boot.loader.efi.canTouchEfiVariables = true;
+  # No menu: the machine starts its default entry, the setup generation until
+  # Finish and the newest generation after. Holding Space as it starts shows
+  # the menu for recovery; `nixie rollback` and the front panel choose
+  # generations otherwise. lanzaboote takes the same setting.
+  boot.loader.timeout = lib.mkDefault 0;
   # Keeping the editor off stops a console user from changing kernel
   # parameters.
   boot.loader.systemd-boot.editor = false;
