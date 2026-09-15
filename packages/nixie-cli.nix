@@ -1,34 +1,47 @@
 # `nixie`: the everyday command. Subcommands arrive with their slices.
-{ pkgs }:
+# guests = false builds it without the Incus client and OpenTofu, for hosts
+# that run no guests (a desktop, unless it enables Incus).
+{
+  pkgs,
+  guests ? true,
+}:
 pkgs.writeShellApplication {
   name = "nixie";
-  runtimeInputs = with pkgs; [
-    coreutils
-    cryptsetup
-    git
-    gnugrep
-    gnused
-    rsync
-    zfs
-    incus-lts.client
-    jq
-    nix # nix-env for generations; a transient unit's PATH has no system profile
-    nixos-rebuild
-    (opentofu.withPlugins (p: [ p.lxc_incus ]))
-    systemd
-    tpm2-tools
-    tpm2-totp
-    usbguard
-    qrencode
-    gptfdisk
-    iproute2
-    pciutils
-    util-linux
-    yq-go
-    # `security reenroll` runs the same phase scripts setup ran.
-    (import ./nixie-installer.nix { inherit pkgs; })
-  ];
+  runtimeInputs =
+    with pkgs;
+    [
+      coreutils
+      cryptsetup
+      git
+      gnugrep
+      gnused
+      rsync
+      zfs
+      jq
+      nix # nix-env for generations; a transient unit's PATH has no system profile
+      nixos-rebuild
+      systemd
+      tpm2-tools
+      tpm2-totp
+      usbguard
+      qrencode
+      gptfdisk
+      iproute2
+      pciutils
+      util-linux
+      yq-go
+      # `security reenroll` runs the same phase scripts setup ran.
+      (import ./nixie-installer.nix { inherit pkgs; })
+    ]
+    ++ lib.optionals guests [
+      incus-lts.client
+      (opentofu.withPlugins (p: [ p.lxc_incus ]))
+    ];
   text = ''
+    # The steps that touch guests already skip a host without their
+    # configuration; these two commands name a guest outright.
+    guests=${if guests then "1" else "0"}
+    need_guests() { [ "$guests" = 1 ] || { echo "nixie: this host runs no guests (nixie.incus.enable is off)" >&2; exit 2; }; }
     layout() { jq -r "$1" /run/current-system/etc/nixie/layout.json; }
     feature() { [ "$(layout ".features.$1")" = true ]; }
     site=''${NIXIE_SITE:-/etc/nixie/site}
@@ -111,6 +124,7 @@ pkgs.writeShellApplication {
           echo "confirm within $within with: nixie apply --confirm"
         fi ;;
       export)
+        need_guests
         name=''${1:?instance name}
         c=$(incus config show "$name")
         kind=container; [ "$(printf '%s' "$c" | yq '.type')" = virtual-machine ] && kind=vm
@@ -406,6 +420,7 @@ pkgs.writeShellApplication {
             rm -f "$p"
             if [ -n "$prev" ] && [ "$prev" != "$cur" ]; then echo "apply not confirmed; rolling back"; switch_gen "$prev"; fi ;;
           guest)
+            need_guests
             name=''${2:?guest name}; snap=""; shift 2
             while [ $# -gt 0 ]; do case "$1" in --snapshot) snap=$2; shift ;; esac; shift; done
             [ -n "$snap" ] || snap=$(incus snapshot list "$name" -f csv -c n | grep '^pre-apply-' | sort | tail -1)

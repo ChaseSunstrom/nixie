@@ -28,6 +28,18 @@ SSH and control panel in the default bridge mode, the host page's TOTP second
 factor is actually required, and the front panel no longer shows a healthy
 USB line as a problem.
 
+Every host has the `nixie` command; desktops get it without the Incus client
+and OpenTofu unless they enable Incus. A Secure Boot install from the image
+continues into the setup generation (the default entry is set in loader.conf;
+the firmware call never worked from the image). The image carries the
+platform's flake inputs. Desktops are not asked for bridge ports or server
+network settings, and do not report uplink drift. `test-iso` gained `--usb`
+and `--security tpm|secureboot`. An encrypted boot no longer drops to
+emergency mode when the passphrase comes after a minute; the installed server
+keeps the installer's DHCP address (the bridge takes the uplink's MAC); the
+first boot after a reinstall goes to the new install, not a stale firmware
+entry.
+
 First build of the platform against nixpkgs 26.05: option tree, `mkSite`,
 security stack, network and egress policy, Incus with declared guests, data
 manifest and backups, monitoring, control panel, installer (kiosk, LAN,

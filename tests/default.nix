@@ -24,6 +24,16 @@ let
 
   server = testHost ../examples/site exampleSite "server";
   laptop = testHost ../examples/desktop-site desktopSite "laptop";
+  # A desktop fresh from the installer, with the setup generation still in
+  # its closure: that is where the setup tools' own copies would show.
+  laptopInSetup = testHost ../examples/desktop-site {
+    hosts.laptop = desktopSite.hosts.laptop // {
+      settings = {
+        imports = [ desktopSite.hosts.laptop.settings ];
+        nixie.setup.pending = true;
+      };
+    };
+  } "laptop";
 
   # A closure must not contain any of the given package name fragments.
   closureFree =
@@ -36,7 +46,8 @@ let
       ''
         set -euo pipefail
         for f in $forbidden; do
-          if grep -E -- "-$f-[0-9]" "$closure/store-paths"; then
+          # Suffixed names count too: incus-lts-client-7.0.1 is Incus.
+          if grep -E -- "-$f(-[a-z]+)*-[0-9]" "$closure/store-paths"; then
             echo "closure of ${name} contains $f" >&2
             exit 1
           fi
@@ -243,6 +254,11 @@ in
         ];
         "the kiosk has fonts" = iso.fonts.fontconfig.enable;
         "phase 3 has swap to evaluate in" = iso.zramSwap.enable;
+        "the platform's flake inputs are on the image" =
+          let
+            onImage = map toString iso.system.extraDependencies;
+          in
+          lib.all (i: lib.elem (toString i.outPath) onImage) (lib.attrValues inputs);
       };
       failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
     in
@@ -340,7 +356,7 @@ in
         "greetd"
         "regreet"
       ];
-  profile-desktop-has-no-server = closureFree "desktop" laptop.config.system.build.toplevel [
+  profile-desktop-has-no-server = closureFree "desktop" laptopInSetup.config.system.build.toplevel [
     "incus"
     "opentofu"
     "prometheus"
@@ -434,6 +450,9 @@ in
       server.succeed("id admin")
       server.succeed("test -s /run/secrets-for-users/admin-password")
       server.succeed("systemctl is-active sshd")
+      # The bridge carries the uplink's MAC, so DHCP gives the installed host
+      # the lease the installer had (a generated MAC got a new address).
+      server.succeed("ip -br link show nixie-br | grep -qi 52:54:00:12:34:56")
       server.succeed("sudo -n -u admin true || true")
       print(server.succeed("hostname; grep -c . /etc/passwd"))
     '';

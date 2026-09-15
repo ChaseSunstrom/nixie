@@ -26,6 +26,8 @@ const CONT = [
   { n: 7, title: "Verify", blurb: "Reboot and prove every feature did its job." },
   { n: 8, title: "Apply", blurb: "Guests, data and services from the site." },
 ];
+// A desktop has no guest bridge and no Incus; NetworkManager configures it.
+const SERVER_ONLY = /^nixie\.(incus\.|network\.(address|gateway|dns|bridge\.|egress|exitNode))/;
 const SECRET_LABEL: Record<string, string> = { passphrase: "Disk passphrase (asked every boot)", pin: "TPM PIN", duress: "Duress passphrase (destroys the disk if typed at boot)", tailscale: "Tailscale auth key", password: "Administrator password" };
 
 function Bytes({ b }: { b: number }) {
@@ -138,6 +140,7 @@ function Wizard() {
       if (!o.section || o.path === "nixie.profile" || o.path === "nixie.host.name") continue;
       if (o.section === "hardware") continue;
       if (o.section === "desktop" && profile !== "desktop") continue;
+      if (profile === "desktop" && SERVER_ONLY.test(o.path)) continue;
       const v = values[o.path];
       if (v === undefined || v === null || v === o.default || (Array.isArray(v) && v.length === 0 && Array.isArray(o.default) && o.default.length === 0)) continue;
       settings[o.path] = v;
@@ -145,7 +148,7 @@ function Wizard() {
     const tsKey = secrets["tailscale"];
     if (tsKey) settings["nixie.network.tailscale.authKeyFile"] = "/var/lib/nixie/tailscale.key";
     await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "", duress: secrets.duress ?? "", "admin-password": secrets.password ?? "", "tailscale.key": tsKey ?? "" });
-    await api.config({ host, profile, systemDisk: disk, dataDisk: dataDisk || null, uplinks, gpu: hw?.gpu ?? "none", tpm: hw?.tpm ?? false, settings, existingSite: siteMode !== "new" && siteHosts.includes(host) });
+    await api.config({ host, profile, systemDisk: disk, dataDisk: dataDisk || null, uplinks: profile === "server" ? uplinks : [], gpu: hw?.gpu ?? "none", tpm: hw?.tpm ?? false, settings, existingSite: siteMode !== "new" && siteHosts.includes(host) });
     if ((await run(1)) !== 0) return false;
     setPlan(await api.plan());
     return true;
@@ -195,7 +198,10 @@ function Wizard() {
             </Panel>
           ) : (
             <Panel title={`${next.n}. ${next.title}`} sub={next.blurb}>
-              {next.n === 5 && (
+              {((next.n === 5 && !features.secureBoot) || (next.n === 6 && !features.encryption)) && (
+                <p className="caption">{next.n === 5 ? "Secure Boot is not enabled on this host" : "The disk is not encrypted"}, so this step only records that it is done.</p>
+              )}
+              {next.n === 5 && features.secureBoot && (
                 <div className="caption" style={{ whiteSpace: "pre-line" }}>
                   {`Setup Mode checklist, in the firmware setup (usually F2 or Del at power-on):
 1. Secure Boot: enabled.
@@ -204,7 +210,7 @@ function Wizard() {
 Run this step: it tells you which of these is still missing, and asks for a reboot when the keys are staged.`}
                 </div>
               )}
-              {next.n === 6 && (
+              {next.n === 6 && features.encryption && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {features.encryption && <Field label={SECRET_LABEL.passphrase}><input className="input" type="password" value={secrets.passphrase ?? ""} onChange={(e) => setSecrets({ ...secrets, passphrase: e.target.value })} /></Field>}
                   {features.tpm && <Field label={SECRET_LABEL.pin}><input className="input" type="password" value={secrets.pin ?? ""} onChange={(e) => setSecrets({ ...secrets, pin: e.target.value })} /></Field>}
@@ -251,7 +257,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div><div style={{ fontWeight: 500 }}>System disk (wiped)</div>{hw.disks.map((d) => <label key={d.path} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px 200px", cursor: "pointer" }}><input type="radio" name="disk" checked={disk === (d.id ?? d.path)} onChange={() => setDisk(d.id ?? d.path)} /><span className="mono">{d.id ?? d.path}</span><Bytes b={d.size} /><span className="muted">{d.model ?? ""}</span></label>)}</div>
             <div><div style={{ fontWeight: 500 }}>Data disk (optional, its own pool)</div><label className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr", cursor: "pointer" }}><input type="radio" name="data" checked={dataDisk === ""} onChange={() => setDataDisk("")} /><span>none: data lives on the system disk</span></label>{hw.disks.filter((d) => (d.id ?? d.path) !== disk).map((d) => <label key={d.path} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px 200px", cursor: "pointer" }}><input type="radio" name="data" checked={dataDisk === (d.id ?? d.path)} onChange={() => setDataDisk(d.id ?? d.path)} /><span className="mono">{d.id ?? d.path}</span><Bytes b={d.size} /><span className="muted">{d.model ?? ""}</span></label>)}</div>
-            <div><div style={{ fontWeight: 500 }}>Network ports joining the bridge</div>{hw.nics.map((n) => <label key={n.mac} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px", cursor: "pointer" }}><input type="checkbox" checked={uplinks.includes(n.mac)} onChange={(e) => setUplinks(e.target.checked ? [...uplinks, n.mac] : uplinks.filter((m) => m !== n.mac))} /><span className="mono">{n.mac}</span><span className={`chip ${n.up ? "ok" : ""}`}>{n.up ? "link up" : "no link"}</span></label>)}</div>
+            {profile === "server" && <div><div style={{ fontWeight: 500 }}>Network ports joining the bridge</div>{hw.nics.map((n) => <label key={n.mac} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px", cursor: "pointer" }}><input type="checkbox" checked={uplinks.includes(n.mac)} onChange={(e) => setUplinks(e.target.checked ? [...uplinks, n.mac] : uplinks.filter((m) => m !== n.mac))} /><span className="mono">{n.mac}</span><span className={`chip ${n.up ? "ok" : ""}`}>{n.up ? "link up" : "no link"}</span></label>)}</div>}
             <div className="caption">Found: GPU {hw.gpu}, TPM {hw.tpm ? "2.0 present" : "not found"}, firmware {hw.efi ? "UEFI" : "legacy (unsupported)"}.</div>
             {!hw.efi && <p style={{ color: "var(--err)" }}>This machine started the installer in legacy BIOS mode, and Nixie installs a UEFI system. Turn on UEFI boot in the firmware (in VirtualBox: Settings, System, Enable EFI) and start the installer again.</p>}
           </div>
@@ -272,7 +278,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
       case "desktop":
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
-            {(bySection[s.id] ?? []).filter((o) => o.path !== "nixie.host.name").map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
+            {(bySection[s.id] ?? []).filter((o) => o.path !== "nixie.host.name" && !(profile === "desktop" && SERVER_ONLY.test(o.path))).map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
             {s.id === "security" && secretsNeeded.filter((k) => k !== "password" && k !== "tailscale").map((k) => <Field key={k} label={SECRET_LABEL[k] ?? k}><input className="input" type="password" value={secrets[k] ?? ""} onChange={(e) => setSecrets({ ...secrets, [k]: e.target.value })} /></Field>)}
             {s.id === "network" && Boolean(values["nixie.network.tailscale.enable"]) && <Field label="Tailscale auth key (optional; without it you log in from the control panel later)"><input className="input mono" type="password" value={secrets.tailscale ?? ""} onChange={(e) => setSecrets({ ...secrets, tailscale: e.target.value })} /></Field>}
           </div>
@@ -318,7 +324,8 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
     }
   };
   const canNext = () => {
-    if (s.id === "hardware") return Boolean(disk) && uplinks.length > 0 && Boolean(hw?.efi);
+    // A desktop has no guest bridge, so no ports to choose.
+    if (s.id === "hardware") return Boolean(disk) && (uplinks.length > 0 || profile === "desktop") && Boolean(hw?.efi);
     if (s.id === "site") return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(host);
     if (s.id === "security") return secretsNeeded.filter((k) => k !== "password" && k !== "tailscale").every((k) => secrets[k]);
     if (s.id === "auth") return Boolean(secrets.password) && Boolean(values["nixie.auth.admin.name"]) && (values["nixie.auth.secondFactor"] !== "totp" || totpOk);

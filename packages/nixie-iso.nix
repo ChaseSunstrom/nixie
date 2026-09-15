@@ -6,6 +6,14 @@
   packages,
 }:
 let
+  # Every source the platform's lock names. Evaluating a site on the installer
+  # otherwise unpacked disko, lanzaboote, sops-nix, terranix and their inputs
+  # from GitHub into the RAM the installer runs in.
+  sources =
+    let
+      walk = i: [ i.outPath ] ++ builtins.concatMap walk (builtins.attrValues (i.inputs or { }));
+    in
+    pkgs.lib.unique (builtins.concatMap walk (builtins.attrValues inputs));
   iso = inputs.nixpkgs.lib.nixosSystem {
     system = "x86_64-linux";
     specialArgs.nixieVersion = self.lib.version;
@@ -14,6 +22,7 @@ let
       {
         nixie.installer.packages = packages;
         nixpkgs.pkgs = pkgs;
+        system.extraDependencies = sources;
       }
     ];
   };

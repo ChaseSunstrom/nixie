@@ -680,10 +680,8 @@ How it was verified:
   kiosk module with the minimal CD's font setting (screenshots before and
   after), and `vm-installer-lan` now requires the paired wizard without an
   address bar.
-- Not verified here: a USB stick on hardware (the medium exclusion is read
-  from `findmnt` and `lsblk` logic, not exercised), and Secure Boot or TPM
-  enrolment from the image (`vm-encryption` covers those phases, with Secure
-  Boot firmware enrolment hardware-only as recorded under Slice (b)).
+- Not verified at first: a USB stick, and Secure Boot or TPM enrolment from
+  the image. Both are now; see the next section.
 
 The gate, run afterwards on the finished tree as the per-output loop described
 under "Final run" (VirtualBox powered off: running it next to KVM guests gave
@@ -704,6 +702,100 @@ under "Final run" (VirtualBox powered off: running it next to KVM guests gave
 
 `nix run .#test-iso` was run once more on the same tree and passed (install
 147 s); its artifacts are the ones committed.
+
+## The gaps left by the installer fixes, closed (2026-09-15)
+
+1. **The desktop had no `nixie` command.** `packages/nixie-cli.nix` takes
+   `guests`; `modules/base.nix` installs it on every host with
+   `guests = nixie.incus.enable`, so a desktop gets the CLI without the Incus
+   client and OpenTofu and a desktop that enables Incus gets both. The two
+   commands that name a guest (`export`, `rollback guest`) say the host runs
+   no guests; every other guest step already skipped a host without guest
+   configuration. The setup service and Finish no longer bundle their own
+   full CLI (which would have put OpenTofu in a desktop's setup generation);
+   they run the host's. `profile-desktop-has-no-server` now evaluates a
+   laptop with setup pending, and its pattern catches suffixed names
+   (`incus-lts-client-7.0.1` slipped past `-incus-[0-9]`; only the
+   `terraform-provider-incus` path had been matching). It fails with the
+   full CLI on the desktop (tried) and passes with the light one;
+   `vm-desktop` asserts the command runs, refuses `export`, and that neither
+   `tofu` nor `incus` is on the path.
+2. **A Secure Boot install from the image would not have continued setup.**
+   The setup generation was selected with `bootctl set-default`, which
+   refuses unless systemd-boot is the running loader, and on the image GRUB
+   is; the failure was logged as "could not set the default boot entry in
+   firmware" on every install. Plain installs were saved by the loader.conf
+   rewrite, but lanzaboote has no such hook. The default is now set in
+   loader.conf for both (`boot.lanzaboote.settings.default` while pending),
+   and the firmware call is gone.
+   The Secure Boot scenario below, run once with only that setting removed,
+   booted the plain generation ("Welcome to Nixie 26.05.20260910…" instead of
+   "…setup-26.05…"), so no setup service and no pairing code; with it, the
+   setup generation.
+3. **`test-iso` scenarios.** `--usb` boots the image as a USB stick under
+   OVMF; the hardware scan offers exactly the target disk (the stick and
+   zram excluded) and the plain install runs to Finish: pass, 321 s.
+   `--security tpm` installs with encryption, TPM with PIN, attestation and
+   duress, answers the first boot's passphrase through the duress agent, runs
+   phase 6's TPM enrolment, reboots to "Attestation code: …" and "Please
+   enter LUKS2 token PIN", passes phase 7's checks ("outer layer is open and
+   bound to the TPM", "attestation code computes") and Finishes.
+   `--security secureboot` installs with lanzaboote (the chain is signed
+   during nixos-install), boots into the setup generation, and phase 5
+   stages the keys and asks for the reboot. Run again on the final tree,
+   each first boot answering its first prompt after 80 s: plain 382 s, usb
+   441 s, tpm 507 s, secureboot 441 s, all pass. With the root pool ordering
+   removed, the plain run reached "You are in emergency mode" (tried). Enrolment by the
+   firmware and a verified boot afterwards stay hardware-only (Slice (b)).
+4. **A passphrase typed after a minute sent the boot to emergency mode.**
+   The root pool's import in the initrd starts as soon as the password agent
+   does and retries for 60 seconds; whoever was slower than that found
+   "You are in emergency mode" (seen in VirtualBox, where the script typed
+   at 90 s; `vm-encryption` had a comment treating it as a test constraint).
+   The import is ordered after `cryptsetup.target`, and `test-iso` now waits
+   80 s before its first answer.
+5. **The installed system came up at a different address.** In LAN mode the
+   address is on the bridge, whose MAC networkd generates, so DHCP handed
+   out a new lease (VirtualBox: 10.0.2.15 on the installer, 10.0.2.16
+   installed; the setup URL changed and a reservation for the machine would
+   not apply). The bridge now takes the first uplink's MAC; `vm-boot-plain`
+   asserts it, and fails without the change (tried). QEMU's user network
+   could not show this: each boot of the test is a new QEMU process with a
+   fresh DHCP table.
+6. **`BootNext` pointed at a stale entry on a reinstall.** The firmware kept a
+   "Linux Boot Manager" from the previous install, whose partition was gone,
+   and phase 3 took the first match, so VirtualBox booted the installer
+   again. The entry is chosen by the new ESP's partition GUID.
+7. **Smaller things found on the way.** The image carries the platform's
+   flake inputs, so evaluating a site no longer unpacks disko, lanzaboote,
+   sops-nix, terranix and their inputs from GitHub into RAM (`iso-config`
+   asserts it). Desktops no longer report uplink drift (the facts file listed
+   bridge ports on hosts without a bridge), and neither wizard asks a desktop
+   for bridge ports or server-only network settings. The continuation page
+   no longer shows the Secure Boot checklist on hosts without Secure Boot.
+   `docs/guides/install-graphically.md` has the settings a VM needs.
+
+In VirtualBox 7.2, scripted (the wizard's API through a NAT port forward,
+pairing codes from a serial socket, the passphrase typed on the VM's keyboard
+90 s after the reboot) on the final image: an encrypted server installs
+(phases 1 to 3 in 202 s), the first boot goes to the installed disk with the
+image still attached and stale boot entries in NVRAM, the passphrase opens
+it, the setup generation answers at the installer's address (10.0.2.15),
+phases 4 to 8 run, Finish removes the setup service, and the control panel
+answers; the front panel shows `nixie-br: 10.0.2.15/24`. The run took four
+attempts, which found items 4, 5 and 6 above.
+
+The gate on the final tree (per-output loop, VirtualBox off): all 29 checks
+pass, including vm-boot-plain (39 s, bridge MAC), vm-desktop (133 s, the
+light CLI), vm-egress (98 s), vm-encryption (1246 s), vm-installer-lan
+(233 s), vm-console (221 s), vm-host-ui (43 s) and
+profile-desktop-has-no-server (setup pending, suffixed names); every
+package's derivation evaluates.
+
+Still not verified here: firmware Secure Boot enrolment and a verified boot
+afterwards (OVMF, Slice (b)); a USB stick on physical hardware (the stick
+path is exercised under OVMF with QEMU's USB storage); the TPM scenario in
+VirtualBox (its virtual TPM was not enabled for these runs).
 
 ## Console
 

@@ -263,6 +263,12 @@ pkgs.testers.runNixOSTest {
             laptop.sleep(1)
         assert dpms() is True, "the screen never came back on"
 
+    with subtest("the nixie command is installed, built without the guest tools"):
+        print(laptop.succeed("nixie doctor || true"))
+        out = laptop.fail("nixie export anything 2>&1")
+        assert "runs no guests" in out, out
+        laptop.fail("command -v tofu || command -v incus")
+
     with subtest("switching the site's default finish takes effect after an apply, no reboot"):
         laptop.succeed("/run/current-system/specialisation/paper/bin/switch-to-configuration test >&2")
         laptop.succeed("grep -q '\"finish\":\"paper\"' /etc/nixie/desktop/tokens.json || grep -q '\"finish\": \"paper\"' /etc/nixie/desktop/tokens.json")

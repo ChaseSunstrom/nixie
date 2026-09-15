@@ -680,11 +680,16 @@ kiosk goes 4 -> 8 -> Finish with no reboot pauses.
 State across reboots: after phase 3 the installer writes
 `hosts/<name>/setup-pending.nix` (sets `nixie.setup.pending = true`) into the
 site checkout, which adds the `nixie-setup` specialisation (kiosk +
-continuation service) to the built system, and runs `bootctl set-default` to
-that entry. Every reboot inside phases 5 to 7 lands in the specialisation
-because the default entry still points there. Finish deletes the pending
-file, runs `nixie apply` (which switches to the plain generation), clears the
-default entry, deletes older generations and collects garbage. A check
+continuation service) to the built system, and makes that entry the loader's
+default in `loader.conf` (systemd-boot through `extraInstallCommands`,
+lanzaboote through `boot.lanzaboote.settings.default`). Phase 3 also sets the
+firmware's one-shot `BootNext` to the installed loader, and every setup reboot
+sets it to the current entry, so firmware that puts an attached installer
+first (VirtualBox) still boots the installed system. Every reboot inside
+phases 5 to 7 lands in the specialisation because the default entry still
+points there. Finish deletes the pending file, runs `nixie apply` (which
+switches to the plain generation, whose loader.conf default is the newest
+generation), deletes older generations and collects garbage. A check
 evaluates the example server host with pending = false and proves with
 `nix why-depends` that no compositor or browser is in the closure.
 
@@ -917,8 +922,10 @@ and runs `nixie apply`.
 - **D5 tpm2-totp has no NixOS module.** `modules/security/attestation.nix`
   provides the initrd unit; the package is in the pin.
 - **D6 Second factor enrolment in the wizard is TOTP only** (follows D3).
-- **D7 The setup generation is selected with `bootctl set-default`** rather
-  than by rewriting the site between reboots; see section 9.
+- **D7 The setup generation is selected in `loader.conf` while setup is
+  pending** rather than by rewriting the site between reboots; see section 9.
+  It was `bootctl set-default` at first, which refuses to run unless
+  systemd-boot is the running loader and so never worked from the ISO.
 - **D9 Closure disjointness check.** Implemented as a pure `closureInfo`
   grep rather than `nix why-depends`, which cannot run inside a build; the
   manual command is in `VERIFICATION.md`. With `nixie.console.kiosk.enable`

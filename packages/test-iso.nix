@@ -1,9 +1,15 @@
 # Boot the built ISO under QEMU with OVMF, a swtpm, a blank disk and
 # user-mode networking (so the site is evaluated and built online, as on a
 # real machine), drive the wizard over its HTTP API through the install,
-# answer the passphrase prompt on the serial console, and continue in the
-# setup generation to Finish. Screenshots and the serial log land in
-# tests/artifacts/. TPM, Secure Boot and duress enrolment are vm-encryption's.
+# answer the unlock prompts on the serial console, and continue in the setup
+# generation to Finish. Screenshots and the serial log land in
+# tests/artifacts/.
+#
+#   --usb                 the image is a USB stick instead of a CD
+#   --security plain      encryption only (default)
+#   --security tpm        and TPM with PIN, attestation, duress, to Finish
+#   --security secureboot and Secure Boot, until the keys are staged: firmware
+#                         enrolment then needs real hardware (VERIFICATION.md)
 { pkgs, nixie-iso }:
 let
   ovmf = (pkgs.OVMF.override { secureBoot = true; }).fd;
@@ -25,6 +31,16 @@ pkgs.writeShellApplication {
   text = ''
     out=''${NIXIE_ARTIFACTS:-tests/artifacts}; mkdir -p "$out"
     iso=$(ls ${nixie-iso}/iso/nixie_*.iso)
+    medium=(-cdrom "$iso" -boot d); security=plain
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --usb) medium=(-drive "if=none,id=stick,format=raw,readonly=on,file=$iso" -device qemu-xhci -device "usb-storage,drive=stick,bootindex=0") ;;
+        --security) security=$2; shift ;;
+        *) echo "usage: nixie-test-iso [--usb] [--security plain|tpm|secureboot]" >&2; exit 2 ;;
+      esac
+      shift
+    done
+    echo "== medium ''${medium[0]}, security $security" | tee -a "$out/run.log"
     disk="$out/target.qcow2"; qemu-img create -q -f qcow2 "$disk" 40G
     vars="$out/efi-vars.fd"; cp ${ovmf}/FV/OVMF_VARS.fd "$vars"; chmod +w "$vars"
     # A failed run must not leave the VM holding the disk for the next one.
@@ -68,38 +84,47 @@ pkgs.writeShellApplication {
     fresh() { tail -c +"$((since + 1))" "$out/serial.log"; }
     waitfor() { for _ in $(seq "$2"); do fresh | grep -q "$1" && return 0; sleep 2; done; echo "timeout waiting for: $1" >&2; return 1; }
     api() { curl -sk -b "$out/cookies" -c "$out/cookies" "$@"; }
-    phase() { api -X POST -H 'Content-Type: application/json' -d "''${2:-{\}}" "https://127.0.0.1:9443/api/phase/$1" | tee -a "$out/phases.log" | grep -q '"rc": 0'; }
+    rc() { api -X POST -H 'Content-Type: application/json' -d "''${2:-{\}}" "https://127.0.0.1:9443/api/phase/$1" | tee -a "$out/phases.log" | sed -n 's/.*"rc": \([0-9]*\).*/\1/p' | tail -1; }
+    phase() { [ "$(rc "$@")" = 0 ]; }
     pair() {
       code=$(fresh | grep -o 'Pairing code: [0-9]*' | tail -1 | awk '{print $3}')
       rm -f "$out/cookies"
       api -X POST -H 'Content-Type: application/json' -d "{\"code\":\"$code\"}" https://127.0.0.1:9443/api/pair | grep -q ok
     }
-    # Answer each passphrase prompt as it appears until the setup service
-    # prints its banner: how many prompts there are depends on the layout.
+    # Answer each prompt as it appears until the setup service prints its
+    # banner: how many there are, and which, depends on the layout and on
+    # whether the TPM is enrolled yet. The first answer can wait $1 seconds,
+    # as a person does: the root pool import once gave up after a minute.
     unlock() {
-      answered=0
+      words=0; pins=0; wait_first=''${1:-2}
       for _ in $(seq 450); do
         fresh | grep -q 'Pairing code:' && return 0
         n=$(fresh | grep -c 'Please enter passphrase' || true)
-        if [ "$n" -gt "$answered" ]; then sleep 2; console hunter2; answered=$n; fi
+        p=$(fresh | grep -c 'Please enter.*PIN' || true)
+        if [ "$p" -gt "$pins" ]; then sleep "$wait_first"; console 1234; pins=$p; wait_first=2
+        elif [ "$n" -gt "$words" ]; then sleep "$wait_first"; console hunter2; words=$n; wait_first=2; fi
         sleep 2
       done
       echo "timeout waiting for the setup generation" >&2; return 1
     }
 
     echo "== boot the ISO (graphical entry)" | tee -a "$out/run.log"
-    mark; pid=$(boot -cdrom "$iso" -boot d)
+    mark; pid=$(boot "''${medium[@]}")
     sleep 6; shot iso-boot-menu
     waitfor 'Pairing code:' 300
     sleep 40; shot iso-kiosk
     pair
-    api https://127.0.0.1:9443/api/hardware | tee "$out/hardware.json" | jq -e '.efi and (.disks | length > 0)' >/dev/null
+    # Exactly the target disk: never the installer's own medium, never zram.
+    api https://127.0.0.1:9443/api/hardware | tee "$out/hardware.json" | jq -e '.efi and (.disks | length == 1)' >/dev/null
     disk_id=$(jq -r '.disks[] | select((.id // "") | test("nixie-system")) | .id' "$out/hardware.json")
     mac=$(jq -r '.nics[0].mac' "$out/hardware.json")
-    api -X POST -H 'Content-Type: application/json' -d '{"passphrase":"hunter2","admin-password":"nixie"}' https://127.0.0.1:9443/api/secrets >/dev/null
-    # The installed system's console is the serial port, so its passphrase
-    # prompt and banner reach this script.
-    api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" '{host:"iso-test",profile:"server",systemDisk:$d,uplinks:[$m],settings:{"nixie.auth.admin.name":"admin","nixie.security.encryption.enable":true,"boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]}}')" https://127.0.0.1:9443/api/config | grep -q ok
+    api -X POST -H 'Content-Type: application/json' -d '{"passphrase":"hunter2","pin":"1234","duress":"wipe-me","admin-password":"nixie"}' https://127.0.0.1:9443/api/secrets >/dev/null
+    features='{"nixie.security.encryption.enable":true}'
+    [ "$security" != tpm ] || features='{"nixie.security.encryption.enable":true,"nixie.security.tpm.enable":true,"nixie.security.attestation.enable":true,"nixie.security.duress.enable":true}'
+    [ "$security" != secureboot ] || features='{"nixie.security.encryption.enable":true,"nixie.security.secureBoot.enable":true}'
+    # The installed system's console is the serial port, so its prompts and
+    # banner reach this script.
+    api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --argjson f "$features" '{host:"iso-test",profile:"server",systemDisk:$d,uplinks:[$m],settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
     echo "== phases 1 to 3: the site flake is evaluated and built on the ISO" | tee -a "$out/run.log"
     start=$(date +%s)
     phase 1 && phase 2 && phase 3
@@ -109,12 +134,32 @@ pkgs.writeShellApplication {
 
     echo "== first boot: unlock, then the setup generation" | tee -a "$out/run.log"
     mark; pid=$(boot)
-    unlock
+    unlock 80
     sleep 20; shot setup-generation
     pair
-    phase 4 && phase 5
-    api -X POST -H 'Content-Type: application/json' -d '{"passphrase":"hunter2"}' https://127.0.0.1:9443/api/secrets >/dev/null
-    phase 6 && phase 7 && phase 8
+    phase 4
+    if [ "$security" = secureboot ]; then
+      # Reaching the setup generation proves lanzaboote's default entry; in
+      # Setup Mode phase 5 stages the keys and asks for the reboot (10).
+      [ "$(rc 5)" = 10 ]
+      printf 'quit\n' | socat - UNIX-CONNECT:"$out/monitor.sock" >/dev/null 2>&1 || true
+      stopped "$pid"
+      echo "test-iso: PASS, Secure Boot keys staged (artifacts in $out)" | tee -a "$out/run.log"
+      exit 0
+    fi
+    phase 5
+    api -X POST -H 'Content-Type: application/json' -d '{"passphrase":"hunter2","pin":"1234"}' https://127.0.0.1:9443/api/secrets >/dev/null
+    phase 6
+    if [ "$security" = tpm ]; then
+      echo "== reboot: the TPM and PIN open the outer layer, the code is shown" | tee -a "$out/run.log"
+      api -X POST https://127.0.0.1:9443/api/reboot >/dev/null; stopped "$pid"
+      mark; pid=$(boot)
+      waitfor 'Attestation code' 300
+      unlock
+      fresh | grep -q 'Please enter.*PIN'
+      pair
+    fi
+    phase 7 && phase 8
     mark
     api -X POST https://127.0.0.1:9443/api/finish | tee -a "$out/phases.log" | grep -q '"ok": true'
     echo "== finish: the setup service goes, the control panel stays" | tee -a "$out/run.log"

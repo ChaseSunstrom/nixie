@@ -7,7 +7,8 @@ in
 {
   config.environment.etc."nixie/hardware.json".text = builtins.toJSON {
     inherit (config.nixie.hardware) gpu tpm;
-    uplinks = config.nixie.network.bridge.uplinks;
+    # Uplinks join the guests' bridge; a host without one has none to drift.
+    uplinks = lib.optionals config.nixie.incus.enable config.nixie.network.bridge.uplinks;
     disks = {
       inherit (config.nixie.disks) system data;
     };

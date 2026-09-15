@@ -1,6 +1,7 @@
+== medium -cdrom, security plain
 == boot the ISO (graphical entry)
 == phases 1 to 3: the site flake is evaluated and built on the ISO
-install took 147 s
+install took 138 s
 == first boot: unlock, then the setup generation
 == finish: the setup service goes, the control panel stays
-test-iso: PASS (artifacts in /home/chase/.cache/nixie-test-iso-final4)
+test-iso: PASS (artifacts in /home/chase/.cache/nixie-test-iso-v2-plain)

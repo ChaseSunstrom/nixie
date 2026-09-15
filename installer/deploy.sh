@@ -36,7 +36,12 @@ if [ "$local" = 1 ]; then
         disk=$(jq -r '.disks[] | (.id // .path) + "  " + ((.size/1e9|floor|tostring) + " GB  ") + (.model // "")' <<<"$hw" | gum choose --header "System disk (wiped)" | awk '{print $1}')
         data=$(jq -r '.disks[] | (.id // .path)' <<<"$hw" | grep -v "^$disk$" | { echo none; cat; } | gum choose --header "Data disk (optional)")
         [ "$data" = none ] && data=""
-        uplinks=$(jq -r '.nics[].mac' <<<"$hw" | gum choose --no-limit --header "Ports joining the bridge" | jq -R . | jq -sc .)
+        uplinks='[]'; mode=unmanaged-lan
+        # Only a server runs guests, so only a server has a bridge to join.
+        if [ "$profile" = server ]; then
+          uplinks=$(jq -r '.nics[].mac' <<<"$hw" | gum choose --no-limit --header "Ports joining the bridge" | jq -R . | jq -sc .)
+          mode=$(gum choose --header "Bridge mode" unmanaged-lan managed-nat)
+        fi
         enc=$(gum confirm "Encrypt the disk (passphrase every boot)?" && echo true || echo false)
         tpm=false; att=false; sb=false; dur=false; ru=false
         if [ "$enc" = true ]; then
@@ -54,7 +59,6 @@ if [ "$local" = 1 ]; then
         admin=$(ask "administrator user name" --value admin)
         secret "administrator password" >/run/nixie/keys/admin-password
         keys=$(ask "SSH public key (optional, one)")
-        mode=$(gum choose --header "Bridge mode" unmanaged-lan managed-nat)
         # The same JSON the web wizard posts to /api/config, written by the same code.
         settings=$(jq -n --arg admin "$admin" --arg key "$keys" --arg mode "$mode" \
           --argjson enc "$enc" --argjson tpm "$tpm" --argjson att "$att" --argjson sb "$sb" --argjson dur "$dur" --argjson ru "$ru" \

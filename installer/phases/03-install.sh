@@ -78,14 +78,14 @@ else
   log "installing $NIXIE_TOPLEVEL"
   nixos-install --system "$NIXIE_TOPLEVEL" --root /mnt --no-root-passwd --no-channel-copy
 fi
-# The next boots land in the setup generation: the firmware remembers the
-# entry across the reboot into the new system.
-entry=$(ls /mnt/boot/loader/entries 2>/dev/null | grep specialisation-nixie-setup | tail -1 || true)
-[ -z "$entry" ] || bootctl --esp-path=/mnt/boot set-default "$entry" 2>/dev/null || log "could not set the default boot entry in firmware"
+# Which loader entry comes up is loader.conf's business (modules/setup.nix).
 # Firmware that keeps a still-attached installer first (VirtualBox rebuilds the
 # order from the VM's device list at every start) would boot the installer
-# again; BootNext sends the next boot to the installed loader regardless.
-n=$(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} Linux Boot Manager.*/\1/p' | head -1 || true)
+# again; BootNext sends the next boot to the installed loader regardless. The
+# entry is picked by this ESP's partition GUID: a machine installed before
+# keeps a stale "Linux Boot Manager" pointing at a partition that is gone.
+esp=$(lsblk -no PARTUUID "$(findmnt -no SOURCE /mnt/boot)" 2>/dev/null || true)
+n=$(efibootmgr 2>/dev/null | grep -i "Linux Boot Manager.*GPT,${esp:-none}," | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\).*/\1/p' | head -1 || true)
 [ -z "$n" ] || efibootmgr -q --bootnext "$n" || log "could not point the next boot at the installed system"
 phase_finish
 cp -a "$NIXIE_SETUP_DIR"/*.done "$STATE" /mnt/var/lib/nixie/setup/

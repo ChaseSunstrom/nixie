@@ -19,8 +19,8 @@
   boot.initrd.systemd.enable = true;
   boot.loader.systemd-boot.enable = lib.mkDefault (!config.boot.lanzaboote.enable);
   boot.loader.efi.canTouchEfiVariables = true;
-  # Setup selects the setup generation with `bootctl set-default`; keeping the
-  # editor off stops a console user from changing kernel parameters.
+  # Keeping the editor off stops a console user from changing kernel
+  # parameters.
   boot.loader.systemd-boot.editor = false;
   # nixie.host.keepGenerations: the loader (lanzaboote inherits this) and the
   # weekly clean-up below agree on how many generations stay.
@@ -58,7 +58,15 @@
 
   # Guest tarballs and the site checkout are the only things that need git on
   # the host; keeping it in the base means `nixie apply` works on both profiles.
-  environment.systemPackages = [ pkgs.git ];
+  environment.systemPackages = [
+    pkgs.git
+    # `nixie apply`, `rollback`, `doctor`, the front panel and `nixie menu`;
+    # the Incus client and OpenTofu come with it only where guests run.
+    (import ../packages/nixie-cli.nix {
+      inherit pkgs;
+      guests = config.nixie.incus.enable;
+    })
+  ];
 
   system.stateVersion = lib.mkDefault "26.05";
 }

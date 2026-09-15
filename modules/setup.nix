@@ -34,13 +34,16 @@ in
   };
 
   config = lib.mkIf cfg.pending {
-    # The loader's default entry is the setup generation until Finish; the
-    # installer also records it in firmware (D7), this keeps the loader file
-    # in step on every activation while pending. Secure Boot installs use
-    # lanzaboote, which has no hook, so they rely on the firmware entry.
+    # The loader's default entry is the setup generation until Finish, kept in
+    # loader.conf on every activation while pending. The installer used to
+    # record it in firmware instead, but `bootctl set-default` refuses unless
+    # systemd-boot itself is running, which it never is on the ISO, so a
+    # Secure Boot install first booted the plain generation and no wizard.
     boot.loader.systemd-boot.extraInstallCommands = lib.mkIf config.boot.loader.systemd-boot.enable ''
       ${pkgs.gnused}/bin/sed -i 's|^default .*|default nixos-generation-*-specialisation-nixie-setup.conf|' ${config.boot.loader.efi.efiSysMountPoint}/loader/loader.conf
     '';
+    # lanzaboote writes loader.conf from its settings; its entries are UKIs.
+    boot.lanzaboote.settings.default = "nixos-generation-*-specialisation-nixie-setup-*";
     specialisation.nixie-setup.configuration = {
       imports = [ ../installer/kiosk.nix ];
       system.nixos.tags = [ "setup" ];
@@ -52,6 +55,8 @@ in
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
         unitConfig.ConditionPathExists = "!/var/lib/nixie/setup/finished";
+        # Phase 8 and Finish run the host's own `nixie`, built for its profile.
+        path = [ "/run/current-system/sw" ];
         serviceConfig = {
           # exposure: runs the phase scripts as root; that is its whole purpose.
           ExecStart = "${lib.getExe cfg.packages.nixie-setup} --mode continuation";

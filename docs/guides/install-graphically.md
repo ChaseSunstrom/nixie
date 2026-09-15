@@ -32,3 +32,27 @@
 
 Everything the wizard did is in the site checkout on the host; the phases
 are the same scripts `nixie-phase N` runs.
+
+## Trying it in a virtual machine
+
+Any hypervisor with UEFI works; these are the settings that matter.
+
+- **Firmware:** UEFI. VirtualBox: Settings, System, Enable EFI. libvirt and
+  virt-manager: firmware "UEFI" (OVMF). A BIOS VM boots the image but the
+  installer refuses to install.
+- **Memory and disk:** 4 GB and 20 GB or more. The installer runs in RAM and
+  builds the system onto the disk.
+- **Network:** NAT is enough; the install downloads packages. To use the web
+  entry from the host, forward a host port to the guest's 9443 (VirtualBox:
+  Network, Port Forwarding) and open `https://127.0.0.1:<port>/`.
+- **TPM (optional):** VirtualBox 7 and libvirt offer a virtual TPM 2.0; without
+  one the wizard does not offer TPM binding.
+- **Graphics:** no 3D acceleration is needed; the wizard falls back to
+  software rendering.
+- The image can stay attached while setup runs: each of setup's reboots goes
+  to the installed system. Detach it after Finish; VirtualBox otherwise
+  starts the installer on later boots.
+
+`nix run .#test-iso` does all of this under QEMU and drives the install end
+to end; `--usb` boots the image as a USB stick and `--security tpm` or
+`--security secureboot` turns the security features on.

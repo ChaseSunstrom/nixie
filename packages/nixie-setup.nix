@@ -10,7 +10,6 @@ let
   inherit (pkgs) lib;
   web = import ./nixie-web.nix { inherit pkgs; };
   installer = import ./nixie-installer.nix { inherit pkgs; };
-  cli = import ./nixie-cli.nix { inherit pkgs; };
   # Option metadata comes from a throwaway evaluation of the module tree; the
   # values are never read, only the declarations.
   probe = inputs.nixpkgs.lib.nixosSystem {
@@ -30,10 +29,12 @@ let
   optionsJson = pkgs.writeText "options.json" (
     (import ../lib/options-json.nix { inherit lib; }) probe.options
   );
+  # Both run `nixie apply` from the host's own PATH: the host's CLI is built
+  # for its profile, and bundling the full one would put OpenTofu and the
+  # Incus client in a desktop's setup generation.
   finish = pkgs.writeShellApplication {
     name = "nixie-finish";
     runtimeInputs = [
-      cli
       pkgs.git
       pkgs.jq
       pkgs.nix
@@ -58,9 +59,6 @@ pkgs.writeShellApplication {
     pkgs.systemd
     installer
     finish
-    # Phase 8 runs `nixie apply`; without it here the phase found no CLI and
-    # skipped the apply.
-    cli
   ];
   text = ''
     exec python3 ${./nixie-setup/nixie-setup.py} \

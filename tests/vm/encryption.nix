@@ -149,7 +149,7 @@ pkgs.testers.runNixOSTest {
         # in order. The gap must outlast the TPM unseal of the outer layer
         # (about 15 s) so the session is still open when the inner prompt comes.
         # A stale neighbour entry from the previous boot makes the port poll
-        # crawl; the initrd panics if the first prompt waits much past 60 s.
+        # crawl.
         client.succeed("ip neigh flush all")
         client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=120)
         feed = "; ".join(f"sleep {2 if i == 0 else gap}; printf '%s\\n' '{a}'" for i, a in enumerate(answers))

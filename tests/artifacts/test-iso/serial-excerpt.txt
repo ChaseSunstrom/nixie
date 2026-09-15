@@ -4,4 +4,4 @@
 [0;1;39mWelcome to [0m[0;38;2;126;186;228mNixie 26.05 (Yarara)[0m[0;1;39m![0m
   Pairing code: ******
 [1;32m<<< Welcome to Nixie setup-26.05.20260910.d58a46e (x86_64) - ttyS0 >>>[0m
-[   53.670580] nixie-finish[1667]: [nixie finish] setup finished; the kiosk and the wizard are gone from this system
+[  131.645319] nixie-finish[1610]: [nixie finish] setup finished; the kiosk and the wizard are gone from this system

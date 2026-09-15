@@ -28,6 +28,11 @@ in
     # A kernel that panics while the disk is open must not sit there with the
     # key in memory.
     boot.kernelParams = [ "panic=10" ];
+    # The root pool's import starts as soon as the password agent does and
+    # retries for 60 seconds, so a passphrase typed after that minute found
+    # the import failed and the boot in emergency mode. It waits for every
+    # disk the initrd unlocks instead, which has no clock.
+    boot.initrd.systemd.services.zfs-import-rpool.after = [ "cryptsetup.target" ];
     environment.systemPackages = [ pkgs.cryptsetup ];
 
     # The data disk is unlocked after the root is up, with a key kept on the

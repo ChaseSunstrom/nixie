@@ -120,6 +120,13 @@ in
         netdevConfig = {
           Kind = "bridge";
           Name = cfg.bridge.name;
+        }
+        # In LAN mode the host's address is on the bridge, and networkd's
+        # generated bridge MAC made DHCP hand it a new lease: the installed
+        # system came up at another address than the installer, so the setup
+        # URL changed and a reservation for the machine did not apply.
+        // lib.optionalAttrs (!nat && cfg.bridge.uplinks != [ ]) {
+          MACAddress = lib.head cfg.bridge.uplinks;
         };
         bridgeConfig.VLANFiltering = cfg.bridge.vlanAware;
       };
