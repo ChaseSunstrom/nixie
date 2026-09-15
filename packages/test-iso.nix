@@ -115,13 +115,16 @@ pkgs.writeShellApplication {
     phase 4 && phase 5
     api -X POST -H 'Content-Type: application/json' -d '{"passphrase":"hunter2"}' https://127.0.0.1:9443/api/secrets >/dev/null
     phase 6 && phase 7 && phase 8
+    mark
     api -X POST https://127.0.0.1:9443/api/finish | tee -a "$out/phases.log" | grep -q '"ok": true'
     echo "== finish: the setup service goes, the control panel stays" | tee -a "$out/run.log"
+    # The last line finish.sh prints, after the switch, boot default and clean-up.
+    waitfor 'setup finished' 450
     gone=0
     for _ in $(seq 300); do curl -sk --max-time 3 https://127.0.0.1:9443/api/state >/dev/null || { gone=1; break; }; sleep 2; done
     [ "$gone" = 1 ] || { echo "the setup service still answers" >&2; exit 1; }
     curl -sfk --max-time 10 https://127.0.0.1:8443/ui/ | grep -q '<title>nixie</title>'
-    shot finished
+    sleep 15; shot finished
     printf 'quit\n' | socat - UNIX-CONNECT:"$out/monitor.sock" >/dev/null 2>&1 || true
     stopped "$pid"
     echo "test-iso: PASS (artifacts in $out)" | tee -a "$out/run.log"

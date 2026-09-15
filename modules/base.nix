@@ -12,6 +12,9 @@
   ];
   # A site is applied with `nixie apply`, never by hand-editing channels.
   nix.channel.enable = false;
+  # The name in the boot menu, the console greeting and os-release; ID stays
+  # nixos, so tools that look for NixOS still find it.
+  system.nixos.distroName = lib.mkDefault "Nixie";
 
   boot.initrd.systemd.enable = true;
   boot.loader.systemd-boot.enable = lib.mkDefault (!config.boot.lanzaboote.enable);

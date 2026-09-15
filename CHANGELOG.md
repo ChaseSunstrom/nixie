@@ -18,7 +18,15 @@ evaluating a site on a 4 GB machine ran out of memory; a site started on the
 installer names the platform by its store path, which every host keeps; phase
 8 and Finish no longer kill themselves by switching generations from inside
 the setup service; `nixie.hostUi.extraOrigins` uses Cockpit's mergeable
-`allowed-origins` (setting `Origins` directly failed to evaluate).
+`allowed-origins` (setting `Origins` directly failed to evaluate). The first
+boot after installing goes to the installed system even with the image still
+attached (`BootNext`; VirtualBox puts the optical drive first); Alt+F2 works
+under the kiosk; the hardware scan no longer offers zram or the installer's
+own medium. Beyond the installer: servers ship the `nixie` CLI, `nixie apply`
+evaluates a site flake (it failed on a boolean), the LAN reaches the host's
+SSH and control panel in the default bridge mode, the host page's TOTP second
+factor is actually required, and the front panel no longer shows a healthy
+USB line as a problem.
 
 First build of the platform against nixpkgs 26.05: option tree, `mkSite`,
 security stack, network and egress policy, Incus with declared guests, data

@@ -421,7 +421,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # service and kills everything in its cgroup, so the script runs as a
         # unit of its own and this answers before the switch gets here. A
         # transient unit starts with systemd's bare PATH; it gets this one.
-        r = subprocess.run(["systemd-run", "--unit=nixie-finish", "--collect", f"--setenv=PATH={os.environ['PATH']}", shutil.which("nixie-finish")], capture_output=True, text=True)
+        # Its output also goes to the console, the screen once the kiosk is gone.
+        r = subprocess.run(["systemd-run", "--unit=nixie-finish", "--collect", f"--setenv=PATH={os.environ['PATH']}",
+                            "-p", "StandardOutput=journal+console", "-p", "StandardError=journal+console",
+                            shutil.which("nixie-finish")], capture_output=True, text=True)
         for f in os.listdir(keys_dir()):
             os.remove(os.path.join(keys_dir(), f))
         SECRETS.clear()

@@ -588,8 +588,64 @@ What was wrong, and what changed:
     transient unit `nixie-finish`.
 14. **`test-iso` could not have run**: the OVMF firmware is in the package's
     `fd` output, QEMU no longer accepts `serial=` on `-drive`, `$(boot)`
-    waited for QEMU to exit because QEMU inherited its stdout, and the
+    waited for QEMU to exit because QEMU inherited its stdout, swtpm exits
+    when QEMU disconnects and was started once, `wait` cannot see a process
+    started in `$(...)` and a guest reboot restarted QEMU on the same disk
+    (now `-no-reboot` and a `kill -0` loop), a logger holding the serial
+    socket was dropped when the script typed, which cancelled the passphrase
+    prompt (QEMU now logs the port itself), `-cpu max` hit "KVM internal
+    error ... emulation failure" (now `-cpu host` under KVM), and the
     installed system's prompts were never on the serial console it reads.
+15. **Phase 3 ran out of memory** on a 4 GB machine: the evaluator reached
+    1.7 GB with the installer's root, store overlay and kiosk all in RAM,
+    and the kernel killed `nix`. The installer has zram swap; the hardware
+    scan leaves zram, and the medium the installer started from, off the
+    list of disks.
+16. **A site made on the installer pointed at `/etc/nixie/platform`**, a
+    symlink out of the store that pure evaluation refuses, and a path that
+    does not exist on the installed host. It now names the platform's store
+    path, and every host keeps that source through `nix.registry.nixie`.
+17. **The `nixie` CLI was on no real host**; every VM test added it by hand.
+    The server profile installs it. The desktop profile still does not: the
+    CLI carries the Incus client and OpenTofu, which the desktop closure
+    check forbids, so `nixie menu`'s `sudo nixie apply` needs a desktop build
+    of the CLI (open).
+18. **`nixie apply` on a site flake always failed** at its first step:
+    `nix eval --raw` of a boolean ("cannot coerce a Boolean to a string");
+    tests only took the prebuilt-system branch. `--json`.
+19. **Finish failed three ways after the move to a transient unit**: the unit
+    had systemd's bare PATH (`dirname: command not found`), phase 8 had found
+    no CLI on the setup service's PATH and skipped the apply, and the switch
+    returned status 4 because the kiosk's half-stopped user session failed
+    its user activation. The PATH is passed, the CLI is on the service's
+    PATH, and Finish stops the kiosk session before switching.
+20. **In the default bridge mode the LAN could not reach the host's SSH or
+    control panel.** The rule keeping guests off the host's ports matched
+    the bridge, which in `unmanaged-lan` mode is also the LAN port. It is now
+    in the bridge family, on the guests' `veth-*` ports; `vm-egress` gained a
+    LAN-mode subtest, which fails against the old rules (tried) and passes.
+21. **The installed system rebooted into the installer in VirtualBox** with
+    the image still attached: its firmware rebuilds the boot order from the
+    VM's device list, putting the optical drive before "Linux Boot Manager"
+    (read from the EFI variables inside the VM). Phase 3 sets `BootNext` to
+    the installed loader and setup reboots set it to the current entry;
+    confirmed in VirtualBox by hand before it went into the code.
+22. **Alt+F2 did nothing under the kiosk**: cage blocks VT switching without
+    `-s`.
+23. **The host page's second factor was never asked for.** The PAM rule was
+    named `oath`, which merged with nixpkgs' disabled built-in rule of that
+    name, and `pam_unix` is `sufficient` in the generated stack, which ends
+    authentication before a later rule runs. The rule is now `nixie-totp`,
+    `sufficient` after a `required` `pam_unix`. Before, `vm-host-ui` could
+    not evaluate (`nixie.hostUi.extraOrigins` set Cockpit's `Origins`
+    directly, conflicting with the module; now `allowed-origins`) and its
+    header regex expected a colon the header does not have. Now: password
+    and code log in (200), a wrong code is refused (401).
+24. **The front panel put "usb nothing blocked" in red**: its doctor filter
+    matched problem words without case.
+25. **Installed hosts still called themselves NixOS** in the boot menu, the
+    console greeting and os-release. `system.nixos.distroName` is Nixie on
+    hosts too (`ID` stays `nixos`).
 
 Checks added or tightened: `checks.iso-config` (file name, both firmware
 kinds, the three entries and what each runs, `nix-command`, fontconfig; it
@@ -598,7 +654,56 @@ fails with the BIOS entry turned off, tried), `checks.iso-grub-theme`,
 URL, and `vm-installer-lan` requires the kiosk to show the paired wizard
 without an address bar.
 
-PLACEHOLDER_RUNS
+How it was verified:
+
+- `nix run .#test-iso` passed end to end on 2026-09-14 against the image as
+  built, under KVM with 4 GB of memory: the graphical entry boots, the kiosk
+  pairs itself, the wizard's API configures an encrypted server, phases 1 to
+  3 evaluate and build the site flake online (147 s), the installed system's
+  passphrase prompt is answered on the serial console, phases 4 to 8 run in
+  the setup generation (phase 8's OpenTofu apply included), and Finish
+  prints its last line, removes the setup service, and leaves the control
+  panel answering on 8443 and the front panel on the screen. Screenshots,
+  the run log, a phase summary and a serial excerpt are in
+  `tests/artifacts/test-iso/`. It took eleven attempts; every failure is an
+  item above.
+- In VirtualBox 7.2 on this host, by hand with the image: BIOS boot shows the
+  Nixie menu and the kiosk (software rendering), and the Hardware step
+  refuses with the UEFI message; EFI boot shows the themed menu with no
+  prompt, the web entry's tty1 banner, the terminal entry's wizard on a clean
+  tty1, and the hardware scan; an encrypted server installed through the
+  wizard's API in 218 s; with the image still attached, `BootNext` booted the
+  installed disk, the passphrase prompt took the typed passphrase, and the
+  setup generation's kiosk ran phases 4 and 5 from the keyboard. Finish was
+  not repeated there; `test-iso` covers it.
+- The kiosk fixes were first reproduced and then proved in a VM running the
+  kiosk module with the minimal CD's font setting (screenshots before and
+  after), and `vm-installer-lan` now requires the paired wizard without an
+  address bar.
+- Not verified here: a USB stick on hardware (the medium exclusion is read
+  from `findmnt` and `lsblk` logic, not exercised), and Secure Boot or TPM
+  enrolment from the image (`vm-encryption` covers those phases, with Secure
+  Boot firmware enrolment hardware-only as recorded under Slice (b)).
+
+The gate, run afterwards on the finished tree as the per-output loop described
+under "Final run" (VirtualBox powered off: running it next to KVM guests gave
+"KVM internal error" in two of the attempts above):
+
+| check | result |
+|---|---|
+| fmt, statix, deadnix, eval-matrix, option-docs, option-reference, readme | pass |
+| no-hardware-facts, no-secrets-in-store, systemd-security | pass |
+| iso-config, iso-grub-theme (new) | pass |
+| profile-server-has-no-desktop, profile-desktop-has-no-server, profile-server-kiosk-only | pass |
+| vm-boot-plain (44 s), vm-backup (55 s), vm-data (49 s), vm-guests (65 s), vm-hardware (38 s), vm-monitoring (102 s), vm-rollback (153 s), vm-ui (43 s) | pass |
+| vm-console (282 s), vm-desktop (126 s) | pass |
+| vm-egress (95 s, LAN-mode subtest added), vm-host-ui (43 s, TOTP now enforced) | pass |
+| vm-installer-lan (233 s, kiosk and font assertions added) | pass |
+| vm-encryption (1243 s) | pass |
+| every package's derivation evaluates (deploy, docs, media, nixie-cli, nixie-cockpit, nixie-installer, nixie-iso, nixie-panel, nixie-setup, nixie-setup-web, nixie-ui, test-iso) | pass |
+
+`nix run .#test-iso` was run once more on the same tree and passed (install
+147 s); its artifacts are the ones committed.
 
 ## Console
 

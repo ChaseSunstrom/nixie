@@ -1,0 +1,26 @@
+"[nixie 1] starting"
+"[nixie 1] done"
+{"rc": 0, "done": [1]}
+"[nixie 2] starting"
+"[nixie 2] done"
+{"rc": 0, "done": [1, 2]}
+"[nixie 3] starting"
+"[nixie 3] done"
+{"rc": 0, "done": [1, 2, 3]}
+"[nixie 4] starting"
+"[nixie 4] done"
+{"rc": 0, "done": [1, 2, 3, 4]}
+"[nixie 5] starting"
+"[nixie 5] done"
+{"rc": 0, "done": [1, 2, 3, 4, 5]}
+"[nixie 6] starting"
+"[nixie 6] done"
+{"rc": 0, "done": [1, 2, 3, 4, 5, 6]}
+"[nixie 7] starting"
+"[nixie 7] done"
+{"rc": 0, "done": [1, 2, 3, 4, 5, 6, 7]}
+"[nixie 8] starting"
+"Apply complete! Resources: 0 added, 0 changed, 0 destroyed."
+"\u001b[0m[nixie 8] done"
+{"rc": 0, "done": [1, 2, 3, 4, 5, 6, 7, 8]}
+{"ok": true, "output": "Finishing: this page closes when the normal system takes over; `journalctl -u nixie-finish` shows the steps."}

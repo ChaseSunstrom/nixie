@@ -941,7 +941,11 @@ and runs `nixie apply`.
   exit-node) is enforced in the `inet` forward hook keyed on the bridge,
   which is where routed guest traffic actually passes. Exit-node egress
   requires the managed-nat bridge mode, because on an unmanaged LAN bridge
-  guest frames never enter the host's IP stack.
+  guest frames never enter the host's IP stack. Keeping guests off the
+  host's own ports follows the same split: in the `inet` input hook under
+  NAT, where the bridge carries only guests, and in the `bridge` input hook
+  on `veth-*` otherwise, because in LAN mode the bridge is also the LAN port
+  and a rule on it dropped the LAN's SSH and control panel too.
 - **D13 NixOS guest images are built inside the host closure**
   (`nixie.build.guestImages`), so `nixos-rebuild switch` on the host builds
   them and `nixie apply` only imports by alias. `mkSite` re-exports them as
