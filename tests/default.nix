@@ -71,7 +71,8 @@ let
     "nixie-oath-users"
     "nixie-panel"
     "nixie-kiosk-gate"
-    "nixie-tty2"
+    "nixie-terminal"
+    "nixie-banner"
   ];
   kioskServer = testHost ../examples/site {
     hosts.server = exampleSite.hosts.server // {
@@ -209,6 +210,59 @@ in
     diff -u ${../docs/reference/options.md} ${self.packages.x86_64-linux.docs}/options.md
     touch $out
   '';
+
+  # What someone meets before any VM test can: the file name, a boot entry for
+  # each way of installing, both firmware kinds, and what the installer needs
+  # to evaluate a site and draw text.
+  iso-config =
+    let
+      iso = self.packages.x86_64-linux.nixie-iso.config;
+      entry = n: iso.specialisation.${n}.configuration;
+      facts = {
+        "file name is nixie_<version>_<platform>.iso" =
+          iso.image.fileName == "nixie_${self.lib.version}_x86_64-linux.iso"
+          && self.packages.x86_64-linux.nixie-iso.name == iso.image.fileName;
+        "boots on UEFI and BIOS" = iso.isoImage.makeEfiBootable && iso.isoImage.makeBiosBootable;
+        "menu says Nixie" = iso.system.nixos.distroName == "Nixie";
+        "graphical is the default entry" =
+          iso.nixie.installer.mode == "graphical" && iso.nixie.kiosk.enable;
+        "web and terminal entries" =
+          lib.attrNames iso.specialisation == [
+            "terminal"
+            "web"
+          ]
+          && (entry "web").nixie.installer.mode == "web"
+          && (entry "terminal").nixie.installer.mode == "terminal";
+        "web entry has no kiosk" =
+          !(entry "web").nixie.kiosk.enable && (entry "web").systemd.services ? nixie-setup;
+        "terminal entry has no kiosk and no listener" =
+          !(entry "terminal").nixie.kiosk.enable && !((entry "terminal").systemd.services ? nixie-setup);
+        "nix can evaluate the site flake" = lib.all (f: lib.elem f iso.nix.settings.experimental-features) [
+          "nix-command"
+          "flakes"
+        ];
+        "the kiosk has fonts" = iso.fonts.fontconfig.enable;
+        "phase 3 has swap to evaluate in" = iso.zramSwap.enable;
+      };
+      failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
+    in
+    assert lib.assertMsg (failed == [ ]) "iso-config: ${lib.concatStringsSep "; " failed}";
+    pkgs.writeText "iso-config" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
+  # GRUB reads PNGs with 8 or 16 bits per channel only and otherwise stops at
+  # "Press any key to continue", which shows on UEFI boots and nowhere else.
+  iso-grub-theme =
+    pkgs.runCommand "iso-grub-theme"
+      {
+        theme = self.packages.x86_64-linux.nixie-iso.config.isoImage.grubTheme;
+        nativeBuildInputs = [ pkgs.file ];
+      }
+      ''
+        find "$theme" -name '*.png' | while read -r f; do
+          file "$f" | grep -Eq '(8|16)-bit/color RGB' || { file "$f" >&2; exit 1; }
+        done
+        touch $out
+      '';
 
   eval-matrix = pkgs.writeText "eval-matrix" (lib.concatStringsSep "\n" (lib.attrValues matrix));
 

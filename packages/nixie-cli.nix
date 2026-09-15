@@ -52,7 +52,8 @@ pkgs.writeShellApplication {
           # A prebuilt system answers from its own layout, so no evaluation (and
           # no network) is needed on the host.
           if [ -n "''${NIXIE_TOPLEVEL:-}" ]; then want=$(jq -r .features.encryption "$NIXIE_TOPLEVEL/etc/nixie/layout.json")
-          else want=$(nix eval --raw "$site#nixosConfigurations.$host.config.nixie.security.encryption.enable"); fi
+          # --json: --raw refuses a boolean ("cannot coerce a Boolean to a string").
+          else want=$(nix eval --json "$site#nixosConfigurations.$host.config.nixie.security.encryption.enable"); fi
           if [ "$want" != "$(layout .features.encryption)" ]; then
             echo "nixie apply: nixie.security.encryption.enable cannot be changed on an installed system; reinstall from the ISO to change it." >&2
             exit 3

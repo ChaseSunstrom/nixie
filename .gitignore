@@ -1,7 +1,13 @@
 result
 result-*
-tests/artifacts/*.qcow2
 ui/node_modules
 ui/dist
 __pycache__/
 *.pyc
+# test-iso's disks, firmware variables, TPM state and sockets; its logs and
+# screenshots are what VERIFICATION.md links to.
+tests/artifacts/**/*.qcow2
+tests/artifacts/**/*.fd
+tests/artifacts/**/*.sock
+tests/artifacts/**/tpm/
+tests/artifacts/**/cookies

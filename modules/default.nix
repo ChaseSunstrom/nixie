@@ -21,7 +21,7 @@
     ./monitoring.nix
     ./ui.nix
     ./secrets.nix
-    ./site.nix
+    (import ./site.nix { inherit self; })
     ./host-ui.nix
     ./console.nix
     (import ./setup.nix { inherit inputs self; })

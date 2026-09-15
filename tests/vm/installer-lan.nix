@@ -61,7 +61,6 @@ pkgs.testers.runNixOSTest {
       ];
       nixie.installer = {
         inherit packages;
-        platform = self;
         toplevel = "${target.config.system.build.toplevel}";
         disko = "${target.config.system.build.diskoScript}";
       };
@@ -97,6 +96,7 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     import json, re
+    from urllib.parse import urljoin
 
     def api(method, path, data=None, raw=False):
         body = f"-d '{json.dumps(data)}'" if data is not None else ""
@@ -124,8 +124,24 @@ pkgs.testers.runNixOSTest {
 
     with subtest("the kiosk shows the wizard on the installer's own screen"):
         installer.wait_for_unit("cage-tty1.service")
-        installer.wait_for_text("(Profile|Pair|nixie)", timeout=300)
+        # Paired by the local token: the pairing form would ask for a code that
+        # is printed on the console behind the kiosk.
+        installer.wait_for_text("Profile", timeout=300)
         installer.screenshot("kiosk-wizard")
+        # The wizard alone, not a browser window: its address bar shows the URL.
+        screen = installer.get_screen_text()
+        assert "Pair this browser" not in screen, screen
+        assert "127.0.0.1" not in screen and "9443" not in screen, screen
+
+    with subtest("the wizard's fonts load from the address its stylesheet names"):
+        base = "https://192.168.1.2:9443/"
+        index = client.succeed(f"curl -sk {base}")
+        css = urljoin(base, re.findall(r'href="([^"]+\.css)"', index)[0])
+        fonts = re.findall(r'url\(["\']?([^"\')]+\.ttf)', client.succeed(f"curl -sk {css}"))
+        assert len(fonts) == 3, fonts
+        for f in fonts:
+            ctype = client.succeed(f"curl -sk -o /dev/null -w '%{{content_type}}' {urljoin(css, f)}")
+            assert ctype == "font/ttf", (f, ctype)
 
     with subtest("pair from the LAN with the single-use code"):
         pair()
@@ -135,7 +151,9 @@ pkgs.testers.runNixOSTest {
         # /dev/disk/by-id link used to be dropped from this list entirely,
         # which leaves the wizard with nothing to install on.
         disks = installer.succeed("lsblk -d -n -o TYPE,PATH").splitlines()
-        paths = sorted(ln.split()[1] for ln in disks if ln.split()[0] == "disk")
+        # zram is the installer's compressed swap, not somewhere to install.
+        paths = sorted(ln.split()[1] for ln in disks if ln.split()[0] == "disk" and "/zram" not in ln)
+        assert not any("zram" in d["path"] for d in hw["disks"]), hw["disks"]
         assert sorted(d["path"] for d in hw["disks"]) == paths, (hw["disks"], paths)
         opts = api("GET", "/api/options")
         assert any(o["path"] == "nixie.security.encryption.enable" and o["section"] == "security" for o in opts)

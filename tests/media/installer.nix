@@ -124,7 +124,6 @@ pkgs.testers.runNixOSTest {
       ];
       nixie.installer = {
         inherit packages;
-        platform = self;
         toplevel = "${target.config.system.build.toplevel}";
         disko = "${target.config.system.build.diskoScript}";
       };

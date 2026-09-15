@@ -15,6 +15,9 @@ h=$(host)
 flake=0
 if [ "$NIXIE_TOPLEVEL" = /run/current-system ]; then
   flake=1
+  # A git flake sees only tracked files, and phases 1 and 2 have just written
+  # hardware.nix, the secrets and the sops rules.
+  [ ! -d "$NIXIE_SITE/.git" ] || git -C "$NIXIE_SITE" add -A
   log "evaluating $h from $NIXIE_SITE"
   layoutFile=$(nix build --no-link --print-out-paths "$NIXIE_SITE#nixosConfigurations.$h.config.environment.etc.\"nixie/layout.json\".source")
   mkdir -p "$NIXIE_SETUP_DIR/layout/etc/nixie"
@@ -79,6 +82,11 @@ fi
 # entry across the reboot into the new system.
 entry=$(ls /mnt/boot/loader/entries 2>/dev/null | grep specialisation-nixie-setup | tail -1 || true)
 [ -z "$entry" ] || bootctl --esp-path=/mnt/boot set-default "$entry" 2>/dev/null || log "could not set the default boot entry in firmware"
+# Firmware that keeps a still-attached installer first (VirtualBox rebuilds the
+# order from the VM's device list at every start) would boot the installer
+# again; BootNext sends the next boot to the installed loader regardless.
+n=$(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} Linux Boot Manager.*/\1/p' | head -1 || true)
+[ -z "$n" ] || efibootmgr -q --bootnext "$n" || log "could not point the next boot at the installed system"
 phase_finish
 cp -a "$NIXIE_SETUP_DIR"/*.done "$STATE" /mnt/var/lib/nixie/setup/
 

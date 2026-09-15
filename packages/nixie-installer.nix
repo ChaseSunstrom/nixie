@@ -8,11 +8,14 @@ let
     cryptsetup
     dosfstools
     e2fsprogs
+    efibootmgr
+    git
     gnutar
     gptfdisk
     iproute2
     jq
     mkpasswd
+    nix
     nixos-install-tools
     openssh
     openssl

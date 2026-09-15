@@ -55,43 +55,25 @@ if [ "$local" = 1 ]; then
         secret "administrator password" >/run/nixie/keys/admin-password
         keys=$(ask "SSH public key (optional, one)")
         mode=$(gum choose --header "Bridge mode" unmanaged-lan managed-nat)
-        jq -n --arg h "$host" --arg p "$profile" --arg d "$disk" --arg dd "$data" --argjson u "$uplinks" --arg g "$(jq -r .gpu <<<"$hw")" --argjson t "$(jq .tpm <<<"$hw")" --argjson sb "$sb" \
-          '{host:$h, profile:$p, systemDisk:$d, dataDisk:(if $dd=="" then null else $dd end), uplinks:$u, gpu:$g, tpm:$t, options:{secureBoot:$sb}}' >"$NIXIE_SETUP_DIR/state.json"
-        mkdir -p "$NIXIE_SITE/hosts/$host" "$NIXIE_SITE/secrets"
-        if [ ! -e "$NIXIE_SITE/site.nix" ]; then
-          cp -r /etc/nixie/platform/templates/site/. "$NIXIE_SITE/"
-          # The template's example host and rules are placeholders.
-          mv "$NIXIE_SITE/hosts/example" "$(mktemp -d)/" 2>/dev/null || true
-          mv "$NIXIE_SITE/.sops.yaml" "$(mktemp -d)/" 2>/dev/null || true
-          sed -i 's|github:OWNER/nixie|path:/etc/nixie/platform|' "$NIXIE_SITE/flake.nix"
-          printf '{ nixie.setup.pending = true; }\n' >"$NIXIE_SITE/hosts/$host/setup-pending.nix"
-          cat >"$NIXIE_SITE/site.nix" <<NIX
-{
-  hosts.$host = {
-    hardware = ./hosts/$host/hardware.nix;
-    secrets = ./secrets/$host.yaml;
-    guests = import ./guests.nix;
-    data = import ./data.nix;
-    settings = {
-      imports = [ ./hosts/$host/setup-pending.nix ];
-      nixie.profile = "$profile";
-      nixie.auth.admin.name = "$admin";
-      nixie.auth.sshKeys = [ ${keys:+\"$keys\"} ];
-      nixie.security.encryption.enable = $enc;
-      nixie.security.tpm.enable = $tpm;
-      nixie.security.attestation.enable = $att;
-      nixie.security.secureBoot.enable = $sb;
-      nixie.security.duress.enable = $dur;
-      nixie.security.remoteUnlock.enable = $ru;
-      nixie.network.bridge.mode = "$mode";
-    };
-  };
-}
-NIX
-          git -C "$NIXIE_SITE" init -q 2>/dev/null || true
-        fi
+        # The same JSON the web wizard posts to /api/config, written by the same code.
+        settings=$(jq -n --arg admin "$admin" --arg key "$keys" --arg mode "$mode" \
+          --argjson enc "$enc" --argjson tpm "$tpm" --argjson att "$att" --argjson sb "$sb" --argjson dur "$dur" --argjson ru "$ru" \
+          '{"nixie.auth.admin.name": $admin, "nixie.auth.sshKeys": ([$key] | map(select(. != ""))),
+            "nixie.security.encryption.enable": $enc, "nixie.security.tpm.enable": $tpm,
+            "nixie.security.attestation.enable": $att, "nixie.security.secureBoot.enable": $sb,
+            "nixie.security.duress.enable": $dur, "nixie.security.remoteUnlock.enable": $ru,
+            "nixie.network.bridge.mode": $mode}')
+        jq -n --arg h "$host" --arg p "$profile" --arg d "$disk" --arg dd "$data" --argjson u "$uplinks" --arg g "$(jq -r .gpu <<<"$hw")" --argjson t "$(jq .tpm <<<"$hw")" --argjson s "$settings" \
+          '{host:$h, profile:$p, systemDisk:$d, dataDisk:(if $dd=="" then null else $dd end), uplinks:$u, gpu:$g, tpm:$t, settings:$s}' \
+          | nixie-setup --configure --site "$NIXIE_SITE" --state-dir "$NIXIE_SETUP_DIR"
         gum confirm "Write hardware.nix, keys and secrets, then wipe $disk and install?" || continue
-        nixie-phase 1 && nixie-phase 2 && nixie-phase 3
+        # A failed phase must leave its reason on screen: the unit restarts
+        # the wizard, which clears it.
+        if ! { nixie-phase 1 && nixie-phase 2 && nixie-phase 3; }; then
+          say "The install stopped; the lines above say why. Choosing Install again skips the phases that finished."
+          gum confirm "Back to menu?" || true
+          continue
+        fi
         say "Installed. Reboot to continue setup on the new system."
         gum confirm "Reboot now?" && systemctl reboot
         ;;

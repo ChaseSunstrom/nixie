@@ -68,10 +68,10 @@ pkgs.testers.runNixOSTest {
             "the password was not accepted for the first factor: " + repr(conv)
         )
         import base64, re
-        tok = re.findall(r"X-Conversation: (\S+)", conv, re.I)[0]
+        tok = re.findall(r"X-Conversation (\S+)", conv, re.I)[0]
         ok = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok} {base64.b64encode(code.encode()).decode()}' https://127.0.0.1:9090/cockpit/login").strip()
         assert ok == "200", ok
-        tok2 = re.findall(r"X-Conversation: (\S+)", host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation'"), re.I)[0]
+        tok2 = re.findall(r"X-Conversation (\S+)", host.succeed("curl -sk -i -u 'admin:nixie' https://127.0.0.1:9090/cockpit/login | grep -i 'x-conversation'"), re.I)[0]
         bad = host.succeed(f"curl -sk -o /dev/null -w '%{{http_code}}' -H 'Authorization: X-Conversation {tok2} {base64.b64encode(b'000000').decode()}' https://127.0.0.1:9090/cockpit/login").strip()
         assert bad == "401", bad
         # cockpit-session reports each attempt through PAM's audit records.

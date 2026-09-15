@@ -1,9 +1,10 @@
 /* Type, surfaces and the component recipes from the design file. Every
    colour is a token; radius only on raised panels (6), wells (4), buttons and
-   chips (3). Fonts are bundled at build time under ./fonts/. */
-@font-face { font-family: "Archivo"; src: url("./fonts/Archivo.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
-@font-face { font-family: "JetBrains Mono"; src: url("./fonts/JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "JetBrains Mono"; src: url("./fonts/JetBrainsMono-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+   chips (3). Fonts are bundled at build time in fonts/, a sibling of the assets/ directory
+   this stylesheet is emitted into. */
+@font-face { font-family: "Archivo"; src: url("../fonts/Archivo.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("../fonts/JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("../fonts/JetBrainsMono-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
 
 :root { --bg:#1f2226; --s1:#292d33; --s2:#181b1e; --s3:#31363d; --line:#383e46; --line2:#4a515b; --ink:#eceae5; --muted:#9a9ea6; --shadow:rgba(0,0,0,0.45); --glow:0 0 14px rgba(126,186,228,0.28); --brand:#5277c3; --brand2:#7ebae4; --cpu:#7ebae4; --mem:oklch(78% 0.12 300); --net:oklch(78% 0.11 190); --disk:oklch(78% 0.12 45); --ok:oklch(78% 0.14 150); --ice:oklch(85% 0.06 230); --err:oklch(68% 0.19 25); --hot:oklch(80% 0.15 60); --scrim:rgba(20,22,25,0.7); }
 * { box-sizing: border-box; }

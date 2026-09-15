@@ -32,7 +32,9 @@ it has run at a release, this section lists what it produces.
 
 ## Requirements
 
-- An x86_64 machine with UEFI firmware (CSM off). BIOS boot is not supported.
+- An x86_64 machine with UEFI firmware (CSM off). The ISO starts in BIOS mode
+  too, but only to say so: installing needs UEFI (in VirtualBox, Settings,
+  System, Enable EFI).
 - A TPM 2.0 is optional; it enables TPM binding with a PIN and attestation.
 - Any GPU or none. NVIDIA cards get the proprietary driver with modesetting
   so the console keeps rendering; giving a card to a guest as an Incus `gpu`
@@ -42,7 +44,10 @@ it has run at a release, this section lists what it produces.
 
 ## Quick start A: the ISO and a browser
 
-1. `nix build .#nixie-iso`, write the image to a USB stick, boot it.
+1. `nix build .#nixie-iso` makes `result/iso/nixie_<version>_x86_64-linux.iso`;
+   write it to a USB stick (or attach it to a VM with EFI turned on) and boot
+   it. The menu offers the graphical wizard on this screen, a browser on
+   another device, or the terminal.
 2. Use the wizard on the machine's screen, or open the printed
    `https://<address>:9443/` on another device, compare the fingerprint and
    enter the pairing code.

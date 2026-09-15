@@ -62,7 +62,7 @@ profiles/
 installer/
   phases/NN-<name>.sh     the eight idempotent phases, plain bash
   lib.sh                  marker handling, logging, shared helpers
-  iso.nix                 the ISO module: kiosk, tty2 wizard, LAN backend
+  iso.nix                 the ISO module: name, branding, one boot entry per front end
   kiosk.nix               cage + browser, shared by the ISO and the setup generation
 packages/
   nixie-cli.nix           writeShellApplication set: apply fetch restore reseal export doctor
@@ -694,11 +694,30 @@ recovery after a board, TPM or firmware change; the front panel offers it.
 
 Front ends:
 
-- Kiosk (ISO default, and the specialisation): `services.cage` running
-  Chromium in kiosk mode against `https://127.0.0.1:9443` with the local
-  certificate trusted. tty2 runs the `gum` wizard.
-- LAN: the same backend on `:9443`; the console prints the URL, a six-digit
-  single-use pairing code, the certificate fingerprint, and a QR.
+The ISO (`nixie_<version>_<platform>.iso`, `lib.version` in the flake) boots
+to a menu with one entry per front end on this machine, each a specialisation
+setting `nixie.installer.mode`: graphical (the default), web and terminal.
+
+- Kiosk (graphical, and the specialisation): `services.cage` running
+  Chromium as an app window (`--app`, full screen, no tab strip or address
+  bar) against `https://127.0.0.1:9443` with the local token. tty2 runs the
+  `gum` wizard. If cage cannot drive the display, tty1 falls back to the web
+  banner.
+- LAN (graphical and web): the same backend on `:9443`; the console prints
+  the URL, a six-digit single-use pairing code, the certificate fingerprint,
+  and a QR, and in web mode tty1 keeps showing them.
+- Terminal: the `gum` wizard on tty1 and no listener. It writes the site by
+  piping the web wizard's `/api/config` JSON to `nixie-setup --configure`, so
+  both wizards produce the same `site.nix`.
+
+A site started on the installer points `inputs.nixie` at the platform's own
+store path (`path:/nix/store/…-source`, passed to `nixie-setup` at build
+time). Every host keeps that source in its closure as the `nixie` flake
+registry entry (`modules/site.nix`), so `nixie apply` and Finish evaluate the
+site on the installed host without the installer, and `nix run nixie#deploy`
+resolves there. Phase 8 applies guests and data only and Finish runs as the
+transient unit `nixie-finish`: both used to switch generations from inside
+`nixie-setup.service`, which the switch stops along with its children.
 - Headless: `deploy` runs the `gum` wizard locally and drives the phases over
   SSH through `nixos-anywhere` (kexec when the target is a foreign Linux,
   skipped when it is the Nixie ISO). The continuation phases run over SSH the
@@ -1017,6 +1036,14 @@ and runs `nixie apply`.
   Super+` beside Super+Tab, and `vm-desktop` asserts it opens. The same
   incompatibility applied to everything that shelled out to `hyprctl
   dispatch <legacy>`: hypridle's screen blanking is now a Lua dispatcher.
+- **D30 The ISO also boots in BIOS mode.** The platform installs UEFI
+  systems only, and the image used to be UEFI-only. VirtualBox starts new
+  VMs in BIOS mode, where such an image fails with "Could not read from the
+  boot medium", which reads as a broken download. The image is now hybrid
+  (El Torito for both, MBR and GPT for USB); in BIOS mode the installer
+  boots and phase 1, which every front end runs first, stops before touching
+  a disk and says to turn on UEFI. `checks.iso-config` asserts both boot
+  kinds, the file name and the three entries.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the

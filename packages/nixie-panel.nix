@@ -72,7 +72,9 @@ pkgs.writeShellApplication {
         for h in /sys/class/drm/card*/device/hwmon/hwmon*/temp1_input; do [ -e "$h" ] && { b "$BG"; c "$INK"; printf '  gpu %s°C' "$(( $(cat "$h") / 1000 ))"; r; printf '\n'; }; done
       fi
       if [ -e /run/current-system/sw/bin/nixie ]; then
-        doc=$(timeout 5 nixie doctor 2>/dev/null | grep -iE 'MISSING|NEEDED|NOT|BLOCKED|RECOVERY|DRIFT|full' || true)
+        # Doctor writes problems in capitals; matching without case put "usb
+        # nothing blocked" in red on a healthy host.
+        doc=$(timeout 5 nixie doctor 2>/dev/null | grep -E 'MISSING|NEEDED|NOT ENABLED|BLOCKED|RECOVERY|DRIFT|FAILED|% full' || true)
         [ -n "$doc" ] && { b "$BG"; c "$ERR"; printf '  doctor: %s\n' "$doc"; r; }
       fi
       # QR at the right

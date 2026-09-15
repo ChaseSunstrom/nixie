@@ -73,6 +73,13 @@ pkgs.testers.runNixOSTest {
           nixie.network.egress = lib.mkForce "direct";
           nixie.network.tailscale.enable = lib.mkForce false;
         };
+        # The default mode, where the bridge is the LAN port as well as the
+        # guests': a rule meant for guests once dropped the LAN's SSH too.
+        specialisation.lan.configuration = {
+          nixie.network.bridge.mode = lib.mkForce "unmanaged-lan";
+          nixie.network.egress = lib.mkForce "direct";
+          nixie.network.tailscale.enable = lib.mkForce false;
+        };
       };
   };
 
@@ -114,5 +121,17 @@ pkgs.testers.runNixOSTest {
         host.wait_for_unit("nftables.service")
         assert can_fetch("web", "http://192.168.1.3/"), "declared guest cannot reach the LAN under direct"
         assert can_fetch("scratch", "http://192.168.1.3/"), "scratch guest cannot reach the LAN under direct"
+
+    with subtest("unmanaged-lan: the LAN reaches the host's SSH, a guest on the same bridge does not"):
+        host.succeed("/run/booted-system/specialisation/lan/bin/switch-to-configuration test >&2")
+        # networkd does not move an address or enslave a port on reload alone.
+        host.succeed("ip addr flush dev uplink0 && networkctl reload && networkctl reconfigure uplink0 nixie-br")
+        host.wait_until_succeeds("ip -br addr show nixie-br | grep -q 192.168.1.2/24", timeout=60)
+        host.wait_until_succeeds("bridge link show | grep -q 'uplink0.*master nixie-br'", timeout=60)
+        host.wait_for_unit("nftables.service")
+        internet.wait_until_succeeds("nc -z -w 2 192.168.1.2 22", timeout=60)
+        host.succeed("ip -n web addr flush dev g-web && ip -n web addr add 192.168.1.50/24 dev g-web")
+        host.wait_until_succeeds("ip netns exec web nc -z -w 2 192.168.1.3 80", timeout=30)
+        host.fail("ip netns exec web nc -z -w 2 192.168.1.2 22")
   '';
 }

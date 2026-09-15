@@ -38,6 +38,9 @@ pkgs.testers.runNixOSTest {
   };
 
   testScript = ''
+    import re
+    from urllib.parse import urljoin
+
     host.wait_for_unit("incus.service")
     host.wait_for_unit("incus-preseed.service")
     host.wait_for_open_port(8443)
@@ -49,7 +52,16 @@ pkgs.testers.runNixOSTest {
     assert cfg["theme"] == "umber" and cfg["links"][0]["label"] == "Docs" and "web" in cfg["declared"], site
     js = host.succeed("curl -sfk https://127.0.0.1:8443/ui/ | grep -o 'assets/ui-[^\"]*\\.js'").strip()
     host.succeed(f"curl -sfk https://127.0.0.1:8443/ui/{js} -o /tmp/ui.js && grep -q 'Command palette' /tmp/ui.js")
-    host.succeed("curl -sfk https://127.0.0.1:8443/ui/fonts/Archivo.ttf -o /dev/null")
+    # Each font as the stylesheet names it, resolved against the stylesheet's
+    # own URL: the files existing under /ui/fonts/ proved nothing while the CSS
+    # pointed somewhere else and the panel fell back to system fonts.
+    base = "https://127.0.0.1:8443/ui/"
+    css = urljoin(base, re.findall(r'href="([^"]+\.css)"', page)[0])
+    fonts = re.findall(r'url\(["\']?([^"\')]+\.ttf)', host.succeed(f"curl -sfk {css}"))
+    assert len(fonts) == 3, fonts
+    for f in fonts:
+        magic = host.succeed(f"curl -sfk {urljoin(css, f)} -o /tmp/font && head -c 4 /tmp/font | od -An -tx1").split()
+        assert magic == ["00", "01", "00", "00"], (f, magic)
     # The daemon itself answers on the same origin, untrusted without a client certificate.
     host.succeed("curl -sfk https://127.0.0.1:8443/1.0 | jq -e '.metadata.auth == \"untrusted\"'")
   '';

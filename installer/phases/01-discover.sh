@@ -6,6 +6,8 @@ set -euo pipefail
 . "$(dirname "$0")/../lib.sh"
 phase_start 1
 need jq nixos-generate-config
+# Every front end refuses here, before a disk is touched.
+[ -d /sys/firmware/efi ] || die "this machine started the installer in legacy BIOS mode, and Nixie installs a UEFI system. Turn on UEFI boot in the firmware (VirtualBox: Settings, System, Enable EFI), start the installer again, and choose it from the boot menu."
 h=$(host); dir="$NIXIE_SITE/hosts/$h"; mkdir -p "$dir"
 
 generated=$(nixos-generate-config --show-hardware-config --no-filesystems 2>/dev/null || true)

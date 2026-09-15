@@ -610,6 +610,15 @@ journal, services, disks, and the nixie commands. It is Cockpit.
 Turning it on widens the attack surface of a hardened host, which is
 why it is off.
 
+## `nixie.hostUi.extraOrigins`
+
+*list of string*, default: `[]`.
+
+Other addresses this page is opened at, each with its scheme and port.
+The machine's own name, localhost and this host's addresses are
+already accepted; add a name here if you reach the page by one the
+machine does not know about, such as a DNS alias.
+
 ## `nixie.hostUi.listen`
 
 *one of "tailnet", "lan+tailnet" (tailnet, lan+tailnet)*, default: `"tailnet"`. Wizard section: services.

@@ -22,6 +22,7 @@ let
   sshPort = toString (lib.head config.services.openssh.ports);
   hostUiPort = toString config.nixie.hostUi.port;
   promPort = toString config.nixie.monitoring.port;
+  hostPorts = "${sshPort}, ${uiPort}, ${hostUiPort}, ${promPort}";
   onTailnet = config.nixie.network.tailscale.enable;
   private = "{ 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }";
 
@@ -94,8 +95,11 @@ in
             ct state invalid drop
             ip protocol icmp accept
             ip6 nexthdr icmpv6 accept
-            # Guests never reach the host's own services.
-            iifname "${br}" tcp dport { ${sshPort}, ${uiPort}, ${hostUiPort}, ${promPort} } drop
+            # Guests never reach the host's own services. Under NAT the bridge
+            # carries only guests; in LAN mode it is also the LAN, and this
+            # rule dropped the LAN's SSH and control panel with the guests', so
+            # there the bridge family below does it, where a guest's port shows.
+            ${lib.optionalString nat ''iifname "${br}" tcp dport { ${hostPorts} } drop''}
             ${lib.optionalString nat ''
               iifname "${br}" udp dport { 67, 53 } accept
               iifname "${br}" tcp dport 53 accept
@@ -136,6 +140,7 @@ in
         content = ''
           chain input {
             type filter hook input priority filter; policy accept;
+            iifname "veth-*" tcp dport { ${hostPorts} } drop
             ${lib.concatMapStringsSep "\n" (g: ''iifname "veth-${g.name}" jump guest-${g.name}'') guests}
             iifname "veth-*" jump guest-undeclared
           }

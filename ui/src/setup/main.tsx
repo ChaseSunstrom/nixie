@@ -113,10 +113,15 @@ function Wizard() {
 
   const run = async (n: number, body: Record<string, unknown> = {}) => {
     setBusy(true);
+    setErr("");
     setLines((l) => [...l, `▶ phase ${n}`]);
+    // A failing phase says why in its last lines; before the Install step
+    // the log is not on screen, so they become the step's error.
+    const out: string[] = [];
     try {
-      const r = await api.phase(n, body, (line) => setLines((l) => [...l, line]));
+      const r = await api.phase(n, body, (line) => { out.push(line); setLines((l) => [...l, line]); });
       setLines((l) => [...l, r.rc === 0 ? `✓ phase ${n} done` : `phase ${n} exited ${r.rc}`]);
+      if (r.rc !== 0 && r.rc !== 10) setErr(out.slice(-3).join("\n") || `phase ${n} exited ${r.rc}`);
       await refresh();
       return r.rc;
     } catch (e) {
@@ -141,8 +146,9 @@ function Wizard() {
     if (tsKey) settings["nixie.network.tailscale.authKeyFile"] = "/var/lib/nixie/tailscale.key";
     await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "", duress: secrets.duress ?? "", "admin-password": secrets.password ?? "", "tailscale.key": tsKey ?? "" });
     await api.config({ host, profile, systemDisk: disk, dataDisk: dataDisk || null, uplinks, gpu: hw?.gpu ?? "none", tpm: hw?.tpm ?? false, settings, existingSite: siteMode !== "new" && siteHosts.includes(host) });
-    await run(1);
+    if ((await run(1)) !== 0) return false;
     setPlan(await api.plan());
+    return true;
   };
 
   if (paired === null) return <div className="empty">…</div>;
@@ -247,6 +253,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
             <div><div style={{ fontWeight: 500 }}>Data disk (optional, its own pool)</div><label className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr", cursor: "pointer" }}><input type="radio" name="data" checked={dataDisk === ""} onChange={() => setDataDisk("")} /><span>none: data lives on the system disk</span></label>{hw.disks.filter((d) => (d.id ?? d.path) !== disk).map((d) => <label key={d.path} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px 200px", cursor: "pointer" }}><input type="radio" name="data" checked={dataDisk === (d.id ?? d.path)} onChange={() => setDataDisk(d.id ?? d.path)} /><span className="mono">{d.id ?? d.path}</span><Bytes b={d.size} /><span className="muted">{d.model ?? ""}</span></label>)}</div>
             <div><div style={{ fontWeight: 500 }}>Network ports joining the bridge</div>{hw.nics.map((n) => <label key={n.mac} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px", cursor: "pointer" }}><input type="checkbox" checked={uplinks.includes(n.mac)} onChange={(e) => setUplinks(e.target.checked ? [...uplinks, n.mac] : uplinks.filter((m) => m !== n.mac))} /><span className="mono">{n.mac}</span><span className={`chip ${n.up ? "ok" : ""}`}>{n.up ? "link up" : "no link"}</span></label>)}</div>
             <div className="caption">Found: GPU {hw.gpu}, TPM {hw.tpm ? "2.0 present" : "not found"}, firmware {hw.efi ? "UEFI" : "legacy (unsupported)"}.</div>
+            {!hw.efi && <p style={{ color: "var(--err)" }}>This machine started the installer in legacy BIOS mode, and Nixie installs a UEFI system. Turn on UEFI boot in the firmware (in VirtualBox: Settings, System, Enable EFI) and start the installer again.</p>}
           </div>
         );
       case "site":
@@ -311,7 +318,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
     }
   };
   const canNext = () => {
-    if (s.id === "hardware") return Boolean(disk) && uplinks.length > 0;
+    if (s.id === "hardware") return Boolean(disk) && uplinks.length > 0 && Boolean(hw?.efi);
     if (s.id === "site") return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(host);
     if (s.id === "security") return secretsNeeded.filter((k) => k !== "password" && k !== "tailscale").every((k) => secrets[k]);
     if (s.id === "auth") return Boolean(secrets.password) && Boolean(values["nixie.auth.admin.name"]) && (values["nixie.auth.secondFactor"] !== "totp" || totpOk);
@@ -326,9 +333,9 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
         {body()}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
           <button className="btn" disabled={step === 0 || busy} onClick={() => setStep(step - 1)}>Back</button>
-          {s.id !== "install" && <button className="btn primary" disabled={!canNext() || busy} onClick={async () => { if (enabledSteps[step + 1].id === "review") { setBusy(true); try { await submitConfig(); } catch (e) { setErr((e as Error).message); setBusy(false); return; } setBusy(false); } setStep(step + 1); }}>Next</button>}
+          {s.id !== "install" && <button className="btn primary" disabled={!canNext() || busy} onClick={async () => { if (enabledSteps[step + 1].id === "review") { setBusy(true); try { if (!(await submitConfig())) { setBusy(false); return; } } catch (e) { setErr((e as Error).message); setBusy(false); return; } setBusy(false); } setStep(step + 1); }}>Next</button>}
         </div>
-        {err && s.id === "review" && <p style={{ color: "var(--err)" }}>{err}</p>}
+        {err && s.id !== "site" && s.id !== "auth" && <p style={{ color: "var(--err)", whiteSpace: "pre-line" }}>{err}</p>}
       </main>
     </div>
   );

@@ -49,6 +49,7 @@ pkgs.writeShellApplication {
   name = "nixie-setup";
   runtimeInputs = [
     pkgs.python3
+    pkgs.efibootmgr
     pkgs.openssl
     pkgs.qrencode
     pkgs.iproute2
@@ -57,9 +58,13 @@ pkgs.writeShellApplication {
     pkgs.systemd
     installer
     finish
+    # Phase 8 runs `nixie apply`; without it here the phase found no CLI and
+    # skipped the apply.
+    cli
   ];
   text = ''
     exec python3 ${./nixie-setup/nixie-setup.py} \
+      --platform "path:${self}" \
       --static ${web.nixie-setup-web} \
       --options ${optionsJson} \
       --template ${../templates/site} \

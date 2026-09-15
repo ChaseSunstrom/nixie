@@ -420,10 +420,10 @@ feature that no test covered, or that a test covered too politely.
    built each disk's record with `id: ($byid[] | select(.dev == $d.path) |
    .id)`. In jq an object whose value expression yields nothing is not built
    at all, and one that yields several is built several times, so a disk with
-   no `/dev/disk/by-id` link disappeared from the wizard's list entirely and
+   no stable-name link under `/dev/disk` disappeared from the wizard's list entirely and
    a disk with more than one link appeared once per link. The build host's
-   own `nvme0n1` carries three links (`nvme-eui.*` and two
-   `nvme-Samsung_SSD_*`), so on that machine every NVMe drive would have been
+   own NVMe drive carries three links (one EUI link and two model-name
+   links), so on that machine every NVMe drive would have been
    offered three times; in the media run's VM the target disk had no link and
    the wizard offered nothing at all, which is why the run timed out waiting
    for `input[name=disk]`. The id is now `[...] | first`, which is null when
@@ -507,6 +507,98 @@ every run that broke. And `me("kitty & sleep 2")` left the window holding
 the command's output, so the test driver waited for EOF forever and the run
 hung rather than failed — the window is started detached with its pipes
 closed.
+
+## Installer image: what a real boot found (2026-09-14)
+
+Reported from booting the image in libvirt and VirtualBox: the graphical
+entry showed a browser window with no text, there was no terminal or web
+install to choose, installing stopped in phase 3 with `experimental Nix
+feature 'nix-command' is disabled`, VirtualBox would not boot the image, and
+the file was named `nixos-…`. Every one was reproduced on this host before it
+was changed: the image as built, booted in QEMU and in the VirtualBox 7.2
+installed here. The VM tests had passed through all of it, because
+`vm-installer-lan` boots the installer *configuration* (not the image, and
+not the minimal CD profile), installs a prebuilt system instead of the site
+flake, and accepted the pairing form as proof the kiosk worked; `test-iso`,
+the one run that uses the image, had never completed.
+
+What was wrong, and what changed:
+
+1. **No text.** `installation-cd-minimal.nix` sets `fonts.fontconfig.enable`
+   to false; Chromium then draws no glyphs at all. Separately the stylesheet
+   named its fonts `./fonts/…`, which resolves to `assets/fonts/` while the
+   files are in `fonts/`, and the setup backend answers a missing file with
+   `index.html`, so the web fonts never loaded anywhere, the control panel
+   included (it fell back to system fonts on hosts that have them). The kiosk
+   module turns fontconfig on and the stylesheet names `../fonts/`.
+   Reproduced and fixed in a VM with the kiosk module and the CD's font
+   setting (screenshots before: blank tab strip, address bar and page; after:
+   the page's text, full screen).
+2. **A browser window, not the wizard.** `chromium --kiosk` never goes full
+   screen under cage on Wayland and keeps the tab strip and address bar;
+   `--app=<url>` opens a bare window.
+3. **The kiosk showed the pairing form.** The browser started before the
+   setup service had written the local token (the service waits for the
+   network), and the form asks for a code printed on the console the kiosk
+   covers. The browser now waits for the page to answer and for the token.
+4. **VirtualBox showed nothing.** Its VMSVGA adapter without 3D acceleration
+   has a render node but no OpenGL, and wlroots only falls back to software
+   rendering when there is no render node: cage logged `VMware: No 3D
+   enabled`, `Could not initialize EGL`, `Could not match drm and vulkan
+   device`, `Unable to create the wlroots renderer` (read from the journal
+   inside the VirtualBox VM). A start that fails is retried with
+   `WLR_RENDERER=pixman`, and if cage still fails tty1 falls back to the web
+   banner (`OnFailure=`).
+5. **"Could not read from the boot medium" in VirtualBox.** The image was
+   UEFI only and VirtualBox starts VMs in BIOS mode. The image is now hybrid
+   (D30); in BIOS mode it boots, the wizard's Hardware step and phase 1 say
+   to turn on EFI, and nothing is written.
+6. **No terminal or web install.** The boot menu has three entries, each a
+   specialisation setting `nixie.installer.mode`: graphical (default), web
+   (the address, code, fingerprint and QR on tty1, no kiosk) and terminal
+   (the text wizard on tty1, no listener).
+7. **tty2 was a login prompt.** `getty@tty2` was masked but logind spawns
+   `autovt@tty2` on a VT switch, and the getty and the wizard fought over the
+   keyboard (keystrokes went to the invisible wizard). Both instance names are
+   masked for the VTs the installer owns.
+8. **`nix-command` is disabled.** The ISO never imported the setting the
+   installed hosts get from `modules/base.nix`.
+9. **The flake could not see the generated files.** Phases 1 and 2 write
+   `hardware.nix`, the secrets and `.sops.yaml` into the site's git
+   repository, and a git flake sees only tracked files; phase 3 `git add`s
+   them before evaluating.
+10. **The terminal wizard wrote invalid Nix** for a pasted SSH key (`\"…\"`
+    inside a heredoc). It now pipes the same JSON the web wizard posts to
+    `nixie-setup --configure`, so both wizards write the site with one piece
+    of code, and a failing phase's output stays on screen.
+11. **Named `nixos-minimal-26.05…-x86_64-linux.iso`.** In nixpkgs 26.05
+    `isoImage.isoName` is an alias of `image.fileName`, which the image
+    builder does not read; `image.baseName` is set to
+    `nixie_<lib.version>_<platform>`. The boot menu says Nixie, in the
+    Graphite finish with the Segment n mark (GRUB and syslinux), and the
+    console greeting no longer describes the NixOS installer's accounts.
+12. **GRUB stopped at "Press any key to continue"** with the first theme:
+    ImageMagick writes flat images as low-depth palette PNGs and GRUB reads
+    only 8 or 16 bits per channel. Written as PNG32; `checks.iso-grub-theme`
+    reads every PNG's depth.
+13. **Finish and phase 8 killed themselves.** Both switched to the normal
+    generation from inside `nixie-setup.service`, which that switch stops,
+    killing everything in its cgroup. Phase 8 applies guests and data only
+    (the host already runs the site's system) and Finish runs as the
+    transient unit `nixie-finish`.
+14. **`test-iso` could not have run**: the OVMF firmware is in the package's
+    `fd` output, QEMU no longer accepts `serial=` on `-drive`, `$(boot)`
+    waited for QEMU to exit because QEMU inherited its stdout, and the
+    installed system's prompts were never on the serial console it reads.
+
+Checks added or tightened: `checks.iso-config` (file name, both firmware
+kinds, the three entries and what each runs, `nix-command`, fontconfig; it
+fails with the BIOS entry turned off, tried), `checks.iso-grub-theme`,
+`vm-ui` and `vm-installer-lan` resolve each font from the stylesheet's own
+URL, and `vm-installer-lan` requires the kiosk to show the paired wizard
+without an address bar.
+
+PLACEHOLDER_RUNS
 
 ## Console
 

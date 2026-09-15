@@ -32,6 +32,7 @@
       nixosModules.nixie = import ./modules { inherit inputs self; };
       lib = {
         inherit (nixieLib) mkSite;
+        version = "0.1.0";
       };
       templates.site = {
         path = ./templates/site;

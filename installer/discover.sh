@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # Hardware facts as JSON for the wizard: disks, network ports, GPUs, TPM.
 set -euo pipefail
-disks=$(lsblk -J -d -b -o NAME,SIZE,MODEL,SERIAL,TYPE,PATH,TRAN | jq '[.blockdevices[] | select(.type == "disk")]')
+# Not offered: compressed swap in RAM (the installer's zram) and the medium
+# the installer was started from. A hybrid image written to a stick is mounted
+# from the whole disk and a CD from its drive, so the medium is that name or
+# its parent's.
+src=$(findmnt -no SOURCE /iso 2>/dev/null || true)
+boot=""; [ -z "$src" ] || boot=$(lsblk -no PKNAME "$src" 2>/dev/null | head -1 || true)
+[ -n "$boot" ] || [ -z "$src" ] || boot=$(basename "$src")
+disks=$(lsblk -J -d -b -o NAME,SIZE,MODEL,SERIAL,TYPE,PATH,TRAN | jq --arg boot "$boot" '[.blockdevices[] | select(.type == "disk" and (.name | startswith("zram") | not) and .name != $boot)]')
 byid=$(for l in /dev/disk/by-id/*; do
   [ -e "$l" ] || continue
   case "$l" in */wwn-*|*-part*|*/lvm-*|*/dm-*) continue ;; esac

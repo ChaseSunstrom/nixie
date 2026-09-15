@@ -1,8 +1,18 @@
+{ self }:
 { lib, ... }:
 let
   inherit (import ../lib/option.nix lib) mkOption;
 in
 {
+  # A site started on the installer names the platform by its store path, and
+  # `nixie apply` evaluates that site here, often offline; keeping the source
+  # in the system closure keeps the path valid. It also resolves
+  # `nix run nixie#deploy`.
+  config.nix.registry.nixie.to = {
+    type = "path";
+    path = self.outPath;
+  };
+
   options.nixie.site = {
     repo = mkOption {
       type = lib.types.nullOr lib.types.str;

@@ -165,6 +165,30 @@ def site_new(host, profile, settings, platform):
     sh(["git", "commit", "-qm", f"setup: host {host}"], cwd=site)
 
 
+def apply_config(b):
+    """The wizard's choices become state.json and the site's host entry. The
+    web wizard posts them to /api/config; the terminal wizard pipes the same
+    JSON to --configure, so both write the site the same way."""
+    host = b["host"]
+    write_state({
+        "host": host,
+        "profile": b["profile"],
+        "systemDisk": b["systemDisk"],
+        "dataDisk": b.get("dataDisk"),
+        "uplinks": b.get("uplinks", []),
+        "gpu": b.get("gpu", "none"),
+        "tpm": b.get("tpm", False),
+        "hostId": b.get("hostId"),
+        "options": {"secureBoot": bool(b.get("settings", {}).get("nixie.security.secureBoot.enable"))},
+    })
+    settings = dict(b.get("settings", {}))
+    settings["nixie.profile"] = b["profile"]
+    settings["nixie.host.name"] = host
+    # An existing site already declares the host; phase 1 only (re)writes hardware.nix.
+    if not b.get("existingSite"):
+        site_new(host, b["profile"], settings, ARGS.platform)
+
+
 # ------------------------------------------------------------- HTTP server
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "nixie-setup"
@@ -323,7 +347,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.site(b)
         if u.path == "/api/reboot":
             self.send_json({"ok": True})
-            threading.Timer(1.0, lambda: subprocess.Popen(["systemctl", "reboot"])).start()
+            threading.Timer(1.0, reboot).start()
             return
         if u.path == "/api/finish":
             return self.api_finish()
@@ -353,26 +377,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.send_json({"ok": True, "hosts": hosts})
 
     def configure(self, b):
-        host = b["host"]
-        st = {
-            "host": host,
-            "profile": b["profile"],
-            "systemDisk": b["systemDisk"],
-            "dataDisk": b.get("dataDisk"),
-            "uplinks": b.get("uplinks", []),
-            "gpu": b.get("gpu", "none"),
-            "tpm": b.get("tpm", False),
-            "hostId": b.get("hostId"),
-            "options": {"secureBoot": bool(b.get("settings", {}).get("nixie.security.secureBoot.enable"))},
-        }
-        write_state(st)
-        settings = dict(b.get("settings", {}))
-        settings["nixie.profile"] = b["profile"]
-        settings["nixie.host.name"] = host
-        if b.get("existingSite"):
-            pass  # the site already declares this host; only hardware.nix is (re)written by phase 1
-        else:
-            site_new(host, b["profile"], settings, ARGS.platform)
+        apply_config(b)
         return self.send_json({"ok": True})
 
     def run_phase(self, n, b):
@@ -412,11 +417,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # Not "finish": socketserver calls a method of that name after every request.
     def api_finish(self):
-        r = subprocess.run(["nixie-finish"], capture_output=True, text=True)
+        # Finishing switches to the normal generation, which stops this
+        # service and kills everything in its cgroup, so the script runs as a
+        # unit of its own and this answers before the switch gets here. A
+        # transient unit starts with systemd's bare PATH; it gets this one.
+        r = subprocess.run(["systemd-run", "--unit=nixie-finish", "--collect", f"--setenv=PATH={os.environ['PATH']}", shutil.which("nixie-finish")], capture_output=True, text=True)
         for f in os.listdir(keys_dir()):
             os.remove(os.path.join(keys_dir(), f))
         SECRETS.clear()
-        return self.send_json({"ok": r.returncode == 0, "output": (r.stdout + r.stderr)[-4000:]})
+        msg = "Finishing: this page closes when the normal system takes over; `journalctl -u nixie-finish` shows the steps."
+        return self.send_json({"ok": r.returncode == 0, "output": msg if r.returncode == 0 else r.stderr[-4000:]})
+
+
+def reboot():
+    # In the setup generation the machine must come back to itself: firmware
+    # that puts an attached installer first (VirtualBox does on every start)
+    # would boot that instead, so the next boot goes to the current entry.
+    # Phase 3 does the same for the first boot after installing.
+    if ARGS.mode == "continuation":
+        cur = sh(["efibootmgr"]).stdout
+        for line in cur.splitlines():
+            if line.startswith("BootCurrent:"):
+                sh(["efibootmgr", "-q", "--bootnext", line.split(":", 1)[1].strip()])
+    subprocess.Popen(["systemctl", "reboot"])
 
 
 class Server(http.server.ThreadingHTTPServer):
@@ -456,9 +479,13 @@ def banner(fp, ips):
         f"  Certificate fingerprint: {fp}",
         "", qr_text(urls[0]) if urls[0].startswith("https://") and "<" not in urls[0] else "", "",
     ])
-    for dest in ("/dev/console", "/dev/tty1"):
+    try:
+        consoles = open("/sys/class/tty/console/active").read().split()
+    except OSError:
+        consoles = ["console"]
+    for name in consoles:
         try:
-            with open(dest, "w") as f:
+            with open(f"/dev/{name}", "w") as f:
                 f.write(text)
         except OSError:
             pass
@@ -475,7 +502,7 @@ def main():
     ap.add_argument("--static", required=True)
     ap.add_argument("--options", required=True)
     ap.add_argument("--template", required=True)
-    ap.add_argument("--platform", default="path:/etc/nixie/platform")
+    ap.add_argument("--platform", required=True, help="flake URL a new site's nixie input points at")
     ap.add_argument("--site", default="/etc/nixie/site")
     ap.add_argument("--state-dir", default="/var/lib/nixie/setup")
     ap.add_argument("--cert-dir", default="/var/lib/nixie/setup-cert")
@@ -483,9 +510,12 @@ def main():
     ap.add_argument("--age-key", default=None)
     ap.add_argument("--toplevel", default=None)
     ap.add_argument("--disko", default=None)
+    ap.add_argument("--configure", action="store_true", help="read the wizard's choices as JSON on stdin, write state and site, exit")
     ARGS = ap.parse_args()
     ARGS.static = os.path.realpath(ARGS.static)
     os.makedirs(ARGS.state_dir, exist_ok=True)
+    if ARGS.configure:
+        return apply_config(json.load(sys.stdin))
     os.makedirs(os.path.dirname(ARGS.local_token), mode=0o700, exist_ok=True)
     with open(ARGS.local_token, "w") as f:
         f.write(secrets.token_urlsafe(24))

@@ -8,14 +8,15 @@
 let
   iso = inputs.nixpkgs.lib.nixosSystem {
     system = "x86_64-linux";
+    specialArgs.nixieVersion = self.lib.version;
     modules = [
       ../installer/iso.nix
       {
         nixie.installer.packages = packages;
-        nixie.installer.platform = self;
         nixpkgs.pkgs = pkgs;
       }
     ];
   };
 in
-iso.config.system.build.isoImage
+# The configuration rides along for checks.iso-config.
+iso.config.system.build.isoImage // { inherit (iso) config; }

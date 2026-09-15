@@ -17,6 +17,9 @@ target with the same markers under `/var/lib/nixie/setup/`. Generated files
 After the reboot, continue over SSH: `nixie-phase 4` … `nixie-phase 8`, then
 `nixie-finish`. With remote unlock on, the early-boot prompt is on port 2222.
 
-On the ISO itself, tty2 runs the same wizard as a terminal program
-(`nixie-deploy --local`); its menu can also set a root password to allow the
-headless path in.
+On the ISO itself the terminal wizard (`nixie-deploy --local`) is the
+**terminal** boot entry, on tty1, and Alt+F2 in the other two entries. It asks
+the same questions as the web wizard and writes the site with the same code;
+its menu can also set a root password to allow the headless path in. If a
+phase fails, its output stays on screen and choosing Install again skips the
+phases that finished.

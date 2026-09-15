@@ -89,23 +89,19 @@ in
         pkgs.cockpit-files
         pkgs.cockpit-podman
       ];
+      # Without these cockpit-ws refuses the browser's websocket with
+      # "received request from bad Origin" and the page, having logged the
+      # person in, says only "Connection failed". The list merges with the
+      # module's own localhost entry; setting WebService.Origins conflicts.
+      allowed-origins = [
+        "https://${config.nixie.host.name}:${port}"
+        "https://127.0.0.1:${port}"
+      ]
+      ++ cfg.extraOrigins;
       settings = {
         WebService = {
           AllowUnencrypted = false;
           LoginTitle = "nixie host";
-          # Without this cockpit-ws refuses the browser's websocket with
-          # "received request from bad Origin" and the page, having logged the
-          # person in, says only "Connection failed".
-          Origins = lib.concatStringsSep " " (
-            lib.unique (
-              [
-                "https://${config.nixie.host.name}:${port}"
-                "https://localhost:${port}"
-                "https://127.0.0.1:${port}"
-              ]
-              ++ cfg.extraOrigins
-            )
-          );
         };
         Session.IdleTimeout = 15;
       };
@@ -122,10 +118,16 @@ in
     # only auth rule is this one: no password is ever checked and every login
     # is refused before the second factor is asked for. A rule is added to
     # the stack instead, after pam_unix so the password is the first factor.
+    # The stack's pam_unix is `sufficient`, which ends authentication on a good
+    # password before any later rule runs, so here it is `required` and the
+    # code is `sufficient`: a good code finishes, a wrong one falls through to
+    # pam_deny. The rule is not named `oath`: nixpkgs has a disabled built-in
+    # rule of that name, and the two merged into one that never ran.
     security.pam.services.cockpit = lib.mkIf (config.nixie.auth.secondFactor == "totp") {
-      rules.auth.oath = {
+      rules.auth.unix.control = lib.mkForce "required";
+      rules.auth.nixie-totp = {
         order = config.security.pam.services.cockpit.rules.auth.unix.order + 10;
-        control = "required";
+        control = "sufficient";
         modulePath = "${pkgs.oath-toolkit}/lib/security/pam_oath.so";
         settings = {
           usersfile = "/run/nixie/oath/users";
