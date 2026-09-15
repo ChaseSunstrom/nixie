@@ -7,6 +7,13 @@ let
   inherit (import ../lib/option.nix lib) mkOption;
 
   cfg = config.nixie.auth;
+  # Accounts NixOS defines itself. The administrator is made a normal user,
+  # and on root that collided inside users-groups ("users.users.root.shell is
+  # defined multiple times") with nothing saying why.
+  reserved = [
+    "root"
+    "nobody"
+  ];
 in
 {
   options.nixie.auth = {
@@ -14,7 +21,8 @@ in
       type = lib.types.strMatching "^[a-z_][a-z0-9_-]{0,31}$";
       description = ''
         The one administrator account created at install. It can use sudo, log
-        in over SSH and open the web pages.
+        in over SSH and open the web pages. It cannot be root or nobody: the
+        administrator is a normal account of its own that uses sudo.
       '';
       nixieUi = {
         section = "auth";
@@ -86,12 +94,18 @@ in
 
   config = {
     users.mutableUsers = false;
-    users.users.${cfg.admin.name} = {
-      isNormalUser = true;
-      extraGroups = [ "wheel" ];
-      hashedPasswordFile = cfg.admin.passwordFile;
-      openssh.authorizedKeys.keys = cfg.sshKeys;
-    };
+    users.users.${
+      if lib.elem cfg.admin.name reserved then
+        throw "nixie.auth.admin.name cannot be \"${cfg.admin.name}\": the administrator is a normal account that uses sudo; choose another name"
+      else
+        cfg.admin.name
+    } =
+      {
+        isNormalUser = true;
+        extraGroups = [ "wheel" ];
+        hashedPasswordFile = cfg.admin.passwordFile;
+        openssh.authorizedKeys.keys = cfg.sshKeys;
+      };
     security.sudo.wheelNeedsPassword = true;
 
     services.openssh = {

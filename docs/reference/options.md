@@ -7,7 +7,8 @@ Generated from the module tree; the installer renders the same descriptions.
 *string matching the pattern ^[a-z_][a-z0-9_-]{0,31}$*, required. Wizard section: auth.
 
 The one administrator account created at install. It can use sudo, log
-in over SSH and open the web pages.
+in over SSH and open the web pages. It cannot be root or nobody: the
+administrator is a normal account of its own that uses sudo.
 
 ## `nixie.auth.admin.passwordFile`
 

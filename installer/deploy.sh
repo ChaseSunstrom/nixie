@@ -57,6 +57,10 @@ if [ "$local" = 1 ]; then
           ru=$(gum confirm "Remote unlock over SSH at boot?" && echo true || echo false)
         fi
         admin=$(ask "administrator user name" --value admin)
+        # The system's own accounts cannot be the administrator (modules/auth.nix).
+        until [[ $admin =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] && [ "$admin" != root ] && [ "$admin" != nobody ]; do
+          admin=$(ask "administrator user name (lowercase, not root or nobody)" --value admin)
+        done
         secret "administrator password" >/run/nixie/keys/admin-password
         keys=$(ask "SSH public key (optional, one)")
         # Remote unlock is an SSH login; without a key the system cannot be built.

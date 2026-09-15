@@ -815,6 +815,13 @@ both wizards now prevent. `tests/sites/wizard-server.nix` and
 `wizard-desktop.nix` put every wizard option on at once in `eval-matrix`;
 the desktop one fails against the committed platform (tried).
 
+Reported afterwards from VirtualBox (desktop, HyDE): phase 3 stopped with
+"`users.users.root.shell` is defined multiple times". Reproduced exactly by
+naming the administrator root, with or without HyDE; with "admin" the same
+site evaluates. The module now throws "nixie.auth.admin.name cannot be
+"root"…" before the collision (evaluated for root and nobody), and both
+wizards refuse those names.
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

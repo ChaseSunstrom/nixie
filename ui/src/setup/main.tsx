@@ -272,6 +272,14 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
       const needs = ["tpm", "attestation", "duress", "remoteUnlock"].filter((f) => on(`nixie.security.${f}.enable`));
       if (needs.length) out.push(`Needs disk encryption: ${needs.join(", ")}. Turn encryption on, or these off.`);
     }
+    // Fields restricted to a pattern say so in their type; a value that does
+    // not match would only fail when phase 3 evaluates the site.
+    for (const o of bySection[s.id] ?? []) {
+      const pat = /^string matching the pattern (.+)$/.exec(o.type)?.[1];
+      const v = values[o.path];
+      if (pat && typeof v === "string" && v && !new RegExp(pat).test(v)) out.push(`${o.path.replace(/^nixie\./, "")} must match ${pat}.`);
+    }
+    if (s.id === "auth" && ["root", "nobody"].includes(String(values["nixie.auth.admin.name"]))) out.push("The administrator cannot be root or nobody: it is a normal account of its own that uses sudo.");
     if (s.id === "network" && values["nixie.network.egress"] === "exit-node") {
       if (values["nixie.network.bridge.mode"] !== "managed-nat") out.push("Exit-node egress needs the managed-nat bridge mode.");
       if (!on("nixie.network.tailscale.enable")) out.push("Exit-node egress needs Tailscale.");
@@ -329,6 +337,7 @@ Run this step: it tells you which of these is still missing, and asks for a rebo
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
             {(bySection.auth ?? []).filter((o) => !o.path.includes("passwordFile") && !o.path.includes("totpSecretFile")).map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
+            {problems().map((m) => <p key={m} className="caption" style={{ color: "var(--err)" }}>{m}</p>)}
             {Boolean(values["nixie.security.remoteUnlock.enable"]) && !(Array.isArray(values["nixie.auth.sshKeys"]) && (values["nixie.auth.sshKeys"] as string[]).length > 0) && <p className="caption" style={{ color: "var(--err)" }}>Remote unlock is on: add at least one SSH public key, the one you will unlock with.</p>}
             <Field label={SECRET_LABEL.password}><input className="input" type="password" value={secrets.password ?? ""} onChange={(e) => setSecrets({ ...secrets, password: e.target.value })} /></Field>
             {values["nixie.auth.secondFactor"] === "totp" && (

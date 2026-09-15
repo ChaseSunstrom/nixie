@@ -79,6 +79,12 @@ History dated every generation 1970. The wizard offered TPM features on
 machines without one, showed the Tailscale key file path and hid list
 defaults, and a new site's files kept the store's read-only modes.
 
+An administrator named root (or nobody) stopped the install with
+"users.users.root.shell is defined multiple times": the platform makes the
+administrator a normal user, which on root collides with NixOS's own
+definition. Both wizards refuse those names, the web wizard checks every
+pattern-restricted field before phase 3, and the module says why.
+
 The control panel has a Settings button: the finish, header figures, the
 starting time range, the Overview panels' order, width and visibility, the
 navigation and extra links, kept on the host for every browser.
