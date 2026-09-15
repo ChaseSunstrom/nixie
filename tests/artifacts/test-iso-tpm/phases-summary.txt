@@ -1,0 +1,32 @@
+"[nixie 1] starting"
+"[nixie 1] wrote /etc/nixie/site/hosts/iso-test/hardware.nix"
+"[nixie 1] done"
+{"rc": 0, "done": [1]}
+"[nixie 2] starting"
+"[nixie 2] wrote /etc/nixie/site/secrets/iso-test.yaml (recipients age1j808z69y9869tjm8jqe0ykp3vp0tlus5cxndvg85sh5n3a76a5lscm7tut)"
+"[nixie 2] done"
+{"rc": 0, "done": [1, 2]}
+"[nixie 3] starting"
+"[nixie 3] evaluating iso-test from /etc/nixie/site"
+"[nixie 3] partitioning and formatting"
+"[nixie 3] duress passphrase enrolled in slot 7 of /dev/mapper/rpool-outer"
+"[nixie 3] installing iso-test from the site (built on the target disk)"
+"[nixie 3] done"
+"[nixie 3] installed; reboot into the new system"
+{"rc": 0, "done": [1, 2, 3]}
+"[nixie 4] already done, skipping"
+{"rc": 0, "done": [1, 2, 3, 4, 5]}
+"[nixie 5] already done, skipping"
+{"rc": 0, "done": [1, 2, 3, 4, 5]}
+"[nixie 6] starting"
+"[nixie 6] outer layer bound to TPM (PCRs 7) with PIN"
+"[nixie 6] recovery key (shown once, write it down): <redacted>"
+"[nixie 6] TPM lockout password set"
+"[nixie 6] attestation secret created; show /run/nixie/keys/attestation-qr to the person once"
+"[nixie 6] header backup bundle at /var/lib/nixie/setup/header-backup.tar.age"
+"[nixie 6] done"
+{"rc": 0, "done": [1, 2, 3, 4, 5, 6]}
+"[nixie 7] already done, skipping"
+{"rc": 0, "done": [1, 2, 3, 4, 5, 6, 7]}
+"[nixie 8] starting"
+{"rc": 0, "done": [1, 2, 3, 4, 5, 6, 7, 8]}

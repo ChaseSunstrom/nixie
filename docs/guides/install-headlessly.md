@@ -20,6 +20,9 @@ After the reboot, continue over SSH: `nixie-phase 4` … `nixie-phase 8`, then
 On the ISO itself the terminal wizard (`nixie-deploy --local`) is the
 **terminal** boot entry, on tty1, and Alt+F2 in the other two entries. It asks
 the same questions as the web wizard and writes the site with the same code;
-its menu can also set a root password to allow the headless path in. If a
-phase fails, its output stays on screen and choosing Install again skips the
-phases that finished.
+its menu can also set a root password to allow the headless path in. Before
+anything is erased it offers to edit the site's files in `$EDITOR` (nano by
+default) and checks that the host evaluates. If a phase fails, its output
+stays on screen and choosing Install again skips the phases that finished.
+After the restart, the terminal setup runs phases 4 to 8 by itself the same
+way the web page does.

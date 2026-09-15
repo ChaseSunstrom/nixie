@@ -126,7 +126,8 @@ pkgs.testers.runNixOSTest {
         installer.wait_for_unit("cage-tty1.service")
         # Paired by the local token: the pairing form would ask for a code that
         # is printed on the console behind the kiosk.
-        installer.wait_for_text("Profile", timeout=300)
+        # The first step and its choices, drawn large enough to read back.
+        installer.wait_for_text("(Machine|Server|Desktop)", timeout=300)
         installer.screenshot("kiosk-wizard")
         # The wizard alone, not a browser window: its address bar shows the URL.
         screen = installer.get_screen_text()

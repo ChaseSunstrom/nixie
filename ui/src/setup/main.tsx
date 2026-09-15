@@ -1,58 +1,54 @@
 // The installer wizard: every step is an option section or a phase, rendered
 // from the option metadata the backend serves. It never does anything the
 // CLI cannot; it only calls the phase scripts.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { applyFinish, finishes, type Finish } from "../tokens";
-import { Mark, Panel, Toggle, Field } from "../components/ui";
-import { api, type Opt, type Hardware, type State } from "./api";
+import { applyFinish } from "../tokens";
+import { Mark, Field } from "../components/ui";
+import { api, type Opt, type Hardware, type State, type SiteFile, type Check } from "./api";
+import { OptionGroup } from "./fields";
+import { Checklist, Continuation, Log, type Item } from "./Checklist";
 import "../tokens/base.css";
+import "./setup.css";
 
-const SECTIONS: { id: string; title: string; blurb: string }[] = [
-  { id: "profile", title: "Profile", blurb: "What this machine is for." },
-  { id: "hardware", title: "Hardware", blurb: "The disk to install on, the ports that join the bridge, what was found." },
-  { id: "site", title: "Site", blurb: "Where this machine's configuration lives: a new site here, a git URL, or an upload." },
-  { id: "security", title: "Security", blurb: "Each feature is optional. Turning one on later is a config change and an apply, except full-disk encryption." },
-  { id: "auth", title: "Authentication", blurb: "The administrator account, keys, and the second factor for the host page." },
-  { id: "network", title: "Network", blurb: "Name, bridge, address, Tailscale and where guests go out." },
-  { id: "desktop", title: "Desktop", blurb: "The session, look and packages." },
-  { id: "review", title: "Review", blurb: "The files that will be written: the same a Nix user writes by hand." },
-  { id: "install", title: "Install", blurb: "Partition, format and install, then reboot into the setup generation." },
+// CodeMirror is most of the bundle and only the review step needs it.
+const Editor = lazy(() => import("./Editor").then((m) => ({ default: m.Editor })));
+
+const STEPS: { id: string; title: string; blurb: string }[] = [
+  { id: "profile", title: "Machine", blurb: "What this machine is for." },
+  { id: "hardware", title: "Disks", blurb: "Where to install, and what else was found." },
+  { id: "site", title: "Name", blurb: "This machine's name, and where its configuration lives." },
+  { id: "security", title: "Security", blurb: "Disk encryption and the administrator. Everything but encryption can change after install." },
+  { id: "network", title: "Network", blurb: "Time zone, Tailscale and the guest network." },
+  { id: "services", title: "Services", blurb: "Backups, monitoring and the host page. Each is off until you turn it on." },
+  { id: "desktop", title: "Desktop", blurb: "The look, the keyboard and the apps." },
+  { id: "review", title: "Review", blurb: "What you chose and the files it wrote. Change anything before installing." },
+  { id: "install", title: "Install", blurb: "Erase the disk, install, and restart into setup." },
 ];
-const CONT = [
-  { n: 4, title: "First boot", blurb: "The installed system is up." },
-  { n: 5, title: "Secure Boot", blurb: "Enrol the keys from Setup Mode." },
-  { n: 6, title: "TPM and attestation", blurb: "Bind the outer layer to this machine with a PIN, start attestation, save the header backup." },
-  { n: 7, title: "Verify", blurb: "Reboot and prove every feature did its job." },
-  { n: 8, title: "Apply", blurb: "Guests, data and services from the site." },
-];
-// A desktop has no guest bridge and no Incus; NetworkManager configures it.
-const SERVER_ONLY = /^nixie\.(incus\.|network\.(address|gateway|dns|bridge\.|egress|exitNode))/;
+// Which option sections each step shows; the other steps are drawn by hand.
+const STEP_SECTIONS: Record<string, string[]> = { site: ["site"], security: ["security", "auth"], network: ["network"], services: ["services"], desktop: ["desktop"] };
+// A desktop has no guest bridge, Incus or front panel; NetworkManager configures it.
+const SERVER_ONLY = /^nixie\.(incus\.|console\.|network\.(address|gateway|dns|bridge\.|egress|exitNode))/;
 // Without a TPM these cannot work, so the step does not offer them.
 const TPM_ONLY = /^nixie\.security\.(tpm|attestation)\./;
-// Set by the wizard itself from what is typed elsewhere on the page.
-const WIZARD_WRITES = ["nixie.network.tailscale.authKeyFile"];
-const SECRET_LABEL: Record<string, string> = { passphrase: "Disk passphrase (asked every boot)", pin: "TPM PIN", duress: "Duress passphrase (destroys the disk if typed at boot)", tailscale: "Tailscale auth key", password: "Administrator password" };
+// Set by the wizard itself, or asked for as a secret instead of a path.
+const NOT_FIELDS = ["nixie.network.tailscale.authKeyFile", "nixie.host.name", "nixie.auth.admin.passwordFile", "nixie.auth.totpSecretFile"];
+const SECRET_LABEL: Record<string, string> = { passphrase: "Disk passphrase, asked at every start", pin: "TPM PIN", duress: "Duress passphrase: typed at start, it destroys the disk", tailscale: "Tailscale auth key", password: "Administrator password" };
+const HOST_NAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+const HYDE = "nixie.desktop.hyde.enable";
+// HyDE brings its own look and keyboard settings; these apply to the Nixie desktop only.
+const NIXIE_DESKTOP_ONLY = /^nixie\.desktop\.(finish|wallpaper|keyboard\.|monitors)/;
 
-function Bytes({ b }: { b: number }) {
-  return <span className="mono">{(b / 1e9).toFixed(0)} GB</span>;
-}
+const gb = (b: number) => `${(b / 1e9).toFixed(0)} GB`;
+const show = (v: unknown): string => (v === true ? "On" : v === false ? "Off" : v == null || v === "" ? "—" : Array.isArray(v) ? (v.length ? v.join(", ") : "—") : String(v));
 
-function OptionField({ o, value, onChange }: { o: Opt; value: unknown; onChange: (v: unknown) => void }) {
-  const desc = <div className="caption" style={{ whiteSpace: "pre-line", maxWidth: 640 }}>{o.description.trim()}</div>;
-  const name = o.path.replace(/^nixie\./, "");
-  // Structured entries (monitors) have no form here; the site file takes them.
-  if (o.type.includes("submodule")) return null;
-  if (o.type === "boolean") return <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><Toggle on={Boolean(value)} onChange={onChange} label={<span style={{ fontWeight: 500 }}>{name}</span>} />{desc}</div>;
-  if (o.values.length) return <Field label={name}><div className="tray" style={{ alignSelf: "flex-start" }}>{o.values.map((v) => <button key={v} className="seg" aria-pressed={value === v} onClick={() => onChange(v)}>{v}</button>)}</div>{desc}</Field>;
-  if (o.type.startsWith("list of")) return <Field label={`${name} (one per line)`}><textarea className="input" rows={3} value={Array.isArray(value) ? value.join("\n") : ""} onChange={(e) => { const l = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean); onChange(o.type.includes("integer") ? l.map(Number).filter(Number.isInteger) : l); }} />{desc}</Field>;
-  if (o.type.includes("integer") || o.type.includes("port")) return <Field label={name}><input className="input mono" type="number" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />{desc}</Field>;
-  return <Field label={name}><input className="input mono" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value || null)} />{desc}</Field>;
-}
+// A value as Nix, for the option list's Add (strings escape `${`).
+const nix = (v: unknown): string =>
+  v === null || v === undefined ? "null" : typeof v === "string" ? JSON.stringify(v).replace(/\$\{/g, "\\${") : Array.isArray(v) ? `[ ${v.map(nix).join(" ")} ]` : typeof v === "object" ? `{ ${Object.entries(v).map(([k, x]) => `${JSON.stringify(k)} = ${nix(x)};`).join(" ")} }` : String(v);
 
 function Wizard() {
-  const [finish, setFinish] = useState<Finish>("graphite");
-  useEffect(() => { applyFinish(finish); }, [finish]);
+  // Setup keeps one look; the machine's own finish is a choice in its configuration.
+  useEffect(() => { applyFinish("graphite"); }, []);
   const [paired, setPaired] = useState<boolean | null>(null);
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
@@ -63,6 +59,7 @@ function Wizard() {
   // the hardware…" for ever with the reason thrown away.
   const [hwErr, setHwErr] = useState("");
   const [step, setStep] = useState(0);
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [host, setHost] = useState("");
@@ -72,15 +69,24 @@ function Wizard() {
   const [siteMode, setSiteMode] = useState<"new" | "clone" | "upload">("new");
   const [siteUrl, setSiteUrl] = useState("");
   const [siteHosts, setSiteHosts] = useState<string[]>([]);
-  const [plan, setPlan] = useState<{ hardware: string; site: string } | null>(null);
   const [lines, setLines] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [running, setRunning] = useState<number | null>(null);
+  const [failed, setFailed] = useState<number | null>(null);
   const [totp, setTotp] = useState<{ uri: string; qr: string; secret: string } | null>(null);
   const [totpCode, setTotpCode] = useState("");
   const [totpOk, setTotpOk] = useState(false);
-  const [attest, setAttest] = useState("");
-  const [recovery, setRecovery] = useState<{ key: string; qr: string }>({ key: "", qr: "" });
-  const logRef = useRef<HTMLPreElement>(null);
+  // The review step: the site's files as written, the edits on top, and
+  // whether the last evaluation passed with no edit since.
+  const [tab, setTab] = useState<"summary" | "files" | "options">("summary");
+  const [files, setFiles] = useState<SiteFile[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [openFile, setOpenFile] = useState("site.nix");
+  const [check, setCheck] = useState<Check | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [edits, setEdits] = useState(0);
+  const [checkedEdits, setCheckedEdits] = useState(-1);
+  const [query, setQuery] = useState("");
 
   const refresh = () => api.state().then(setSt).catch(() => undefined);
   useEffect(() => {
@@ -103,307 +109,447 @@ function Wizard() {
       .then((h) => ((h as unknown as { error?: string }).error ? setHwErr((h as unknown as { error: string }).error) : setHw(h)))
       .catch((e) => setHwErr((e as Error).message));
   }, [paired]);
-  useEffect(() => { logRef.current?.scrollTo(0, logRef.current.scrollHeight); }, [lines]);
 
   const profile = (values["nixie.profile"] as string) ?? "server";
-  const bySection = useMemo(() => {
-    const m: Record<string, Opt[]> = {};
-    for (const o of opts) if (o.section) (m[o.section] ??= []).push(o);
-    for (const k in m) m[k].sort((a, b) => a.order - b.order);
-    return m;
-  }, [opts]);
-  const enabledSteps = SECTIONS.filter((s) => s.id !== "desktop" || profile === "desktop");
+  const steps = STEPS.filter((s) => s.id !== "desktop" || profile === "desktop");
   const set = (k: string, v: unknown) => setValues((x) => ({ ...x, [k]: v }));
+  const offered = (o: Opt) => !NOT_FIELDS.includes(o.path) && !(profile === "desktop" && SERVER_ONLY.test(o.path)) && !(hw && !hw.tpm && TPM_ONLY.test(o.path));
+  const stepOpts = useMemo(() => {
+    const m: Record<string, Opt[]> = {};
+    for (const [id, sections] of Object.entries(STEP_SECTIONS))
+      m[id] = sections.flatMap((sec) => opts.filter((o) => o.section === sec && offered(o)).sort((a, b) => a.order - b.order));
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opts, profile, hw]);
   const secretsNeeded = useMemo(() => {
     const need = new Set<string>(["password"]);
-    for (const o of opts) if (o.secret && o.secret !== "password" && values[o.path] === true) need.add(o.secret);
-    if (values["nixie.network.tailscale.enable"] && values["nixie.network.tailscale.authKeyFile"]) need.add("tailscale");
+    for (const o of opts) if (o.secret && o.secret !== "password" && values[o.path] === true && offered(o)) need.add(o.secret);
     return [...need];
-  }, [opts, values]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opts, values, profile, hw]);
 
   const run = async (n: number, body: Record<string, unknown> = {}) => {
     setBusy(true);
     setErr("");
+    setRunning(n);
+    setFailed(null);
     setLines((l) => [...l, `▶ phase ${n}`]);
-    // A failing phase says why in its last lines; before the Install step
-    // the log is not on screen, so they become the step's error.
+    // A failing phase says why in its last lines; they become the step's error.
     const out: string[] = [];
     try {
       const r = await api.phase(n, body, (line) => { out.push(line); setLines((l) => [...l, line]); });
       setLines((l) => [...l, r.rc === 0 ? `✓ phase ${n} done` : `phase ${n} exited ${r.rc}`]);
-      if (r.rc !== 0 && r.rc !== 10) setErr(out.slice(-3).join("\n") || `phase ${n} exited ${r.rc}`);
+      if (r.rc !== 0 && r.rc !== 10 && r.rc !== 11) { setErr(out.slice(-3).join("\n") || `phase ${n} exited ${r.rc}`); setFailed(n); }
       await refresh();
       return r.rc;
     } catch (e) {
       setLines((l) => [...l, `error: ${(e as Error).message}`]);
+      setErr((e as Error).message);
+      setFailed(n);
       return 1;
     } finally {
+      setRunning(null);
       setBusy(false);
     }
+  };
+
+  const evaluate = async (at: number) => {
+    setChecking(true);
+    try {
+      setCheck(await api.check());
+      setCheckedEdits(at);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  };
+  // Saves what changed, then evaluates the host as phase 3 will.
+  const saveAndCheck = async () => {
+    setErr("");
+    const at = edits;
+    try {
+      for (const f of files) if (drafts[f.path] !== f.content) await api.saveFile(f.path, drafts[f.path]);
+    } catch (e) {
+      return setErr((e as Error).message);
+    }
+    setFiles((fs) => fs.map((f) => ({ ...f, content: drafts[f.path] ?? f.content })));
+    await evaluate(at);
   };
 
   const submitConfig = async () => {
     const settings: Record<string, unknown> = {};
     for (const o of opts) {
-      if (!o.section || o.path === "nixie.profile" || o.path === "nixie.host.name") continue;
-      if (o.section === "hardware") continue;
+      if (!o.section || o.section === "hardware" || o.path === "nixie.profile" || !offered(o)) continue;
       if (o.section === "desktop" && profile !== "desktop") continue;
-      if (profile === "desktop" && SERVER_ONLY.test(o.path)) continue;
       const v = values[o.path];
       if (v === undefined || v === null || v === o.default || (Array.isArray(v) && v.length === 0 && Array.isArray(o.default) && o.default.length === 0)) continue;
       settings[o.path] = v;
     }
-    const tsKey = secrets["tailscale"];
+    const tsKey = values["nixie.network.tailscale.enable"] ? secrets.tailscale : "";
     if (tsKey) settings["nixie.network.tailscale.authKeyFile"] = "/var/lib/nixie/tailscale.key";
     await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "", duress: secrets.duress ?? "", "admin-password": secrets.password ?? "", "tailscale.key": tsKey ?? "" });
     await api.config({ host, profile, systemDisk: disk, dataDisk: dataDisk || null, uplinks: profile === "server" ? uplinks : [], gpu: hw?.gpu ?? "none", tpm: hw?.tpm ?? false, settings, existingSite: siteMode !== "new" && siteHosts.includes(host) });
     if ((await run(1)) !== 0) return false;
-    setPlan(await api.plan());
+    const f = (await api.files()).files;
+    setFiles(f);
+    setDrafts(Object.fromEntries(f.map((x) => [x.path, x.content])));
+    setOpenFile((p) => (f.some((x) => x.path === p) ? p : f[0]?.path ?? ""));
+    setCheck(null);
+    setEdits(0);
+    setCheckedEdits(-1);
+    setTab("summary");
     return true;
   };
 
-  if (paired === null) return <div className="empty">…</div>;
+  if (paired === null) return <div className="boot"><Mark size={44} /></div>;
   if (!paired) {
+    const pair = () => api.pair(code).then(() => location.reload()).catch((x) => setErr(x.message));
     return (
-      <div style={{ maxWidth: 480, margin: "80px auto" }}>
-        <Panel title="Pair this browser" sub="the code is on the machine's screen">
-          <p className="caption">Compare the certificate fingerprint your browser shows with the one printed next to the code, then enter the code. It works once.</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input className="input mono" autoFocus placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && api.pair(code).then(() => location.reload()).catch((x) => setErr(x.message))} />
-            <button className="btn primary" onClick={() => api.pair(code).then(() => location.reload()).catch((x) => setErr(x.message))}>Pair</button>
+      <div className="pair">
+        <div className="panel pair-card">
+          <div className="brand-row"><Mark size={30} /><span className="wordmark">nixie</span><span className="chip">setup</span></div>
+          <h1 className="title">Pair this browser</h1>
+          <p className="caption">Check that the certificate fingerprint your browser shows matches the one on the machine's screen, then type the code shown next to it. It works once.</p>
+          <div className="row">
+            <input className="input mono code" autoFocus inputMode="numeric" placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && pair()} />
+            <button className="btn primary" onClick={pair}>Pair</button>
           </div>
-          {err && <p style={{ color: "var(--err)" }}>{err}</p>}
-        </Panel>
+          {err && <p className="notice err">{err}</p>}
+        </div>
       </div>
     );
   }
-  const cont = st?.mode === "continuation";
   const done = st?.done ?? [];
-  const features = (st?.layout?.features ?? {}) as Record<string, boolean>;
 
-  const header = (
-    <header className="header" style={{ gridTemplateColumns: "auto 1fr auto" }}>
-      <div className="brand"><Mark /><span className="wordmark">nixie</span><span className="chip" style={{ fontSize: 10 }}>setup</span>{cont && st?.state?.host ? <span className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{String(st.state.host)} · {String(st.state.profile ?? "")}</span> : null}</div>
-      <div style={{ display: "flex", alignItems: "center", padding: "0 20px", gap: 20 }} className="muted">
-        {cont ? CONT.map((c) => <span key={c.n} style={{ color: done.includes(c.n) ? "var(--ok)" : "inherit" }}>{done.includes(c.n) ? "✓ " : ""}{c.title}</span>) : enabledSteps.map((s, i) => <span key={s.id} style={{ color: i === step ? "var(--ink)" : i < step ? "var(--ok)" : "inherit", borderBottom: i === step ? "2px solid var(--brand2)" : "none" }}>{s.title}</span>)}
-      </div>
-      <div className="header-right"><div className="tray">{finishes.map((f) => <button key={f} className="swatch" aria-pressed={finish === f} aria-label={f} onClick={() => setFinish(f)} style={{ background: f === "graphite" ? "#1f2226" : f === "umber" ? "#231b16" : "#e4e1da" }} />)}</div></div>
-    </header>
-  );
-  const log = <pre ref={logRef} className="well term" style={{ maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", fontSize: 12 }}>{lines.join("\n") || "output appears here"}</pre>;
-
-  if (cont) {
-    const next = CONT.find((c) => !done.includes(c.n));
-    // Success ends this page with the service; a failure leaves it up, so it
-    // has to say why here rather than only in the journal.
-    const finishSetup = () => {
-      setBusy(true);
-      setErr("");
-      api.finish().then((r) => {
-        setLines((l) => [...l, r.output]);
-        if (!r.ok) return setBusy(false);
-        const t = setInterval(() => api.finishStatus().then((s) => {
-          if (!s.failed) return;
-          clearInterval(t);
-          setLines((l) => [...l, ...s.lines]);
-          setErr("Finish stopped; the lines above say why. Fix the site and press Finish again.");
-          setBusy(false);
-        }).catch(() => undefined), 3000);
-      }).catch((e) => { setErr((e as Error).message); setBusy(false); });
-    };
+  if (st?.mode === "continuation") {
+    const count = done.filter((n) => n >= 4).length;
     return (
-      <div className="app" style={{ gridTemplateRows: "64px 1fr" }}>
-        {header}
-        <main className="page" style={{ maxWidth: 900, width: "100%", margin: "0 auto" }}>
-          {!next ? (
-            <Panel title="Finished" sub="the machine is yours">
-              <p>Every phase is done. Finish switches to the normal system, removes the setup generation and this page; from then on the control panel is the only web page on this host.</p>
-              <button className="btn primary" disabled={busy} onClick={finishSetup}>Finish</button>
-              {log}
-              {err && <p style={{ color: "var(--err)", whiteSpace: "pre-wrap" }}>{err}</p>}
-            </Panel>
-          ) : (
-            <Panel title={`${next.n}. ${next.title}`} sub={next.blurb}>
-              {((next.n === 5 && !features.secureBoot) || (next.n === 6 && !features.encryption)) && (
-                <p className="caption">{next.n === 5 ? "Secure Boot is not enabled on this host" : "The disk is not encrypted"}, so this step only records that it is done.</p>
-              )}
-              {next.n === 5 && features.secureBoot && (
-                <div className="caption" style={{ whiteSpace: "pre-line" }}>
-                  {`Setup Mode checklist, in the firmware setup (usually F2 or Del at power-on):
-1. Secure Boot: enabled.
-2. Delete or clear all Secure Boot keys, which puts the firmware in Setup Mode.
-3. Save and reboot; systemd-boot enrols the keys on that boot.
-Run this step: it tells you which of these is still missing, and asks for a reboot when the keys are staged.`}
-                </div>
-              )}
-              {next.n === 6 && features.encryption && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {features.encryption && <Field label={SECRET_LABEL.passphrase}><input className="input" type="password" value={secrets.passphrase ?? ""} onChange={(e) => setSecrets({ ...secrets, passphrase: e.target.value })} /></Field>}
-                  {features.tpm && <Field label={SECRET_LABEL.pin}><input className="input" type="password" value={secrets.pin ?? ""} onChange={(e) => setSecrets({ ...secrets, pin: e.target.value })} /></Field>}
-                  <Field label="Also copy the header backup to this path (a USB stick), optional"><input className="input mono" value={(values.backupDest as string) ?? ""} onChange={(e) => set("backupDest", e.target.value)} /></Field>
-                </div>
-              )}
-              {recovery.key && <div><div className="caption">The recovery key opens the disk when the TPM cannot. Write it down or scan it now; it is shown once and never stored on this machine.</div><pre className="well term" style={{ fontSize: 10, lineHeight: 1 }}>{recovery.qr}</pre><pre className="well mono">{recovery.key}</pre></div>}
-              {attest && <div><div className="caption">Scan this with your authenticator app now; it is shown once.</div><pre className="well term" style={{ fontSize: 10, lineHeight: 1 }}>{attest}</pre></div>}
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <button className="btn primary" disabled={busy} onClick={async () => {
-                  if (next.n === 6) await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "" });
-                  const rc = await run(next.n, next.n === 6 ? { backupDest: values.backupDest } : {});
-                  if (next.n === 6 && rc === 0) api.attestation().then((a) => { setAttest(a.text); setRecovery({ key: a.recovery, qr: a.recoveryQr }); });
-                  if ((next.n === 5 && rc === 10) || (next.n === 6 && rc === 0 && (features.tpm || features.attestation))) setLines((l) => [...l, "Reboot to continue."]);
-                }}>Run</button>
-                <button className="btn" onClick={() => api.reboot()}>Reboot</button>
-                {done.includes(6) && <a className="btn" href="/api/download/header-backup" download>Download header backup</a>}
-              </div>
-              {log}
-            </Panel>
-          )}
+      <div className="wizard">
+        <header className="wizard-head">
+          <div className="brand-row"><Mark /><span className="wordmark">nixie</span><span className="chip">setup</span><span className="muted host">{String(st.state.host ?? "")} · {String(st.state.profile ?? "")}</span></div>
+          <div className="progress"><i style={{ transform: `scaleX(${count / 5})` }} /></div>
+        </header>
+        <main className="wizard-main">
+          <div className="wizard-body">
+            <Continuation st={st} run={run} busy={busy} setBusy={setBusy} lines={lines} setLines={setLines} err={err} setErr={setErr} failed={failed} running={running} />
+          </div>
         </main>
       </div>
     );
   }
 
-  const s = enabledSteps[step];
+  const s = steps[step];
+  // Once the disk is erased there is no going back to change it.
+  const locked = busy || done.includes(3);
+  const go = (i: number) => { setErr(""); setDir(i < step ? "back" : "fwd"); setStep(i); };
+  const on = (p: string) => Boolean(values[p]);
   // Combinations the modules refuse, caught here instead of failing phase 3.
   const problems = (): string[] => {
-    const on = (p: string) => Boolean(values[p]);
     const out: string[] = [];
-    if (s.id === "security" && !on("nixie.security.encryption.enable")) {
-      const needs = ["tpm", "attestation", "duress", "remoteUnlock"].filter((f) => on(`nixie.security.${f}.enable`));
-      if (needs.length) out.push(`Needs disk encryption: ${needs.join(", ")}. Turn encryption on, or these off.`);
+    if (s.id === "security") {
+      if (!on("nixie.security.encryption.enable")) {
+        const needs = ["tpm", "attestation", "duress", "remoteUnlock"].filter((f) => on(`nixie.security.${f}.enable`));
+        if (needs.length) out.push(`These need disk encryption: ${needs.join(", ")}. Turn encryption on, or these off.`);
+      }
+      if (["root", "nobody"].includes(String(values["nixie.auth.admin.name"]))) out.push("The administrator cannot be root or nobody: it is a normal account of its own that uses sudo.");
+      // Remote unlock is an SSH login, so it needs a key to log in with.
+      const keys = values["nixie.auth.sshKeys"];
+      if (on("nixie.security.remoteUnlock.enable") && !(Array.isArray(keys) && keys.length > 0)) out.push("Unlock over SSH is on: add the SSH public key you will unlock with.");
     }
     // Fields restricted to a pattern say so in their type; a value that does
     // not match would only fail when phase 3 evaluates the site.
-    for (const o of bySection[s.id] ?? []) {
+    for (const o of stepOpts[s.id] ?? []) {
       const pat = /^string matching the pattern (.+)$/.exec(o.type)?.[1];
       const v = values[o.path];
-      if (pat && typeof v === "string" && v && !new RegExp(pat).test(v)) out.push(`${o.path.replace(/^nixie\./, "")} must match ${pat}.`);
+      if (pat && typeof v === "string" && v && !new RegExp(pat).test(v)) out.push(`${o.label ?? o.path} must match ${pat}.`);
     }
-    if (s.id === "auth" && ["root", "nobody"].includes(String(values["nixie.auth.admin.name"]))) out.push("The administrator cannot be root or nobody: it is a normal account of its own that uses sudo.");
     if (s.id === "network" && values["nixie.network.egress"] === "exit-node") {
-      if (values["nixie.network.bridge.mode"] !== "managed-nat") out.push("Exit-node egress needs the managed-nat bridge mode.");
-      if (!on("nixie.network.tailscale.enable")) out.push("Exit-node egress needs Tailscale.");
-      if (!values["nixie.network.exitNode"]) out.push("Exit-node egress needs the exit node's name.");
+      if (values["nixie.network.bridge.mode"] !== "managed-nat") out.push("Guests going out through an exit node need the private guest network (managed-nat).");
+      if (!on("nixie.network.tailscale.enable")) out.push("Going out through an exit node needs Tailscale.");
+      if (!values["nixie.network.exitNode"]) out.push("Name the exit node.");
     }
     return out;
   };
+  // A step's options as the step shows them: under HyDE, not the Nixie desktop's own.
+  const shownOpts = (id: string) => (stepOpts[id] ?? []).filter((o) => o.path !== HYDE && !(id === "desktop" && on(HYDE) && NIXIE_DESKTOP_ONLY.test(o.path)));
+  const secretField = (k: string) => <Field key={k} label={SECRET_LABEL[k] ?? k}><input className="input" type="password" autoComplete="new-password" value={secrets[k] ?? ""} onChange={(e) => setSecrets({ ...secrets, [k]: e.target.value })} /></Field>;
+  const dirty = files.some((f) => drafts[f.path] !== f.content);
+  const checkOk = Boolean(check?.ok) && checkedEdits === edits && !dirty;
+
+  const diskRow = (d: Hardware["disks"][number], name: string, checked: boolean, pick: () => void) => (
+    <label key={d.path} className="choice" data-on={checked}>
+      <input type="radio" name={name} checked={checked} onChange={pick} />
+      <span className="mono">{d.id ?? d.path}</span>
+      <span className="mono muted">{gb(d.size)}</span>
+      <span className="muted">{d.model ?? ""}</span>
+    </label>
+  );
+
+  const summary = () => {
+    const shown = (id: string) => shownOpts(id).filter((o) => !o.type.includes("submodule") && (!o.advanced || JSON.stringify(values[o.path]) !== JSON.stringify(o.default)));
+    const fixed: Record<string, [string, string][]> = {
+      profile: [["What this machine is for", profile === "server" ? "Server" : "Desktop"]],
+      desktop: [["Desktop", on(HYDE) ? "HyDE" : "Nixie desktop"]],
+      hardware: [["Install on", disk], ["Data disk", dataDisk || "—"], ...(profile === "server" ? [["Network ports for guests", uplinks.join(", ") || "—"] as [string, string]] : [])],
+      site: [["Host name", host], ["Configuration", siteMode === "new" ? "Start new" : siteMode === "clone" ? siteUrl : "Uploaded"]],
+    };
+    return (
+      <div className="summary">
+        {steps.filter((x) => x.id !== "review" && x.id !== "install").map((x) => {
+          const rows = [...(fixed[x.id] ?? []), ...(x.id === "site" && siteMode !== "new" ? [] : shown(x.id).map((o): [string, string] => [o.label ?? o.path, show(values[o.path])]))];
+          if (x.id === "security") rows.push(...secretsNeeded.filter((k) => k !== "tailscale").map((k): [string, string] => [SECRET_LABEL[k] ?? k, secrets[k] ? "set" : "—"]));
+          return (
+            <section key={x.id} className="panel summary-card">
+              <header><span className="t">{x.title}</span><button className="link" disabled={locked} onClick={() => go(steps.indexOf(x))}>Change</button></header>
+              <dl>{rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd className={v === "Off" || v === "—" ? "muted" : ""}>{v}</dd></div>)}</dl>
+            </section>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const allOptions = () => {
+    const q = query.trim().toLowerCase();
+    const own = `hosts/${host}/configuration.nix`;
+    const found = opts.filter((o) => !q || o.path.toLowerCase().includes(q) || (o.label ?? "").toLowerCase().includes(q) || o.description.toLowerCase().includes(q)).slice(0, 60);
+    const add = (o: Opt) => {
+      const text = drafts[own] ?? "";
+      const at = text.lastIndexOf("}");
+      if (at < 0) return;
+      setDrafts({ ...drafts, [own]: `${text.slice(0, at)}  ${o.path} = ${o.required ? "null" : nix(o.default)};\n${text.slice(at)}` });
+      setEdits((e) => e + 1);
+      setOpenFile(own);
+      setTab("files");
+    };
+    return (
+      <div className="fields">
+        <input className="input" autoFocus placeholder="Search every nixie option: backups, ssh, wallpaper…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="optlist">
+          {found.map((o) => (
+            <div key={o.path} className="optrow">
+              <div className="grow">
+                <div><span className="field-label">{o.label ?? o.path.replace(/^nixie\./, "")}</span> <span className="mono muted small">{o.path}</span></div>
+                <div className="caption">{o.description.trim().split(/(?<=[.!?])\s/)[0]}</div>
+                <div className="mono muted small">{o.type}{o.required ? "" : ` · default ${JSON.stringify(o.default)}`}</div>
+              </div>
+              <button className="btn" onClick={() => add(o)} disabled={!files.some((f) => f.path === own)}>Add</button>
+            </div>
+          ))}
+        </div>
+        <p className="caption">Add puts the option in hosts/{host}/configuration.nix with its default, for you to change under Files.</p>
+      </div>
+    );
+  };
+
+  const review = () => {
+    const marks = (check?.locations ?? []).filter((l) => l.path === openFile).map((l) => ({ line: l.line, col: l.col, message: check?.message ?? "" }));
+    const tone = checking ? "busy" : check ? (checkOk ? "ok" : check.ok ? "stale" : "err") : "stale";
+    return (
+      <div className="fields">
+        <div className={`status ${tone}`}>
+          <span className="status-dot" />
+          <div className="grow">
+            {checking ? "Checking the configuration…" : !check ? "Not checked yet." : checkOk ? "The configuration evaluates. Ready to install." : check.ok ? "Changed since the last check." : <><b>The configuration does not evaluate.</b><pre className="mono small">{check.message}</pre></>}
+            {check && !check.ok && !checking && check.locations.length > 0 && <div className="facts">{check.locations.map((l, i) => <button key={i} className="chip err pick" onClick={() => { setOpenFile(l.path); setTab("files"); }}>{l.path}:{l.line}</button>)}</div>}
+          </div>
+          <button className="btn primary" disabled={checking || busy} onClick={saveAndCheck}>{dirty ? "Save and check" : "Check again"}</button>
+        </div>
+        <div className="tray" style={{ alignSelf: "flex-start" }}>
+          {(["summary", "files", "options"] as const).map((t) => <button key={t} className="seg" aria-pressed={tab === t} onClick={() => setTab(t)}>{t === "summary" ? "Summary" : t === "files" ? `Files${dirty ? " •" : ""}` : "All options"}</button>)}
+        </div>
+        {tab === "summary" && summary()}
+        {tab === "options" && allOptions()}
+        {tab === "files" && (
+          <div className="files">
+            <nav className="file-list">
+              {files.map((f) => {
+                const n = (check?.locations ?? []).filter((l) => l.path === f.path).length;
+                return <button key={f.path} className="file" aria-pressed={openFile === f.path} onClick={() => setOpenFile(f.path)}><span className="mono">{f.path}</span>{drafts[f.path] !== f.content && <span className="dot-edit" aria-label="edited" />}{n > 0 && <span className="chip err">{n}</span>}</button>;
+              })}
+            </nav>
+            <div className="well editor">
+              <Suspense fallback={<div className="skeleton tall" />}>
+                {openFile && drafts[openFile] !== undefined && <Editor key={openFile} value={drafts[openFile]} opts={opts} marks={marks} onChange={(v) => { setDrafts((d) => ({ ...d, [openFile]: v })); setEdits((e) => e + 1); }} />}
+              </Suspense>
+            </div>
+          </div>
+        )}
+        <p className="caption">Going back to change a step writes this machine's entry in site.nix and hardware.nix again. Your own settings belong in hosts/{host}/configuration.nix, which is kept.</p>
+      </div>
+    );
+  };
+
   const body = () => {
     switch (s.id) {
       case "profile":
         return (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="cards">
             {["server", "desktop"].map((p) => (
-              <button key={p} className="panel" aria-pressed={profile === p} style={{ textAlign: "left", cursor: "pointer", borderColor: profile === p ? "var(--brand2)" : "var(--line)", boxShadow: profile === p ? "0 0 0 1px var(--brand2)" : undefined, background: profile === p ? "var(--s3)" : undefined }} onClick={() => set("nixie.profile", p)}>
-                <div className="title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  {p === "server" ? "Server" : "Desktop"}
-                  {profile === p && <span className="chip brand" style={{ fontSize: 11 }}>selected</span>}
-                </div>
-                <p className="caption">{p === "server" ? "A hardened host that runs services as isolated Incus guests declared in Nix, with a web control panel. No desktop software at all." : "A complete Hyprland workstation with the same boot security, declared in the site. No Incus, monitoring or backups unless enabled."}</p>
+              <button key={p} className="card" aria-pressed={profile === p} onClick={() => set("nixie.profile", p)}>
+                <div className="card-title">{p === "server" ? "Server" : "Desktop"}</div>
+                <p className="caption">{p === "server" ? "Runs services as isolated guests, with a web control panel. No desktop software." : "A complete Hyprland workstation with the same boot security. No guests, monitoring or backups unless you turn them on."}</p>
               </button>
             ))}
           </div>
         );
       case "hardware":
-        if (hwErr) return <div className="empty" style={{ color: "var(--err)" }}>The hardware scan failed: {hwErr}</div>;
-        return !hw ? <div className="empty">Looking at the hardware…</div> : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div><div style={{ fontWeight: 500 }}>System disk (wiped)</div>{hw.disks.map((d) => <label key={d.path} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px 200px", cursor: "pointer" }}><input type="radio" name="disk" checked={disk === (d.id ?? d.path)} onChange={() => setDisk(d.id ?? d.path)} /><span className="mono">{d.id ?? d.path}</span><Bytes b={d.size} /><span className="muted">{d.model ?? ""}</span></label>)}</div>
-            <div><div style={{ fontWeight: 500 }}>Data disk (optional, its own pool)</div><label className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr", cursor: "pointer" }}><input type="radio" name="data" checked={dataDisk === ""} onChange={() => setDataDisk("")} /><span>none: data lives on the system disk</span></label>{hw.disks.filter((d) => (d.id ?? d.path) !== disk).map((d) => <label key={d.path} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px 200px", cursor: "pointer" }}><input type="radio" name="data" checked={dataDisk === (d.id ?? d.path)} onChange={() => setDataDisk(d.id ?? d.path)} /><span className="mono">{d.id ?? d.path}</span><Bytes b={d.size} /><span className="muted">{d.model ?? ""}</span></label>)}</div>
-            {profile === "server" && <div><div style={{ fontWeight: 500 }}>Network ports joining the bridge</div>{hw.nics.map((n) => <label key={n.mac} className="lane" style={{ height: 28, gridTemplateColumns: "20px 1fr 100px", cursor: "pointer" }}><input type="checkbox" checked={uplinks.includes(n.mac)} onChange={(e) => setUplinks(e.target.checked ? [...uplinks, n.mac] : uplinks.filter((m) => m !== n.mac))} /><span className="mono">{n.mac}</span><span className={`chip ${n.up ? "ok" : ""}`}>{n.up ? "link up" : "no link"}</span></label>)}</div>}
-            <div className="caption">Found: GPU {hw.gpu}, TPM {hw.tpm ? "2.0 present" : "not found"}, firmware {hw.efi ? "UEFI" : "legacy (unsupported)"}.</div>
-            {!hw.efi && <p style={{ color: "var(--err)" }}>This machine started the installer in legacy BIOS mode, and Nixie installs a UEFI system. Turn on UEFI boot in the firmware (in VirtualBox: Settings, System, Enable EFI) and start the installer again.</p>}
+        if (hwErr) return <p className="notice err">The hardware scan failed: {hwErr}</p>;
+        if (!hw) return <div className="fields"><div className="skeleton" /><div className="skeleton" /><div className="skeleton short" /></div>;
+        return (
+          <div className="fields">
+            {!hw.efi && <p className="notice err">This machine started the installer in legacy BIOS mode, and Nixie installs a UEFI system. Turn on UEFI boot in the firmware (in VirtualBox: Settings, System, Enable EFI) and start the installer again.</p>}
+            <div className="field"><div className="field-label">Install on (this disk is erased)</div><div className="choices">{hw.disks.map((d) => diskRow(d, "disk", disk === (d.id ?? d.path), () => setDisk(d.id ?? d.path)))}</div></div>
+            {hw.disks.length > 1 && (
+              <div className="field">
+                <div className="field-label">Data disk (optional)</div>
+                <div className="choices">
+                  <label className="choice" data-on={dataDisk === ""}><input type="radio" name="data" checked={dataDisk === ""} onChange={() => setDataDisk("")} /><span>None: data lives on the system disk</span></label>
+                  {hw.disks.filter((d) => (d.id ?? d.path) !== disk).map((d) => diskRow(d, "data", dataDisk === (d.id ?? d.path), () => setDataDisk(d.id ?? d.path)))}
+                </div>
+              </div>
+            )}
+            {profile === "server" && (
+              <div className="field">
+                <div className="field-label">Network ports for guests</div>
+                <div className="choices">{hw.nics.map((n) => <label key={n.mac} className="choice" data-on={uplinks.includes(n.mac)}><input type="checkbox" checked={uplinks.includes(n.mac)} onChange={(e) => setUplinks(e.target.checked ? [...uplinks, n.mac] : uplinks.filter((m) => m !== n.mac))} /><span className="mono">{n.mac}</span><span className={`chip ${n.up ? "ok" : ""}`}>{n.up ? "cable in" : "no cable"}</span></label>)}</div>
+              </div>
+            )}
+            <div className="facts"><span className="chip">GPU {hw.gpu}</span><span className={`chip ${hw.tpm ? "ok" : ""}`}>{hw.tpm ? "TPM 2.0" : "no TPM"}</span><span className={`chip ${hw.efi ? "ok" : "err"}`}>{hw.efi ? "UEFI" : "legacy BIOS"}</span></div>
           </div>
         );
       case "site":
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 640 }}>
-            <div className="tray" style={{ alignSelf: "flex-start" }}>{(["new", "clone", "upload"] as const).map((m) => <button key={m} className="seg" aria-pressed={siteMode === m} onClick={() => setSiteMode(m)}>{m === "new" ? "Start a new site here" : m === "clone" ? "Clone a git URL" : "Upload a tarball"}</button>)}</div>
-            {siteMode === "clone" && <div style={{ display: "flex", gap: 8 }}><input className="input mono" style={{ flex: 1 }} placeholder="https://… or ssh://…" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} /><button className="btn" onClick={() => api.site({ mode: "clone", url: siteUrl }).then((r) => setSiteHosts(r.hosts)).catch((e) => setErr(e.message))}>Clone</button></div>}
-            {siteMode === "upload" && <input className="input" type="file" accept=".tar,.tar.gz,.tgz" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; f.arrayBuffer().then((b) => api.site({ mode: "upload", tarball: btoa(String.fromCharCode(...new Uint8Array(b))) })).then((r) => setSiteHosts(r.hosts)).catch((x) => setErr(x.message)); }} />}
-            {siteMode === "new" && <Field label="Keep a copy in a git repository (optional)"><input className="input mono" placeholder="git@example.org:you/site.git" value={String(values["nixie.site.repo"] ?? "")} onChange={(e) => set("nixie.site.repo", e.target.value || null)} /><div className="caption">Every change `nixie apply` makes is pushed there. After setup, give the repository write access for the key `nixie site key` prints.</div></Field>}
-            {siteHosts.length > 0 && <div className="caption">Hosts in this site: {siteHosts.join(", ")}. Use one of these names below to install it, or a new name to add a host.</div>}
-            <Field label="This host's name"><input className="input mono" value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder="lowercase, digits, dashes" /></Field>
-            {err && <p style={{ color: "var(--err)" }}>{err}</p>}
+          <div className="fields">
+            <Field label="Host name"><input className="input mono" autoFocus value={host} onChange={(e) => setHost(e.target.value.toLowerCase())} placeholder="lowercase letters, digits and dashes" /></Field>
+            <div className="field">
+              <div className="field-label">Configuration</div>
+              <div className="tray" style={{ alignSelf: "flex-start" }}>{(["new", "clone", "upload"] as const).map((m) => <button key={m} className="seg" aria-pressed={siteMode === m} onClick={() => setSiteMode(m)}>{m === "new" ? "Start new" : m === "clone" ? "From git" : "Upload"}</button>)}</div>
+            </div>
+            {siteMode === "clone" && <div className="row reveal"><input className="input mono grow" placeholder="https://… or ssh://…" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} /><button className="btn" disabled={busy || !siteUrl} onClick={() => { setBusy(true); api.site({ mode: "clone", url: siteUrl }).then((r) => setSiteHosts(r.hosts)).catch((e) => setErr(e.message)).finally(() => setBusy(false)); }}>Clone</button></div>}
+            {siteMode === "upload" && <input className="input reveal" type="file" accept=".tar,.tar.gz,.tgz" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; f.arrayBuffer().then((b) => api.site({ mode: "upload", tarball: btoa(String.fromCharCode(...new Uint8Array(b))) })).then((r) => setSiteHosts(r.hosts)).catch((x) => setErr(x.message)); }} />}
+            {siteHosts.length > 0 && <div className="field reveal"><div className="caption">Machines in this site. Pick one to reinstall it, or type a new name to add this machine.</div><div className="facts">{siteHosts.map((h) => <button key={h} className="chip pick" aria-pressed={host === h} onClick={() => setHost(h)}>{h}</button>)}</div></div>}
+            {siteMode === "new" && <OptionGroup opts={stepOpts.site} values={values} set={set} />}
           </div>
         );
       case "security":
-      case "network":
-      case "desktop":
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
-            {(bySection[s.id] ?? []).filter((o) => o.path !== "nixie.host.name" && !(profile === "desktop" && SERVER_ONLY.test(o.path)) && !(hw && !hw.tpm && TPM_ONLY.test(o.path)) && !WIZARD_WRITES.includes(o.path)).map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
-            {problems().map((m) => <p key={m} className="caption" style={{ color: "var(--err)" }}>{m}</p>)}
-            {s.id === "security" && secretsNeeded.filter((k) => k !== "password" && k !== "tailscale").map((k) => <Field key={k} label={SECRET_LABEL[k] ?? k}><input className="input" type="password" value={secrets[k] ?? ""} onChange={(e) => setSecrets({ ...secrets, [k]: e.target.value })} /></Field>)}
-            {s.id === "network" && Boolean(values["nixie.network.tailscale.enable"]) && <Field label="Tailscale auth key (optional; without it you log in from the control panel later)"><input className="input mono" type="password" value={secrets.tailscale ?? ""} onChange={(e) => setSecrets({ ...secrets, tailscale: e.target.value })} /></Field>}
-          </div>
-        );
-      case "auth":
-        return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
-            {(bySection.auth ?? []).filter((o) => !o.path.includes("passwordFile") && !o.path.includes("totpSecretFile")).map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
-            {problems().map((m) => <p key={m} className="caption" style={{ color: "var(--err)" }}>{m}</p>)}
-            {Boolean(values["nixie.security.remoteUnlock.enable"]) && !(Array.isArray(values["nixie.auth.sshKeys"]) && (values["nixie.auth.sshKeys"] as string[]).length > 0) && <p className="caption" style={{ color: "var(--err)" }}>Remote unlock is on: add at least one SSH public key, the one you will unlock with.</p>}
-            <Field label={SECRET_LABEL.password}><input className="input" type="password" value={secrets.password ?? ""} onChange={(e) => setSecrets({ ...secrets, password: e.target.value })} /></Field>
+          <OptionGroup opts={stepOpts.security} values={values} set={set}>
+            {secretsNeeded.filter((k) => k !== "tailscale").map(secretField)}
             {values["nixie.auth.secondFactor"] === "totp" && (
-              <div className="panel" style={{ maxWidth: 520 }}>
-                <div style={{ fontWeight: 500 }}>Enrol the authenticator app</div>
+              <div className="panel reveal">
+                <div className="field-label">Enrol the authenticator app</div>
                 {!totp ? <button className="btn" style={{ alignSelf: "flex-start", marginTop: 8 }} onClick={() => api.totpNew().then(setTotp)}>Show QR code</button> : (
                   <div>
-                    <pre className="well term" style={{ fontSize: 10, lineHeight: 1 }}>{totp.qr}</pre>
+                    <pre className="well term qr">{totp.qr}</pre>
                     <div className="caption mono">{totp.secret}</div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}><input className="input mono" placeholder="code from the app" value={totpCode} onChange={(e) => setTotpCode(e.target.value)} /><button className="btn primary" onClick={() => api.totpVerify(totpCode).then(() => setTotpOk(true)).catch(() => setErr("wrong code"))}>Verify</button>{totpOk && <span className="chip ok">enrolled</span>}</div>
+                    <div className="row"><input className="input mono" placeholder="code from the app" value={totpCode} onChange={(e) => setTotpCode(e.target.value)} /><button className="btn primary" onClick={() => api.totpVerify(totpCode).then(() => setTotpOk(true)).catch(() => setErr("That code is not right; try the next one."))}>Verify</button>{totpOk && <span className="chip ok">enrolled</span>}</div>
                   </div>
                 )}
               </div>
             )}
-            {err && <p style={{ color: "var(--err)" }}>{err}</p>}
+          </OptionGroup>
+        );
+      case "network":
+        return (
+          <OptionGroup opts={stepOpts.network} values={values} set={set}>
+            {on("nixie.network.tailscale.enable") && <div className="reveal"><Field label="Tailscale auth key (optional: without it, log in from the control panel later)"><input className="input mono" type="password" value={secrets.tailscale ?? ""} onChange={(e) => setSecrets({ ...secrets, tailscale: e.target.value })} /></Field></div>}
+          </OptionGroup>
+        );
+      case "services":
+        return <OptionGroup opts={shownOpts(s.id)} values={values} set={set} />;
+      case "desktop":
+        return (
+          <div className="fields">
+            <div className="cards">
+              <button className="card" aria-pressed={!on(HYDE)} onClick={() => set(HYDE, false)}>
+                <div className="card-title">Nixie desktop</div>
+                <p className="caption">Hyprland in the installer's look. The finish colours everything, from the login screen to the apps. Installs offline.</p>
+              </button>
+              <button className="card" aria-pressed={on(HYDE)} disabled={!hw?.online} onClick={() => set(HYDE, true)}>
+                <div className="card-title">HyDE</div>
+                <p className="caption">{hw?.online ? "A complete third-party Hyprland desktop with its own themes, downloaded while installing." : "Needs a network connection while installing, and this machine is offline."}</p>
+              </button>
+            </div>
+            <OptionGroup key={String(on(HYDE))} opts={shownOpts("desktop")} values={values} set={set} />
           </div>
         );
       case "review":
-        return !plan ? <div className="empty">Writing the plan…</div> : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <p style={{ gridColumn: "span 2", margin: 0 }}>Installing <b>{host}</b> as a <b>{profile}</b> on <span className="mono">{disk}</span>{Boolean(values["nixie.security.encryption.enable"]) ? ", encrypted" : ""}.</p>
-            <Panel title={`hosts/${host}/hardware.nix`} sub="generated"><pre className="well term" style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{plan.hardware}</pre></Panel>
-            <Panel title="site.nix" sub="your settings"><pre className="well term" style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{plan.site}</pre></Panel>
-          </div>
-        );
-      case "install":
+        return review();
+      case "install": {
+        const state = (n: number, prev: boolean): Item["state"] => (done.includes(n) ? "done" : running === n ? "running" : failed === n ? "failed" : prev ? "current" : "pending");
+        const items: Item[] = [
+          { key: "check", title: "Check the configuration", blurb: "It evaluates.", state: "done" },
+          { key: "2", title: "Keys and secrets", blurb: "This machine's identity, and the secrets you typed, encrypted to it.", state: state(2, true) },
+          { key: "3", title: `Erase ${disk} and install`, blurb: "Partition, format and install the system with the site.", state: state(3, done.includes(2)) },
+          { key: "reboot", title: "Restart into setup", blurb: "Setup continues after the restart, on this screen and at this address.", state: done.includes(3) ? "current" : "pending", body: <div className="row"><button className="btn primary pulse" onClick={() => api.reboot()}>Restart now</button></div> },
+        ];
         return (
-          <div>
-            <p className="caption">Phase 2 writes the host identity and secrets; phase 3 partitions {disk}, installs, and copies the site. After it, reboot: the setup generation continues on the same screen and URL.</p>
-            {log}
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn primary" disabled={busy || done.includes(3)} onClick={async () => { if ((await run(2)) === 0) await run(3); }}>Install</button>
-              <button className="btn" disabled={!done.includes(3)} onClick={() => api.reboot()}>Reboot into the new system</button>
-            </div>
+          <div className="fields">
+            <Checklist items={items} />
+            {!done.includes(3) && <div className="row"><button className="btn primary" disabled={busy} onClick={async () => { if ((await run(2)) === 0) await run(3); }}>{busy ? "Installing…" : failed ? "Try again" : "Install"}</button></div>}
+            <Log lines={lines} open={failed !== null} />
           </div>
         );
+      }
     }
   };
+
   const canNext = () => {
-    // A desktop has no guest bridge, so no ports to choose.
     if (s.id === "hardware") return Boolean(disk) && (uplinks.length > 0 || profile === "desktop") && Boolean(hw?.efi);
-    if (s.id === "site") return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(host);
+    if (s.id === "site") return HOST_NAME.test(host);
     if (problems().length) return false;
-    if (s.id === "security") return secretsNeeded.filter((k) => k !== "password" && k !== "tailscale").every((k) => secrets[k]);
-    // Remote unlock is an SSH login, so it needs a key to log in with.
-    const keys = values["nixie.auth.sshKeys"];
-    if (s.id === "auth") return Boolean(secrets.password) && Boolean(values["nixie.auth.admin.name"]) && (values["nixie.auth.secondFactor"] !== "totp" || totpOk) && (!values["nixie.security.remoteUnlock.enable"] || (Array.isArray(keys) && keys.length > 0));
+    if (s.id === "security") return secretsNeeded.filter((k) => k !== "tailscale").every((k) => secrets[k]) && Boolean(values["nixie.auth.admin.name"]) && (values["nixie.auth.secondFactor"] !== "totp" || totpOk);
+    if (s.id === "review") return checkOk;
     return true;
   };
+  const next = async () => {
+    if (steps[step + 1].id !== "review") return go(step + 1);
+    setBusy(true);
+    try {
+      if (!(await submitConfig())) return;
+    } catch (e) {
+      return setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+    go(step + 1);
+    // The files were just written, so nothing to save first; edits counts from 0.
+    void evaluate(0);
+  };
+  const problemList = problems();
+  const following = steps[step + 1]?.id;
+
   return (
-    <div className="app" style={{ gridTemplateRows: "64px 1fr" }}>
-      {header}
-      <main className="page" style={{ maxWidth: 1000, width: "100%", margin: "0 auto" }}>
-        <h1 className="display" style={{ margin: "8px 0 4px" }}>{s.title}</h1>
-        <p className="caption" style={{ marginTop: 0 }}>{s.blurb}</p>
-        {body()}
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-          <button className="btn" disabled={step === 0 || busy} onClick={() => setStep(step - 1)}>Back</button>
-          {s.id !== "install" && <button className="btn primary" disabled={!canNext() || busy} onClick={async () => { if (enabledSteps[step + 1].id === "review") { setBusy(true); try { if (!(await submitConfig())) { setBusy(false); return; } } catch (e) { setErr((e as Error).message); setBusy(false); return; } setBusy(false); } setStep(step + 1); }}>Next</button>}
-        </div>
-        {err && s.id !== "site" && s.id !== "auth" && <p style={{ color: "var(--err)", whiteSpace: "pre-line" }}>{err}</p>}
+    <div className="wizard">
+      <header className="wizard-head">
+        <div className="brand-row"><Mark /><span className="wordmark">nixie</span><span className="chip">setup</span></div>
+        <ol className="stepper">
+          {steps.map((x, i) => (
+            <li key={x.id} data-state={i < step ? "done" : i === step ? "current" : "pending"}>
+              <button disabled={i >= step || locked} onClick={() => go(i)}><span className="num">{i < step ? "✓" : i + 1}</span><span className="label">{x.title}</span></button>
+            </li>
+          ))}
+        </ol>
+        <div />
+        <div className="progress"><i style={{ transform: `scaleX(${step / (steps.length - 1)})` }} /></div>
+      </header>
+      <main className="wizard-main">
+        <section key={s.id} className={`wizard-body step ${dir}`}>
+          <div className="eyebrow">Step {step + 1} of {steps.length}</div>
+          <h1 className="display">{s.title}</h1>
+          <p className="caption lead">{s.blurb}</p>
+          {body()}
+          {problemList.map((m) => <p key={m} className="notice err">{m}</p>)}
+          {err && <p className="notice err">{err}</p>}
+        </section>
       </main>
+      <footer className="wizard-foot">
+        <button className="btn" disabled={step === 0 || locked} onClick={() => go(step - 1)}>Back</button>
+        <span className="muted small">{busy && s.id !== "install" ? <span className="spinner" /> : null}</span>
+        {following && <button className="btn primary" disabled={!canNext() || busy} onClick={next}>{following === "review" ? "Review" : following === "install" ? "Continue to install" : "Next"}</button>}
+      </footer>
     </div>
   );
 }

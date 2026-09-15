@@ -10,6 +10,7 @@ pkgs.writeShellApplication {
     gnused
     gum
     jq
+    nano
     nix
     nixos-anywhere
     openssh

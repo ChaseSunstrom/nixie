@@ -1,6 +1,8 @@
 // The setup backend's JSON API, same origin.
-export type Opt = { path: string; type: string; values: string[]; default: unknown; required: boolean; description: string; section: string | null; order: number; secret: string | null };
-export type Hardware = { disks: { path: string; size: number; model: string | null; serial: string | null; transport: string | null; id: string | null }[]; nics: { mac: string; name: string; up: boolean }[]; gpu: string; tpm: boolean; efi: boolean };
+export type Opt = { path: string; type: string; values: string[]; default: unknown; required: boolean; description: string; section: string | null; order: number; secret: string | null; label: string | null; advanced: boolean };
+export type SiteFile = { path: string; content: string };
+export type Check = { ok: boolean; message: string; detail?: string; locations: { path: string; line: number; col: number }[] };
+export type Hardware = { disks: { path: string; size: number; model: string | null; serial: string | null; transport: string | null; id: string | null }[]; nics: { mac: string; name: string; up: boolean }[]; gpu: string; tpm: boolean; efi: boolean; online?: boolean };
 export type State = { mode: "iso" | "continuation"; state: Record<string, unknown>; done: number[]; host: string; secrets: string[]; layout: { features: Record<string, boolean | number[]> } | null };
 
 async function j<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -21,16 +23,18 @@ export const api = {
   state: () => j<State>("GET", "/api/state"),
   hardware: () => j<Hardware>("GET", "/api/hardware"),
   options: () => j<Opt[]>("GET", "/api/options"),
-  plan: () => j<{ hardware: string; site: string }>("GET", "/api/plan"),
   site: (b: Record<string, unknown>) => j<{ ok: boolean; hosts: string[] }>("POST", "/api/site", b),
   config: (b: Record<string, unknown>) => j<{ ok: boolean }>("POST", "/api/config", b),
   secrets: (b: Record<string, string>) => j<{ ok: boolean; have: string[] }>("POST", "/api/secrets", b),
   totpNew: () => j<{ secret: string; uri: string; qr: string }>("GET", "/api/totp/new"),
   totpVerify: (code: string) => j<{ ok: boolean }>("POST", "/api/totp/verify", { code }),
   attestation: () => j<{ text: string; recovery: string; recoveryQr: string }>("GET", "/api/attestation"),
-  reboot: () => j<{ ok: boolean }>("POST", "/api/reboot", {}),
+  reboot: (firmware = false) => j<{ ok: boolean }>("POST", "/api/reboot", { firmware }),
   finish: () => j<{ ok: boolean; output: string }>("POST", "/api/finish", {}),
   finishStatus: () => j<{ failed: boolean; lines: string[] }>("GET", "/api/finish"),
+  files: () => j<{ files: SiteFile[] }>("GET", "/api/files"),
+  saveFile: (path: string, content: string) => j<{ ok: boolean }>("POST", "/api/files", { path, content }),
+  check: () => j<Check>("POST", "/api/check", {}),
   phase: (n: number, body: Record<string, unknown>, onLine: (l: string) => void) =>
     new Promise<{ rc: number; done: number[] }>((resolve, reject) => {
       fetch(`/api/phase/${n}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })

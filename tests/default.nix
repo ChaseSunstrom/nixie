@@ -106,6 +106,14 @@ let
 
   nixieOptions = lib.filterAttrs (n: _: n != "_module") server.options.nixie;
   undocumented = lib.filter (o: (o.description or "") == "") (lib.collect lib.isOption nixieOptions);
+  # The wizard shows options by label (lib/wizard.nix); one without an entry
+  # would appear as a bare option path, and a stale entry hides a rename.
+  wizardLabels = import ../lib/wizard.nix;
+  wizardPaths = map (o: lib.showOption o.loc) (
+    lib.filter (o: o ? nixieUi.section) (lib.collect lib.isOption nixieOptions)
+  );
+  unlabelled = lib.filter (p: !(wizardLabels ? ${p})) wizardPaths;
+  staleLabels = lib.filter (p: !(lib.elem p wizardPaths)) (lib.attrNames wizardLabels);
 in
 {
   fmt = pkgs.runCommand "fmt" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
@@ -159,6 +167,12 @@ in
   option-docs =
     assert lib.assertMsg (undocumented == [ ])
       "undocumented nixie.* options: ${toString (map (o: lib.showOption o.loc) undocumented)}";
+    assert lib.assertMsg (
+      unlabelled == [ ]
+    ) "wizard options without a label in lib/wizard.nix: ${toString unlabelled}";
+    assert lib.assertMsg (
+      staleLabels == [ ]
+    ) "lib/wizard.nix labels options the wizard does not show: ${toString staleLabels}";
     pkgs.writeText "option-docs" (toString (lib.length (lib.collect lib.isOption nixieOptions)));
 
   # Every fenced block tagged `sh test` in the README runs against the
@@ -316,10 +330,10 @@ in
           && !((setupOf "terminal").systemd.services ? nixie-setup);
         "the plain entry says setup is unfinished" = lib.hasInfix "not finished" (withSetup "graphical")
         .services.getty.greetingLine;
-        "the installer does not offer HyDE" =
+        "the installer offers HyDE on the Desktop step" =
           (lib.findFirst (o: o.path == "nixie.desktop.hyde.enable") { } (
             lib.importJSON self.packages.x86_64-linux.nixie-setup.passthru.optionsJson
-          )).section or null == null;
+          )).section or null == "desktop";
       };
       failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
     in

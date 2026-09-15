@@ -868,6 +868,82 @@ Seen at first and fixed in the rows above: the greeter's login box drawn
 white with light text (`finished.png`), its stylesheet naming widgets
 regreet 0.3 does not have.
 
+## The installer and setup rebuilt, HyDE through hydenix (2026-09-15)
+
+Asked for: HyDE itself, full customisation, a cleaner installer with fewer
+steps, full editing of the configuration before installing with highlighting
+and completion, a modern animated look, setup after the first boot that
+skips what a host does not use and does not restart to verify, no finish
+swatches in setup, and a control panel that matches.
+
+Changes (ARCHITECTURE D27 rewritten, D34 new):
+- Steps: Machine, Disks, Name, Security (security and administrator
+  together), Network, Services (backups, monitoring, host page and console,
+  which had metadata but no step), Desktop, Review, Install. Labels and
+  More options come from `lib/wizard.nix`; `checks.option-docs` wants an
+  entry for every option with a wizard section.
+- Review: a summary with Change links; `site.nix`, the host's
+  `configuration.nix` (new, never rewritten), `hardware.nix`, `guests.nix`,
+  `data.nix` and `flake.nix` in CodeMirror 6 with Nix highlighting,
+  completion and hover help for every `nixie.*` option; All options, a
+  searchable list that adds an option to `configuration.nix`;
+  `POST /api/check` evaluates the host (`--no-eval-cache`) and marks the
+  lines an error names, type errors included. Install waits for a passing
+  check after the last edit.
+- Backend fixes found on the way: going back and on to Review wrote the
+  host's entry into `site.nix` a second time (duplicate attribute) and kept
+  the old `hardware.nix` (phase 1's marker); both fixed.
+- Setup after the first boot runs by itself as a checklist on the web page
+  and in the terminal: unused phases are recorded unseen, and it stops only
+  for the Secure Boot restart (or a restart into the firmware settings) and
+  the passphrase and PIN. Phase 6 enrols the recovery key through the new
+  TPM binding (`systemd-cryptenroll --unlock-tpm2-device=auto`, PIN as the
+  `cryptenroll.tpm2-pin` credential), so the binding is proven before the
+  passphrase slot is wiped and no verification restart is needed.
+- HyDE: `mkSite { …; inherit inputs; }` hands a site's inputs to its hosts;
+  a site with hydenix gets `modules/desktop/hyde.nix`; the wizard offers
+  HyDE when online and writes the pinned input into the site's flake; the
+  terminal installer offers it too. HyDE's Steam, Spotify, Discord and VS
+  Code modules stay off; the Apps still install under HyDE.
+- The setup backend lets a second request for a running phase wait
+  instead of answering 409: the setup page now runs phases on every screen
+  that shows it, and the phase's marker makes the repeat a no-op.
+- Look: one motion vocabulary in `base.css` (transform and opacity only,
+  off under reduced motion); softer radii; pill navigation; pages, panels,
+  dialogs and toasts animate in; a shared `PageHead` on every panel page;
+  the trust page and the kiosk lock page use setup's centred card; no finish
+  swatches in setup. The panel waits for its backend before drawing pages
+  (a preview served HTML as the network list and Topology crashed).
+
+| check | result |
+|---|---|
+| `fmt`, `statix`, `deadnix`, `option-docs` (every wizard option labelled, no stale labels), `option-reference` (regenerated), `boot-and-setup` (the installer offers HyDE on the Desktop step), `readme`, `no-hardware-facts`, `no-secrets-in-store`, `systemd-security`, `eval-matrix`, `iso-config`, `iso-grub-theme`, the three profile checks, on the final tree | pass |
+| `tsc` and `vite build` of both pages; CodeMirror splits into its own chunk loaded on Review | pass |
+| the wizard in Chromium against the real backend with stand-in phase scripts: every step, More options, Review's summary, the real `nix eval` check (8 s), completion popup, a syntax error marked on `configuration.nix:8`, All options, Install's checklist; `tests/artifacts/wizard/` | pass |
+| `check_site` messages and marks for a syntax error, a type error (`nixie.backups.enable = 12`, line found from the option name, nested form too) and a failed assertion; the eval cache returned "cached failure" without detail before `--no-eval-cache` | pass |
+| `site_new` run three times for two hosts: one entry each, the rewrite replaces; a HyDE host turns an installer-written flake into one with the pinned hydenix input, a hand-written flake is left alone | pass |
+| the setup page in Chromium, continuation mode with a fake layout (Secure Boot, encryption, TPM): runs by itself, stops for the Secure Boot restart, resumes after a reload, asks passphrase and PIN once, shows the recovery key, stops at Finish | pass |
+| the terminal setup (`nixie-deploy --continue`) with its paths redirected and gum, systemctl and the phases stubbed: the same flow across a simulated restart; a host without Secure Boot or encryption shows only First start, Checks and Apply | pass |
+| three concurrent `POST /api/phase/4` against the backend: one runs it, two wait and return rc 0 "already done" | pass |
+| HyDE: a site with the pinned hydenix input and four hosts (plain HyDE desktop; every wizard option plus Secure Boot, Steam and VS Code from the Apps; a server; a desktop with Incus) evaluates to system derivations through the platform's `mkSite`; the server's derivation is identical to one from a site without hydenix | pass |
+| HyDE through the wizard: Desktop step (offered online), Review writes the input and the host evaluates (16 s); `32-desktop-hyde.png`, `34-hyde-flake.png` | pass |
+| HyDE desktop VM (`desk-vm` from that site) boots to HyDE's sddm login with the administrator and the Hyprland session | pass; `tests/artifacts/wizard/40-hyde-login.png` |
+| `vm-encryption`: phase 6 enrols the recovery key through the TPM ("outer layer bound to TPM (PCRs 7) with PIN"), the next boot opens with the PIN, reenroll | pass, 1192 s |
+| `vm-desktop` (Apps and the display manager mask in setup) | pass, 131 s |
+| `vm-installer-lan`: the kiosk's first step read back as "Machine" (the old "Profile" wait failed once, before the test was updated), pairing, install, setup over the URL, with the waiting phase runner | pass, 212 s |
+| `vm-console` (the restyled lock page, OCR "Unlock"), `vm-ui` (the panel bundle) on the final tree | pass, 198 s and 16 s |
+| `test-iso --security tpm`: install with Review's check on the ISO (`check.json`), phase 6 through the TPM, reboot with PIN and attestation code, Finish | pass, 607 s; `tests/artifacts/test-iso-tpm/` (the first try failed only because the scratchpad path was too long for swtpm's socket) |
+| `test-iso` plain on the rebuilt image: the kiosk's setup page ran phases 4 to 8 by itself before the script asked (every request "already done"), then Finish | pass, 536 s; `tests/artifacts/test-iso/setup-generation.png` |
+| the control panel in demo mode, every page, the palette; the trust page; the kiosk lock page rendered from the store | seen in Chromium |
+
+Not verified here: a HyDE login into the Hyprland session (the VM's
+administrator password is the scratch site's); HyDE installed from the
+image end to end (it needs the network and minutes of downloads inside the
+installer); Secure Boot enrolment completing on firmware (as before, OVMF
+stages the keys but does not boot the signed chain); the media gallery
+(`nix run .#media`), whose installer walkthrough was updated to the new
+steps but not run; the terminal installer's colours on a real console.
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

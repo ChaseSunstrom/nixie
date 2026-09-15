@@ -42,7 +42,17 @@ if feature tpm; then
     # shown once by the front end and kept nowhere on this machine; a new one
     # replaces every older one.
     old=$(recovery_slots "$outer")
-    recovery=$(systemd-cryptenroll --unlock-key-file="$unlock" --recovery-key "$outer" | tail -1)
+    # Enrolling the recovery key through the new binding proves the TPM and
+    # PIN open the volume with this boot's measurements before the other way
+    # in is wiped, so setup needs no reboot to find out. On failure the
+    # binding goes again, so running the phase again starts over.
+    creds=$(mktemp -d); (umask 077; printf '%s' "$(cat "$(secret_file pin)")" >"$creds/cryptenroll.tpm2-pin")
+    if ! recovery=$(CREDENTIALS_DIRECTORY=$creds systemd-cryptenroll --unlock-tpm2-device=auto --recovery-key "$outer" | tail -1) || [ -z "$recovery" ]; then
+      rm -rf "$creds"
+      systemd-cryptenroll --unlock-key-file="$unlock" --wipe-slot=tpm2 "$outer"
+      die "the TPM and PIN did not open $outer; the binding was removed and the passphrase still works"
+    fi
+    rm -rf "$creds"
     mkdir -p "$NIXIE_KEYS"; (umask 077; printf '%s' "$recovery" >"$(secret_file recovery-key)")
     [ -n "$old" ] && wipe="${wipe:+$wipe,}$old"
     [ -z "$wipe" ] || systemd-cryptenroll --unlock-key-file="$(secret_file recovery-key)" --wipe-slot="$wipe" "$outer"

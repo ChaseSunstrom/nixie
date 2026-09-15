@@ -30,6 +30,11 @@ fi
     have_secret admin-password || die "no administrator password given"
     echo "admin-password: $(mkpasswd -m yescrypt -s <"$(secret_file admin-password)")"
   fi
+  # Backups turned on in the wizard get a repository password nobody has to
+  # invent; `nixie backup kit` prints it for safekeeping.
+  if [ "$(state '.options.backups // false')" = true ] && ! printf '%s\n' "$existing" | grep -q '^backup-password:'; then
+    echo "backup-password: $(openssl rand -hex 32)"
+  fi
   if have_secret totp-secret && ! printf '%s\n' "$existing" | grep -q '^totp-secret:'; then
     echo "totp-secret: $(cat "$(secret_file totp-secret)")"
   fi

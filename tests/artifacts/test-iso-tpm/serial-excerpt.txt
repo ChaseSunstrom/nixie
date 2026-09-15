@@ -1,0 +1,11 @@
+  Pairing code: <code>
+[1;32m<<< Welcome to Nixie 0.1.0 (x86_64) - ttyS0 >>>[0m
+Please enter passphrase for disk disk-system-system (rpool-outer): 
+[0;1;39mWelcome to [0m[0;38;2;126;186;228mNixie 26.05 (Yarara)[0m[0;1;39m![0m
+  Pairing code: <code>
+  Attestation code: 693795
+Please enter LUKS2 token PIN: 
+Please enter passphrase for disk rpool-outer (rpool): 
+[0;1;39mWelcome to [0m[0;38;2;126;186;228mNixie 26.05 (Yarara)[0m[0;1;39m![0m
+  Pairing code: <code>
+[  118.379468] nixie-finish[1975]: [nixie finish] setup finished; the kiosk and the wizard are gone from this system

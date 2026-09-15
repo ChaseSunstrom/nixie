@@ -14,25 +14,39 @@
    Alt+F2 opens the terminal wizard from either of the first two.
 2. Pair (if on another device): open the URL, compare the fingerprint the
    browser shows with the printed one, enter the code. It works once.
-3. Walk the steps: Profile, Hardware (system disk, optional data disk, ports
-   for the bridge), Site (new here, clone a git URL, or upload), Security
-   (each feature with its description; secrets typed here stay in the backend
-   until a phase needs them), Authentication (administrator, keys, second
-   factor with the authenticator QR), Network, Desktop (desktop profile only),
-   Review (the generated `hardware.nix` and the `site.nix` it will write).
-4. Install. Phases 1 to 3 run with streamed output: hardware facts, host
-   identity and secrets, partition and install. Reboot; if the firmware starts
-   the installer again, remove the USB stick or detach the ISO from the VM.
-5. The installed system starts straight into its setup generation, with no
+3. Walk the steps: Machine (server or desktop), Disks (system disk, optional
+   data disk, ports for guests), Name (the host name, and a new site, a git
+   URL or an upload), Security (encryption and the administrator), Network,
+   Services (backups, monitoring, host page), and Desktop on a desktop (the
+   Nixie desktop or HyDE, the finish, the apps). Each field shows its first
+   sentence of help with More for the rest; advanced settings are behind
+   More options. Secrets typed here stay in the backend until a phase needs
+   them.
+4. Review: a summary with a Change link per step, every file the install
+   uses (`site.nix`, the host's `configuration.nix` and `hardware.nix`,
+   `guests.nix`, `data.nix`, `flake.nix`) in an editor with Nix highlighting
+   and completion and help for every `nixie.*` option, and All options, a
+   searchable list that adds any option to `configuration.nix`. The host is
+   evaluated the way the install will build it; an error is marked on its
+   line, and Install waits for a passing check after the last edit. Your own
+   settings belong in `hosts/<name>/configuration.nix`, which going back to a
+   step never rewrites.
+5. Install. Keys and secrets, then partition and install, as a checklist
+   with the output under Details. Restart; if the firmware starts the
+   installer again, remove the USB stick or detach the ISO from the VM.
+6. The installed system starts straight into its setup generation, with no
    boot menu (hold Space while it starts to see one) and the passphrase asked
    on the Nixie splash. Setup continues in the front end chosen at the
-   image's boot menu: the wizard on the screen, the address and code for a
-   browser, or the terminal wizard, on a desktop as on a server. The same URL
-   works from a browser in the first two: first boot, Secure
-   Boot enrolment (with the Setup Mode checklist), TPM and PIN enrolment with
-   the attestation QR and the header-backup download, verification reboot,
-   apply. Finish switches to the normal generation and removes the wizard;
-   from then on the control panel is the only web page.
+   image's boot menu, on a desktop as on a server, and runs by itself as a
+   checklist: steps this machine does not use are skipped without being
+   shown. It stops only for what needs a person: one restart for Secure Boot
+   enrolment (or a restart into the firmware settings when Setup Mode is not
+   on yet), and the disk passphrase and a PIN to bind the TPM. Binding tests
+   right away that the TPM and PIN open the disk, so no restart is needed to
+   verify it; the recovery key, the attestation QR and the header-backup
+   download stay on the page until Finish. Finish switches to the normal
+   generation and removes the wizard; from then on the control panel is the
+   only web page.
 
 Everything the wizard did is in the site checkout on the host; the phases
 are the same scripts `nixie-phase N` runs. If Finish stops, the setup page
@@ -50,7 +64,7 @@ After setup:
 - **The site.** `/etc/nixie/site` is a git checkout owned by root: edit it
   with `sudo`, then `sudo nixie apply`, which commits the edits first so
   every generation names its commit. With `nixie.site.repo` set (the wizard's
-  Site step asks), apply also pushes what it applied there; `sudo nixie site
+  Name step asks), apply also pushes what it applied there; `sudo nixie site
   key` prints the key the repository needs write access for.
 - **Guests.** Add them to `guests.nix` in the site checkout
   (`/etc/nixie/site`, as root), commit, and run `nixie apply`; see

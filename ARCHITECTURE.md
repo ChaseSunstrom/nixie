@@ -1021,13 +1021,24 @@ and runs `nixie apply`.
   the platform.** `nixie.desktop.hyde.themes` reads a HyDE theme directory
   as data at build time (its kitty palette and its wallpapers) and turns it
   into an ordinary Nixie finish, so all of HyDE's themes work with the Nixie
-  shell, pinned and offline. `nixie.desktop.hyde.enable` stands every Nixie
-  desktop module down so a site that imports hydenix gets the real HyDE
-  desktop instead. The platform takes no dependency either way: adding
-  hydenix as an input would pull home-manager and a large third-party tree
-  into every evaluation, including servers that will never have a desktop,
-  and HyDE's theme switcher fetches from the network at use, which the
-  platform's own desktop never does.
+  shell, pinned and offline. `nixie.desktop.hyde.enable` gives the real HyDE
+  desktop through the hydenix flake, which is an input of the *site*: the
+  installer's Desktop step offers it when the machine is online and writes
+  `inputs.hydenix` (pinned, following the platform's nixpkgs) into the
+  site's flake, and `mkSite { …; inherit inputs; }` hands a site's inputs
+  to its hosts and adds `modules/desktop/hyde.nix` to every host of a site
+  that has hydenix. That module carries the glue hydenix needs on this
+  platform: its boot, network and nix modules stay off (they collide with
+  lanzaboote, Nixie's nftables and `nixpkgs.config`), the system state
+  version and sshd stay Nixie's, the cursor it fetches from a moved URL
+  comes from the pinned HyDE source, and its Steam, Spotify, Discord and VS
+  Code modules stay off because they are unfree and Steam opens firewall
+  ports; the installer's Apps offer those instead. Setup masks the display
+  manager until Finish, as it stops greetd. The platform still takes no
+  dependency: hydenix pulls home-manager and a large third-party tree, and
+  HyDE's theme switcher fetches from the network at use, which the
+  platform's own desktop never does. A server in a site with hydenix builds
+  the same system as without it (verified by derivation path).
 - **D26 The active finish can be changed at runtime.** The brief says
   "changing finish is one option and an apply"; that stays the declared
   default, and the site is still the record. The runtime choice in
@@ -1088,6 +1099,32 @@ and runs `nixie apply`.
   --continue`, phases 4 to 8 and Finish) on tty1, on a desktop as on a
   server, with the greeter held back until Finish. Before, a desktop's setup
   generation started its session with nothing leading back to setup.
+- **D34 No verification reboot; setup runs by itself.** The brief's phase 7
+  is a verification reboot. Asked for fewer restarts and automatic checks,
+  phase 6 now proves the binding instead: it enrols the recovery key with
+  `systemd-cryptenroll --unlock-tpm2-device=auto` and the PIN as the
+  `cryptenroll.tpm2-pin` credential, so the TPM and PIN have opened the
+  volume with this boot's measurements before the install passphrase is
+  wiped, and a failure removes the binding again. Phase 7 runs its checks
+  on the same boot. What a reboot would add, that the next start measures
+  the same boot chain, holds for PCR 7 once Secure Boot is settled, and the
+  recovery key covers the rest. The front ends run each phase as soon as the
+  one before finishes, skip the ones a host does not use without showing
+  them, and stop only for the Secure Boot restart (or a restart into the
+  firmware settings when Setup Mode is off) and for the passphrase and PIN.
+  The review step before Install evaluates the host and lets every site
+  file be edited; `hosts/<name>/configuration.nix` is created once for the
+  settings the steps do not cover.
+- **D35 The web surfaces move beyond the design file's recipes.** Asked
+  for a modern, animated look that matches across setup and the control
+  panel, the tokens (colours, type, the three finishes) stay the design
+  file's, and the recipes change: panels 10px and lone cards and dialogs
+  14px instead of 6px, buttons and inputs 6px, chips, badges and the page
+  navigation round (pills instead of underlines), one heading row on every
+  panel page, and motion (pages, panels, dialogs and toasts rise or pop in;
+  the installer's steps slide) with transform and opacity only, stopped by
+  `prefers-reduced-motion`. `docs/design-tokens.md` keeps the extracted
+  values as the record of the design file.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the

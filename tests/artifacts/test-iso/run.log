@@ -5,3 +5,10 @@ install took 138 s
 == first boot: unlock, then the setup generation
 == finish: the setup service goes, the control panel stays
 test-iso: PASS (artifacts in /home/chase/.cache/nixie-test-iso-v2-plain)
+== medium -cdrom, security plain, profile server
+== boot the ISO (graphical entry)
+== phases 1 to 3: the site flake is evaluated and built on the ISO
+install took 167 s
+== first boot: unlock, then the setup generation
+== finish: the setup service goes, the control panel stays
+test-iso: PASS (artifacts in tests/artifacts/test-iso)

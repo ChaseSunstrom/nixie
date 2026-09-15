@@ -72,24 +72,32 @@ let
     ];
 
   mkHost =
-    rev: siteDir: name: host:
+    rev: siteInputs: siteDir: name: host:
     lib.nixosSystem {
       inherit system;
       specialArgs = {
-        inherit inputs;
+        # The site's own inputs reach its modules as well (configuration.nix
+        # can use `inputs.<name>`); the platform's win a clash, so a site
+        # cannot swap nixpkgs or the platform modules from under them.
+        inputs = removeAttrs siteInputs [ "self" ] // inputs;
       };
-      modules = hostModulesRev rev siteDir name host;
+      modules =
+        hostModulesRev rev siteDir name host
+        # HyDE comes from the site's hydenix input, never the platform's (D27).
+        ++ lib.optional (siteInputs ? hydenix) ../modules/desktop/hyde.nix;
     };
 
-  # `mkSite ./site.nix`, or `mkSite { site = ./site.nix; rev = self.shortRev or null; }`
-  # so generations carry the site commit (pure evaluation cannot read .git).
+  # `mkSite ./site.nix`, or `mkSite { site = ./site.nix; rev = self.shortRev or null; inherit inputs; }`
+  # so generations carry the site commit (pure evaluation cannot read .git)
+  # and the site's inputs, hydenix among them, reach its hosts.
   mkSite =
     arg:
     let
       sitePath = if lib.isAttrs arg then arg.site else arg;
       rev = if lib.isAttrs arg then (arg.rev or null) else null;
+      siteInputs = if lib.isAttrs arg then (arg.inputs or { }) else { };
       site = import sitePath;
-      hosts = lib.mapAttrs (mkHost rev (dirOf sitePath)) site.hosts;
+      hosts = lib.mapAttrs (mkHost rev siteInputs (dirOf sitePath)) site.hosts;
     in
     {
       nixosConfigurations = hosts;

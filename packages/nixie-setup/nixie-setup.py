@@ -7,7 +7,7 @@ needs them, and runs the phase scripts with their output streamed back. The
 same program runs on the ISO (phases 1-3) and in the setup generation after
 the first reboot (phases 4-8); the wizard never does anything the CLI cannot.
 """
-import argparse, base64, hashlib, hmac, http.cookies, http.server, json, os, secrets, shutil, socket, ssl, struct, subprocess, sys, tarfile, tempfile, threading, time, urllib.parse
+import argparse, base64, hashlib, hmac, http.cookies, http.server, json, os, re, secrets, shutil, socket, ssl, struct, subprocess, sys, tarfile, tempfile, threading, time, urllib.parse
 
 ARGS = None
 SESSIONS = set()
@@ -114,6 +114,74 @@ def qr_text(data):
 
 
 # ------------------------------------------------------------------- site
+# Written once per host and never rewritten: the place for anything the
+# wizard's steps do not cover.
+OWN_CONFIGURATION = """# Anything NixOS offers, for this machine only: packages, services, users,
+# or nixie.* settings the installer did not ask about. The installer and
+# `nixie apply` leave this file as you write it.
+{ config, lib, pkgs, ... }:
+{
+  # environment.systemPackages = [ pkgs.htop ];
+}
+"""
+
+
+def site_files(host):
+    """The files the review step shows and lets a person edit."""
+    return ["site.nix", f"hosts/{host}/configuration.nix", f"hosts/{host}/hardware.nix", "guests.nix", "data.nix", "flake.nix"]
+
+
+# The HyDE a site gets when the installer is asked for it (D27): pinned, and on
+# the platform's nixpkgs so the system has one package set.
+HYDENIX = "github:richen604/hydenix/55370cd2ab2361bf0066e3bc89987b1717381c6d"
+
+
+def site_flake(platform, hyde):
+    return (
+        "{\n  description = \"Nixie site\";\n"
+        f"  inputs.nixie.url = {json.dumps(platform)};\n"
+        + (f"  inputs.hydenix.url = {json.dumps(HYDENIX)};\n  inputs.hydenix.inputs.nixpkgs.follows = \"nixie/nixpkgs\";\n" if hyde else "")
+        + "  outputs =\n    { self, nixie, ... }@inputs:\n    nixie.lib.mkSite {\n      site = ./site.nix;\n"
+        "      rev = self.shortRev or self.dirtyShortRev or null;\n      inherit inputs;\n    };\n}\n"
+    )
+
+
+def check_site(host):
+    """Evaluate the host the way phase 3 will, and point at the lines an error
+    names, so a mistake shows in the editor rather than in phase 3."""
+    if os.path.isdir(os.path.join(ARGS.site, ".git")):
+        sh(["git", "add", "-A"], cwd=ARGS.site)
+    r = sh(["nix", "eval", "--no-eval-cache", "--raw", f"{ARGS.site}#nixosConfigurations.{host}.config.system.build.toplevel.drvPath"], cwd=ARGS.site)
+    if r.returncode == 0:
+        return {"ok": True, "message": "", "locations": []}
+    text = r.stderr.strip()
+    files = site_files(host)
+    locations = []
+    root = r"(?:/nix/store/[a-z0-9]+-source|" + re.escape(ARGS.site) + r")/"
+    for m in re.finditer(r"at " + root + r"([^:\s]+):(\d+):(\d+)", text):
+        if m.group(1) in files:
+            locations.append({"path": m.group(1), "line": int(m.group(2)), "col": int(m.group(3))})
+    # A wrong value names the option and the file but no line ("- In `…'"),
+    # so the line is the first in that file that sets the option.
+    # The innermost error is the last "error:" and what follows it (Nix puts
+    # "Failed assertions:" on the next line); code excerpts and positions are
+    # left to the marks in the editor.
+    lines = [l.strip() for l in text.splitlines() if "evaluation warning" not in l]
+    last = max((i for i, l in enumerate(lines) if l.startswith("error:")), default=len(lines))
+    errors = [re.sub(root, "", l) for l in lines[last:] if l and l != "error:" and not l.startswith("at ") and not re.match(r"^\d*\s*\|", l)]
+    # From the error lines: the trace above them quotes Nix's own source, which says "option `${…}'" too.
+    option = re.search(r"option `([^']+)'", "\n".join(errors))
+    for m in re.finditer(r"- In `" + root + r"([^']+)'", text):
+        if option and m.group(1) in files and os.path.exists(os.path.join(ARGS.site, m.group(1))):
+            parts = option.group(1).split(".")
+            lines = open(os.path.join(ARGS.site, m.group(1))).read().splitlines()
+            # The longest tail of the path that appears, for `nixie.backups = { enable = …; }` too.
+            for i, l in ((i, l) for k in range(len(parts)) for i, l in enumerate(lines) if ".".join(parts[k:]) in l):
+                locations.append({"path": m.group(1), "line": i + 1, "col": l.find(parts[-1]) + 1})
+                break
+    return {"ok": False, "message": "\n".join(errors)[:1500] or text[-1500:], "detail": text[-6000:], "locations": locations}
+
+
 def mark_pending(host):
     """Setup continues after the first boot while this file says so, in the
     front end chosen at the installer's boot menu; Finish empties it."""
@@ -139,24 +207,36 @@ def site_new(host, profile, settings, platform):
         shutil.rmtree(os.path.join(site, "hosts"), ignore_errors=True)
         shutil.rmtree(os.path.join(site, "secrets"), ignore_errors=True)
         with open(os.path.join(site, "flake.nix"), "w") as f:
-            f.write(
-                "{\n  description = \"Nixie site\";\n"
-                f"  inputs.nixie.url = {json.dumps(platform)};\n"
-                "  outputs = { nixie, ... }: nixie.lib.mkSite ./site.nix;\n}\n"
-            )
+            f.write(site_flake(platform, False))
+    # HyDE needs the hydenix input. A flake this installer wrote gains it; any
+    # other flake is the site owner's, and the review step shows it with the
+    # error if the input is missing.
+    fp = os.path.join(site, "flake.nix")
+    text = open(fp).read() if os.path.exists(fp) else ""
+    written = re.fullmatch(r'\{\n  description = "Nixie site";\n  inputs\.nixie\.url = ("[^"\n]*");\n.*', text, re.S)
+    if settings.get("nixie.desktop.hyde.enable") and "hydenix" not in text and written:
+        with open(fp, "w") as f:
+            f.write(site_flake(json.loads(written.group(1)), True))
     sp = os.path.join(site, "site.nix")
     os.makedirs(os.path.join(site, "secrets"), exist_ok=True)
     mark_pending(host)
+    own = os.path.join(site, "hosts", host, "configuration.nix")
+    if not os.path.exists(own):
+        with open(own, "w") as f:
+            f.write(OWN_CONFIGURATION)
     entry = (
         "  hosts." + host + " = {\n"
         f"    hardware = ./hosts/{host}/hardware.nix;\n"
         f"    secrets = ./secrets/{host}.yaml;\n"
         "    guests = import ./guests.nix;\n    data = import ./data.nix;\n"
-        f"    settings = {{\n      imports = [ ./hosts/{host}/setup-pending.nix ];\n"
+        f"    settings = {{\n      imports = [\n        ./hosts/{host}/setup-pending.nix\n        ./hosts/{host}/configuration.nix\n      ];\n"
         + "".join(f"      {k} = {to_nix(v, 3)};\n" for k, v in sorted(settings.items()))
         + "    };\n  };\n"
     )
     text = open(sp).read() if os.path.exists(sp) else ""
+    # Back in the wizard and on to the review again writes this host's entry
+    # again; a second one would be a duplicate attribute.
+    text = re.sub(r"^  hosts\." + re.escape(host) + r" = \{\n.*?^  \};\n", "", text, flags=re.S | re.M)
     if text.rstrip().endswith("}"):
         # A site that already has machines keeps them: the new one goes in as
         # one more entry before the closing brace, their text untouched.
@@ -188,8 +268,17 @@ def apply_config(b):
         "gpu": b.get("gpu", "none"),
         "tpm": b.get("tpm", False),
         "hostId": b.get("hostId"),
-        "options": {"secureBoot": bool(b.get("settings", {}).get("nixie.security.secureBoot.enable"))},
+        "options": {
+            "secureBoot": bool(b.get("settings", {}).get("nixie.security.secureBoot.enable")),
+            "backups": bool(b.get("settings", {}).get("nixie.backups.enable")),
+        },
     })
+    # New answers need a new hardware.nix (the disk may have changed), and
+    # phase 1 skips itself while its marker says it is done.
+    try:
+        os.remove(os.path.join(ARGS.state_dir, "1.done"))
+    except FileNotFoundError:
+        pass
     settings = dict(b.get("settings", {}))
     settings["nixie.profile"] = b["profile"]
     settings["nixie.host.name"] = host
@@ -277,7 +366,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({"mode": ARGS.mode, "state": st, "done": markers(), "host": socket.gethostname(), "secrets": sorted(SECRETS), "layout": self.layout()})
         if path == "/api/hardware":
             r = sh(["nixie-discover"])
-            return self.send_json(json.loads(r.stdout) if r.returncode == 0 else {"error": r.stderr})
+            if r.returncode:
+                return self.send_json({"error": r.stderr})
+            hw = json.loads(r.stdout)
+            # HyDE comes from GitHub while installing, so it is offered only online.
+            try:
+                socket.create_connection(("github.com", 443), timeout=3).close()
+                hw["online"] = True
+            except OSError:
+                hw["online"] = False
+            return self.send_json(hw)
         if path == "/api/finish":
             # Finish runs as a unit of its own; what it printed since the
             # button was pressed is how a failure reaches the page.
@@ -288,6 +386,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/options":
             with open(ARGS.options) as f:
                 return self.send_json(json.load(f))
+        if path == "/api/files":
+            host = read_state().get("host", "")
+            out = []
+            for rel in site_files(host):
+                p = os.path.join(ARGS.site, rel)
+                if os.path.exists(p):
+                    out.append({"path": rel, "content": open(p).read()})
+            return self.send_json({"files": out})
         if path == "/api/plan":
             st = read_state()
             hw = ""
@@ -350,6 +456,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         b = self.body()
         if u.path == "/api/config":
             return self.configure(b)
+        if u.path == "/api/files":
+            # Only the files the review step lists, so a path cannot leave the site.
+            host = read_state().get("host", "")
+            if b.get("path") not in site_files(host):
+                return self.send_json({"error": "not a site file"}, 400)
+            with open(os.path.join(ARGS.site, b["path"]), "w") as f:
+                f.write(b.get("content", ""))
+            return self.send_json({"ok": True})
+        if u.path == "/api/check":
+            return self.send_json(check_site(read_state().get("host", "")))
         if u.path == "/api/secrets":
             with LOCK:
                 for k, v in b.items():
@@ -367,7 +483,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.site(b)
         if u.path == "/api/reboot":
             self.send_json({"ok": True})
-            threading.Timer(1.0, reboot).start()
+            threading.Timer(1.0, reboot, [bool(b.get("firmware"))]).start()
             return
         if u.path == "/api/finish":
             return self.api_finish()
@@ -402,33 +518,41 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def run_phase(self, n, b):
         global RUNNING
-        with LOCK:
-            if RUNNING and RUNNING.poll() is None:
-                return self.send_json({"error": "a phase is running"}, 409)
-            materialise_secrets()
-            env = dict(os.environ, NIXIE_SITE=ARGS.site, NIXIE_SETUP_DIR=ARGS.state_dir, NIXIE_KEYS=keys_dir())
-            if ARGS.toplevel:
-                env["NIXIE_TOPLEVEL"] = ARGS.toplevel
-            if ARGS.disko:
-                env["NIXIE_DISKO"] = ARGS.disko
-            extra = []
-            if n == 6 and b.get("backupDest"):
-                extra = ["--backup-dest", b["backupDest"]]
-            RUNNING = subprocess.Popen(["nixie-phase", str(n), *extra], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        # The setup page runs phases by itself on every screen that shows it
+        # (the kiosk and a browser elsewhere), so a second request for the
+        # same step is normal: it waits for the running phase, and the
+        # phase's marker then makes it a no-op instead of a 409 error.
+        proc = None
+        while proc is None:
+            with LOCK:
+                if RUNNING and RUNNING.poll() is None:
+                    busy = True
+                else:
+                    busy = False
+                    materialise_secrets()
+                    env = dict(os.environ, NIXIE_SITE=ARGS.site, NIXIE_SETUP_DIR=ARGS.state_dir, NIXIE_KEYS=keys_dir())
+                    if ARGS.toplevel:
+                        env["NIXIE_TOPLEVEL"] = ARGS.toplevel
+                    if ARGS.disko:
+                        env["NIXIE_DISKO"] = ARGS.disko
+                    extra = ["--backup-dest", b["backupDest"]] if n == 6 and b.get("backupDest") else []
+                    RUNNING = proc = subprocess.Popen(["nixie-phase", str(n), *extra], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            if busy:
+                time.sleep(1)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         os.makedirs(ARGS.state_dir, exist_ok=True)
         with open(os.path.join(ARGS.state_dir, "setup.log"), "a") as logf:
-            for line in RUNNING.stdout:
+            for line in proc.stdout:
                 logf.write(line)
                 try:
                     self.wfile.write(f"data: {json.dumps(line.rstrip())}\n\n".encode())
                     self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError):
                     pass
-        rc = RUNNING.wait()
+        rc = proc.wait()
         try:
             self.wfile.write(f"event: done\ndata: {json.dumps({'rc': rc, 'done': markers()})}\n\n".encode())
             self.wfile.flush()
@@ -454,7 +578,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.send_json({"ok": r.returncode == 0, "output": msg if r.returncode == 0 else r.stderr[-4000:]})
 
 
-def reboot():
+def reboot(firmware=False):
+    # Secure Boot's Setup Mode is set in the firmware, so setup can take the
+    # person straight there instead of telling them which key to press.
+    if firmware:
+        subprocess.Popen(["systemctl", "reboot", "--firmware-setup"])
+        return
     # In the setup generation the machine must come back to itself: firmware
     # that puts an attached installer first (VirtualBox does on every start)
     # would boot that instead, so the next boot goes to the current entry.

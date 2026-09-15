@@ -7,6 +7,10 @@
 let
   inherit (import ../lib/option.nix lib) mkOption;
   cfg = config.nixie.backups;
+  # The sops path of the password the installer generates when the wizard
+  # turns backups on; written out as a path, not read from sops.secrets, so the
+  # declaration below can depend on it without a loop.
+  generatedPassword = "/run/secrets/backup-password";
   root = toString config.nixie.data.root;
   guestsLib = import ../lib/guests.nix { inherit lib; };
   # `nixie-snapshot pre-apply <label>`: ZFS snapshots of state/ and every
@@ -65,8 +69,9 @@ in
     };
     passwordFile = mkOption {
       type = lib.types.nullOr lib.types.path;
-      default = null;
-      description = "File holding the repository password.";
+      default = generatedPassword;
+      defaultText = generatedPassword;
+      description = "File holding the repository password. By default the one the installer generated into the host's secrets.";
     };
     environmentFile = mkOption {
       type = lib.types.nullOr lib.types.path;
@@ -149,6 +154,7 @@ in
       environment.systemPackages = [ snapshotTool ];
     }
     (lib.mkIf cfg.enable {
+      sops.secrets.backup-password = lib.mkIf (toString cfg.passwordFile == generatedPassword) { };
       assertions = [
         {
           assertion = cfg.repository != "" && cfg.passwordFile != null;

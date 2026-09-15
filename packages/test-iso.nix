@@ -133,7 +133,10 @@ pkgs.writeShellApplication {
     api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --arg p "$profile" --argjson f "$features" '{host:"iso-test",profile:$p,systemDisk:$d,uplinks:(if $p == "server" then [$m] else [] end),settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
     echo "== phases 1 to 3: the site flake is evaluated and built on the ISO" | tee -a "$out/run.log"
     start=$(date +%s)
-    phase 1 && phase 2 && phase 3
+    phase 1
+    # The review step's check: the host evaluates the way phase 3 builds it.
+    api -X POST https://127.0.0.1:9443/api/check | tee "$out/check.json" | jq -e .ok >/dev/null
+    phase 2 && phase 3
     echo "install took $(( $(date +%s) - start )) s" | tee -a "$out/run.log"
     shot install-done
     api -X POST https://127.0.0.1:9443/api/reboot >/dev/null; stopped "$pid"

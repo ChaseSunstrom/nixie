@@ -57,35 +57,39 @@ centre, the bell the notification centre, the clock the calendar.
 
 ### Using HyDE itself instead
 
-`nixie.desktop.hyde.enable = true` stands the Nixie desktop down completely
-and leaves the session to HyDE, which your site brings in. The packaged form
-is the hydenix flake:
+Choose **HyDE** on the installer's Desktop step (it is offered when the
+machine is online, because HyDE is downloaded while installing), or do by
+hand what the installer does: add the hydenix input to your site's flake and
+turn the option on.
 
 ```nix
 # flake.nix of your site
-inputs.hydenix.url = "github:richen604/hydenix";
+inputs.hydenix.url = "github:richen604/hydenix/55370cd2ab2361bf0066e3bc89987b1717381c6d";
+inputs.hydenix.inputs.nixpkgs.follows = "nixie/nixpkgs";
+outputs = { self, nixie, ... }@inputs:
+  nixie.lib.mkSite { site = ./site.nix; rev = self.shortRev or null; inherit inputs; };
 
 # the host's settings
-{
-  imports = [
-    inputs.hydenix.inputs.home-manager.nixosModules.home-manager
-    inputs.hydenix.nixosModules.default
-  ];
-  nixie.desktop.hyde.enable = true;
-  hydenix.enable = true;
-  home-manager.users.<you> = { hydenix.hm.enable = true; };
-}
+nixie.desktop.hyde.enable = true;
 ```
 
-Everything else about the host is unchanged: the same installer and phases,
-the same disks, encryption and security options, the same `nixie` command,
-and the server profile is untouched. Two things to know before you choose
-it. HyDE's theme tool downloads a theme from its repository when you switch
-themes, so that part of the system is not reproducible from your site and
-reaches the network on use; and HyDE brings home-manager and its own
-Hyprland, bar and launcher, so the Nixie shell, finishes and
-`nixie-shell` verbs are not there. If you want HyDE's *look* without that,
-import its themes instead (below) and keep the Nixie desktop.
+`mkSite` does the rest for every host of a site with that input: HyDE's
+system and home-manager modules for the administrator, its sddm login, and
+the fixes it needs on this platform (the kernel, boot loader, firewall, SSH
+and state version stay Nixie's). Everything else about the host is
+unchanged: the same phases, disks, encryption and security options, the
+same `nixie` command, and servers in the same site build exactly as before.
+HyDE's Steam, Spotify, Discord and VS Code modules stay off, because they
+are unfree and Steam opens firewall ports; pick any of them in the Apps
+(`nixie.desktop.packages.categories`), which still install under HyDE.
+
+Two things to know before you choose it. HyDE's theme tool downloads a theme
+from its repository when you switch themes, so that part of the system is
+not reproducible from your site and reaches the network on use; and HyDE
+brings its own Hyprland, bar, launcher and keyboard settings, so the Nixie
+shell, finishes, wallpaper and keyboard options and the `nixie-shell` verbs
+are not there. If you want HyDE's *look* without that, import its themes
+instead (below) and keep the Nixie desktop.
 
 ### Themes of your own, and HyDE's
 

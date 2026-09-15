@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Phase 7: after the verification reboot, prove each enabled feature did its
-# job on this boot.
+# Phase 7: prove each enabled feature is in place on this boot. It needs no
+# reboot of its own: phase 6 already opened the disk through the TPM and PIN.
 set -euo pipefail
 # shellcheck source=../lib.sh
 . "$(dirname "$0")/../lib.sh"

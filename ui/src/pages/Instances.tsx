@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStore, tier, exportEntry } from "../lib/store";
-import { Panel, Dot, go, Dialog, Field, Empty, usePoll } from "../components/ui";
+import { Panel, PageHead, Dot, go, Dialog, Field, Empty, usePoll } from "../components/ui";
 import { fmtBytes, fmtAge } from "../lib/series";
 import { address, type Instance } from "../lib/api";
 
@@ -22,11 +22,7 @@ export function Instances() {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="title" style={{ margin: 0 }}>
-          Instances <span className="muted">· {instances.length}</span>
-        </h1>
-        <div style={{ display: "flex", gap: 8 }}>
+      <PageHead title="Instances" count={instances.length} sub="Declared guests come from the site; scratch ones were made here and apply leaves them alone.">
           {sel.size > 0 && (
             <div className="group">
               <button className="btn" onClick={() => bulk("start")}>Start</button>
@@ -37,8 +33,7 @@ export function Instances() {
             </div>
           )}
           <button className="btn primary" onClick={() => go("instances/new")}>Create</button>
-        </div>
-      </div>
+      </PageHead>
       <Panel dense style={{ padding: 0 }}>
         <div className="table" style={{ gridTemplateColumns: "28px 1.4fr 90px 100px 1fr 90px 100px 80px 150px", padding: "0 14px" }}>
           <span className="h" />
@@ -101,8 +96,10 @@ export function CreateInstance() {
     if (r) go(`instances/${name}`);
   };
   return (
-    <Panel title="Create instance" style={{ maxWidth: 560 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+    <>
+    <PageHead title="New instance" sub="A scratch instance: real, but not in the site. Export or Declare keeps it across reinstalls." />
+    <Panel style={{ maxWidth: 560 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label="Name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="lowercase, dashes" /></Field>
         <Field label="Type">
           <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
@@ -119,12 +116,12 @@ export function CreateInstance() {
             {(profiles ?? [{ name: "default" }]).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
         </Field>
-        <p className="muted" style={{ margin: 0 }}>An instance made here is a scratch instance: real, but not in the site. Use Export or Declare to keep it across reinstalls.</p>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button className="btn" onClick={() => go("instances")}>Cancel</button>
           <button className="btn primary" disabled={!name || !image} onClick={create}>Create and start</button>
         </div>
       </div>
     </Panel>
+    </>
   );
 }

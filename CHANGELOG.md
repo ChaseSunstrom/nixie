@@ -2,6 +2,34 @@
 
 ## 0.1.0 (unreleased)
 
+The installer's wizard is rebuilt: fewer steps with plain labels (Machine,
+Disks, Name, Security, Network, Services, Desktop, Review, Install), the first
+sentence of each option's help with More for the rest, advanced settings
+behind More options, a progress bar and transitions that respect reduced
+motion, and no finish swatches. Review summarises every step and opens each
+site file (`site.nix`, the host's new `configuration.nix`, `hardware.nix`,
+`guests.nix`, `data.nix`, `flake.nix`) in a CodeMirror editor with Nix
+highlighting, completion and hover help for every `nixie.*` option, and a
+searchable list of all options; the host is evaluated before Install, with
+errors marked on their lines, type errors included. Going back and on to
+Review no longer writes the host into `site.nix` twice or keeps a stale
+`hardware.nix`. The terminal installer offers the same editing and check.
+Setup after the first boot is a checklist that runs by itself: unused steps
+are skipped unseen, phase 6 proves the TPM and PIN open the disk before the
+passphrase slot goes (so there is no verification reboot), and it stops only
+for the Secure Boot restart, a restart into the firmware settings, and the
+passphrase and PIN. The Services step shows backups, monitoring, the host
+page and the console, which had option metadata but no step. HyDE is
+offered on the Desktop step when the machine is online: the site gets a
+pinned hydenix input, `mkSite { …; inherit inputs; }` passes a site's inputs
+to its hosts, and `modules/desktop/hyde.nix` wires hydenix to the platform
+(HyDE's unfree app modules stay off; the Apps still install under HyDE).
+The control panel matches: softer radii, pill navigation, a heading row with
+actions on every page, pages, panels, dialogs and toasts that animate in (off
+under reduced motion), a centred card for the trust page and for the kiosk's
+lock page, drawn in the host's finish. The panel no longer draws pages before
+it knows which backend answers.
+
 Installer image fixes: the file is `nixie_<version>_<platform>.iso` with Nixie
 branding in the boot menu; the menu has graphical, web and terminal entries;
 the image boots in BIOS mode (VirtualBox's default) and explains that UEFI is

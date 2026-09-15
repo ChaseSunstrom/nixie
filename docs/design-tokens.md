@@ -73,7 +73,7 @@ The `glow` prop is additionally gated by a boolean canvas prop `glow` (default `
 ### 1.4 Hard-coded (non-token) values worth tokenising
 
 - Brand blues used literally in SVG marks and swatches: `#5277c3`, `#7ebae4`, `#fff` (mono mark).
-- Radii (from the copy: "6px panels, 4px wells, 3px buttons and chips, 0 on strip, lanes, tables"). Observed: `6px` ×27 (panels), `4px` ×21 (wells, ⌘K button, button group, swatch chips), `3px` ×22 (buttons, kbd, chips, badges, range buttons, heat strips), `5px` ×3 (segmented control tray), `2px` ×9 (progress bars, lane heat strip), `8px` ×2 (command palette), `50%` ×9 (dots), `14px`/`7px` (app icon tiles).
+- (The shipped pages soften these radii and add motion; ARCHITECTURE D35.) Radii (from the copy: "6px panels, 4px wells, 3px buttons and chips, 0 on strip, lanes, tables"). Observed: `6px` ×27 (panels), `4px` ×21 (wells, ⌘K button, button group, swatch chips), `3px` ×22 (buttons, kbd, chips, badges, range buttons, heat strips), `5px` ×3 (segmented control tray), `2px` ×9 (progress bars, lane heat strip), `8px` ×2 (command palette), `50%` ×9 (dots), `14px`/`7px` (app icon tiles).
 - Shadows (all colours via `var(--shadow)` unless stated): panel `0 8px 24px -14px`; header `0 6px 18px -12px`; command palette `0 24px 60px -20px`; button group `0 4px 12px -8px`; inset well `inset 0 1px 3px`; inset control tray `inset 0 1px 2px`; live dot `0 0 8px var(--ok)`; instance title dot `0 0 10px var(--ok)`.
 - Fills: chart area `color-mix(in oklch, var(--cpu) 20%, transparent)` / `var(--mem) 20%`; killswitch chip `color-mix(in oklch, var(--ok) 22%, transparent)`.
 - Focus ring: `outline:2px solid var(--brand2)` with `outline-offset` `2px` (buttons), `1px` (small swatch/range buttons), `-2px` (lane rows).

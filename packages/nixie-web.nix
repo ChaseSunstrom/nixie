@@ -15,7 +15,7 @@ let
       src = ../ui;
       filter = p: _: !(pkgs.lib.hasInfix "node_modules" p || pkgs.lib.hasInfix "/dist" p);
     };
-    npmDepsHash = "sha256-YKd18EKjdczYcDfyDJpD+gP3qCLY4fVnxEWtMG21kqU=";
+    npmDepsHash = "sha256-43RzHJMN71ObbZeJr2epDCry8jUJhzeN3mInQVgxT2w=";
     # The dashboards JSON is imported from the repo root.
     postPatch = ''
       mkdir -p ../dashboards

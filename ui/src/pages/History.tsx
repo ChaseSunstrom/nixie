@@ -2,7 +2,7 @@
 // API like the rest of this panel. Host generations, data snapshots and
 // backups are on the host page (ARCHITECTURE D22): going back runs `nixie` as
 // the administrator, and this static bundle has no host process to ask.
-import { Panel, usePoll } from "../components/ui";
+import { Panel, PageHead, usePoll } from "../components/ui";
 import { useStore } from "../lib/store";
 
 const when = (s: string) => (s ? new Date(s).toLocaleString() : "");
@@ -18,6 +18,7 @@ export function History() {
   const rows = (snaps ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <>
+      <PageHead title="History" sub="What this host can go back to." />
       <Panel title="Guest snapshots" sub={snaps ? `${rows.length}` : "reading…"}>
         {snaps && rows.length === 0 && <p className="muted">none yet; `nixie apply` takes one before it changes a guest, and Snapshot on an instance takes one now</p>}
         {rows.length > 0 && (

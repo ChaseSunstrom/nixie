@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "./lib/store";
-import { Mark, useHashRoute, Toasts, Panel, go } from "./components/ui";
+import { Mark, useHashRoute, Toasts, go } from "./components/ui";
 import { Palette, PAGES } from "./components/Palette";
 import { Overview } from "./pages/Overview";
 import { Instances, CreateInstance } from "./pages/Instances";
@@ -19,9 +19,11 @@ function Trust() {
   }, []);
   const oidc = server?.auth_methods?.includes("oidc");
   return (
-    <div className="page" style={{ maxWidth: 720, margin: "40px auto" }}>
-      <Panel title="This browser is not trusted yet" sub={auth}>
-        <p>The daemon answers, but this browser has no certificate it trusts. Two ways in:</p>
+    <div className="pair">
+      <div className="panel pair-card wide">
+        <div className="brand-row"><Mark size={30} /><span className="wordmark">nixie</span>{auth && <span className="chip">{auth}</span>}</div>
+        <h1 className="title">This browser is not trusted yet</h1>
+        <p className="caption">The daemon answers, but this browser has no certificate it trusts. Two ways in:</p>
         {oidc && <p><a className="btn primary" href="/oidc/login" style={{ display: "inline-flex", alignItems: "center" }}>Log in with the identity provider</a></p>}
         <ol style={{ lineHeight: 1.7 }}>
           <li>On the host, as the administrator, make a client certificate and a token:
@@ -32,7 +34,7 @@ incus config trust add-certificate client.crt`}</pre>
           <li>Import <code>client.p12</code> into this browser's certificates, then reload. Firefox: Settings › Privacy › Certificates › Your Certificates. Chromium: chrome://settings/certificates.</li>
         </ol>
         <p className="muted">The control panel talks only to the daemon that served it; nothing is sent anywhere else.</p>
-      </Panel>
+      </div>
     </div>
   );
 }
@@ -59,7 +61,10 @@ export function App() {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, []);
-  if (auth !== "trusted" && auth !== "unknown") return <Trust />;
+  // Until the backend is chosen, pages would ask the daemon for data the
+  // demo is about to answer instead (a preview served HTML as a network list).
+  if (auth === "unknown") return <div className="boot"><Mark size={44} /></div>;
+  if (auth !== "trusted") return <Trust />;
   const page = route[0] || "overview";
   const cpu = history["host.cpu"]?.at(-1) ?? 0;
   const mem = history["host.mem"]?.at(-1) ?? 0;
@@ -128,6 +133,7 @@ export function App() {
         ))}
       </nav>
       <main className="page">
+        <div className="route" key={page}>
         {page === "overview" && <Overview />}
         {page === "instances" && !route[1] && <Instances />}
         {page === "instances" && route[1] === "new" && <CreateInstance />}
@@ -140,6 +146,7 @@ export function App() {
         {page === "settings" && <Settings />}
         {page === "dashboards" && <Dashboards uid={route[1]} guest={route[2]} />}
         {page === "history" && <History />}
+        </div>
       </main>
       <Palette open={palette} onClose={() => setPalette(false)} />
       <Toasts />

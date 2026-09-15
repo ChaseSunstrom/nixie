@@ -5,6 +5,7 @@
 options:
 let
   typeName = t: t.description or t.name;
+  wizard = import ./wizard.nix;
   enumValues = t: if t.name == "enum" then t.functor.payload.values or [ ] else [ ];
   walk =
     o:
@@ -19,6 +20,8 @@ let
           required = !(o ? default);
           description = o.description or "";
           section = o.nixieUi.section or null;
+          label = wizard.${lib.showOption o.loc}.label or null;
+          advanced = wizard.${lib.showOption o.loc}.advanced or false;
           order = o.nixieUi.order or 0;
           secret = o.nixieUi.secret or null;
           readOnly = o.readOnly or false;

@@ -28,6 +28,23 @@ export function Panel({ title, sub, value, children, dense, style, span }: { tit
   );
 }
 
+// A page's title row: its name and count, one line on what it is for, and
+// its actions, the same on every page.
+export function PageHead({ title, count, sub, children }: { title: string; count?: ReactNode; sub?: string; children?: ReactNode }) {
+  return (
+    <header className="page-head">
+      <div>
+        <h1 className="page-title">
+          {title}
+          {count !== undefined && <span className="muted"> · {count}</span>}
+        </h1>
+        {sub && <p className="caption">{sub}</p>}
+      </div>
+      {children && <div className="row">{children}</div>}
+    </header>
+  );
+}
+
 export function Dot({ status }: { status: string }) {
   const s = status.toLowerCase();
   return <span className={`dot ${s === "running" ? "running" : s === "frozen" ? "frozen" : ""}`} aria-label={status} />;

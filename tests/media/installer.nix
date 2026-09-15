@@ -75,22 +75,24 @@ let
             # The first radio is whatever the kernel lists first, which here is
             # a 4 KB floppy; name the disk this VM is meant to be installed on.
             await page.click("label:has-text(\"virtio-root\") input[name=disk]")
-            await page.click("input[type=checkbox]"); await page.click("button:has-text(\"Next\")"); await shot(page, "site")
+            await page.click("input[type=checkbox]"); await page.click("button:has-text(\"Next\")"); await shot(page, "name")
             await page.fill("input[placeholder*=lowercase]", "server"); await page.click("button:has-text(\"Next\")"); await shot(page, "security")
-            await page.fill("input[type=password]", "hunter2"); await page.click("button:has-text(\"Next\")"); await shot(page, "auth")
-            # The step needs the administrator's name as well as the password:
-            # without it its Next button stays disabled.
-            await page.fill("input.input.mono", "admin")
-            await page.fill("input[type=password]", "nixie")
+            # Security holds the administrator as well: without the name and
+            # both secrets its Next button stays disabled.
+            await page.fill(".field:has-text(\"Administrator name\") input", "admin")
+            await page.fill(".field:has-text(\"Administrator password\") input", "nixie")
+            await page.fill(".field:has-text(\"Disk passphrase\") input", "hunter2")
             await page.click("button:has-text(\"Next\")"); await shot(page, "network")
-            await page.click("button:has-text(\"Next\")"); await page.wait_for_timeout(6000); await shot(page, "review")
-            await page.click("button:has-text(\"Next\")"); await shot(page, "install-ready")
-            # The step is called Install and so is its nav entry: a bare
-            # "text=Install" clicks a label and phases 2 and 3 never run.
-            await page.click("button:has-text(\"Install\")"); await page.wait_for_timeout(4000); await shot(page, "install-streaming")
+            await page.click("button:has-text(\"Next\")"); await shot(page, "services")
+            # Review writes the site and evaluates the host before Install unlocks.
+            await page.click(".wizard-foot .btn.primary")
+            await page.wait_for_selector(".status.ok", timeout=900000); await shot(page, "review")
+            await page.click("button:has-text(\"Continue to install\")"); await shot(page, "install-ready")
+            # The stepper names its last step Install too; the action is the primary button.
+            await page.click("button.btn.primary:has-text(\"Install\")"); await page.wait_for_timeout(4000); await shot(page, "install-streaming")
             done = False
             for _ in range(120):
-                if await page.query_selector("text=phase 3 done"):
+                if await page.query_selector("button:has-text(\"Restart now\")"):
                     done = True
                     break
                 await page.wait_for_timeout(5000)

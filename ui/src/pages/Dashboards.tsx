@@ -157,7 +157,7 @@ export function Dashboards({ uid, guest }: { uid?: string; guest?: string }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <h1 className="title" style={{ margin: 0 }}>Dashboards</h1>
+          <h1 className="page-title">Dashboards</h1>
           <select className="input" value={dash.uid} onChange={(e) => (location.hash = `#/dashboards/${e.target.value}`)} aria-label="dashboard">
             {all.map((d) => <option key={d.uid} value={d.uid}>{d.title}</option>)}
           </select>

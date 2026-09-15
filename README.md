@@ -248,8 +248,8 @@ handful of colours, and `nixie.desktop.hyde.themes` imports a HyDE theme
 directory straight from its own files, so HyDE's themes and wallpapers work
 with the Nixie shell, pinned and offline. With `accentFromWallpaper` the
 accent follows the wallpaper. If you would rather run HyDE itself,
-`nixie.desktop.hyde.enable` stands the Nixie desktop down so a site that
-imports hydenix owns the session and keeps the same installer, security
+`nixie.desktop.hyde.enable` (a choice on the installer's Desktop step) brings in
+the real HyDE through the hydenix flake and keeps the same installer, security
 options and `nixie` command.
 
 ## Host page

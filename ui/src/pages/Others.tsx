@@ -2,7 +2,7 @@
 // the daemon the design names but does not draw, in the same recipes.
 import { useState } from "react";
 import { useStore } from "../lib/store";
-import { Panel, usePoll, Empty, Dialog, Field, KvEditor, Bar, Toggle } from "../components/ui";
+import { Panel, PageHead, usePoll, Empty, Dialog, Field, KvEditor, Bar, Toggle } from "../components/ui";
 import { fmtBytes, fmtAge } from "../lib/series";
 import type { Profile } from "../lib/api";
 import { finishes } from "../tokens";
@@ -17,12 +17,13 @@ export function Images() {
   const [alias, setAlias] = useState("");
   const [remote, setRemote] = useState("https://images.linuxcontainers.org");
   return (
-    <Panel title="Images" sub={images ? `${images.length}` : ""} dense>
-      <div style={{ display: "flex", gap: 8, margin: "8px 0" }}>
-        <input className="input mono" style={{ width: 320 }} value={remote} onChange={(e) => setRemote(e.target.value)} aria-label="remote" />
-        <input className="input mono" placeholder="alias, e.g. debian/12" value={alias} onChange={(e) => setAlias(e.target.value)} />
-        <button className="btn primary" disabled={!alias} onClick={() => run(`pull ${alias}`, api.pullImage(remote, alias)).then(reload)}>Pull</button>
-      </div>
+    <>
+    <PageHead title="Images" count={images?.length} sub="What new instances start from, pulled from an image server.">
+      <input className="input mono" style={{ width: 300 }} value={remote} onChange={(e) => setRemote(e.target.value)} aria-label="remote" />
+      <input className="input mono" placeholder="alias, e.g. debian/12" value={alias} onChange={(e) => setAlias(e.target.value)} />
+      <button className="btn primary" disabled={!alias} onClick={() => run(`pull ${alias}`, api.pullImage(remote, alias)).then(reload)}>Pull</button>
+    </PageHead>
+    <Panel dense>
       <div className="table" style={{ gridTemplateColumns: "1.4fr 1.6fr 100px 100px 90px 90px 60px" }}>
         <span className="h">alias</span><span className="h">description</span><span className="h">fingerprint</span><span className="h">type</span><span className="h">size</span><span className="h">uploaded</span><span className="h" />
         {(images ?? []).map((i) => (
@@ -39,6 +40,7 @@ export function Images() {
       </div>
       {images && !images.length && <Empty>No images yet</Empty>}
     </Panel>
+    </>
   );
 }
 
@@ -47,8 +49,11 @@ export function Profiles() {
   const [profiles, reload] = usePoll(() => api.profiles(), [api], 30000);
   const [edit, setEdit] = useState<{ p: Profile; isNew: boolean } | null>(null);
   return (
-    <Panel title="Profiles" sub={profiles ? `${profiles.length}` : ""} dense>
-      <div style={{ margin: "8px 0" }}><button className="btn primary" onClick={() => setEdit({ p: { name: "", description: "", config: {}, devices: {}, used_by: [] }, isNew: true })}>New profile</button></div>
+    <>
+    <PageHead title="Profiles" count={profiles?.length} sub="Configuration and devices that instances share.">
+      <button className="btn primary" onClick={() => setEdit({ p: { name: "", description: "", config: {}, devices: {}, used_by: [] }, isNew: true })}>New profile</button>
+    </PageHead>
+    <Panel dense>
       <div className="table" style={{ gridTemplateColumns: "140px 1fr 1fr 80px 120px" }}>
         <span className="h">name</span><span className="h">description</span><span className="h">devices</span><span className="h">used by</span><span className="h" />
         {(profiles ?? []).map((p) => (
@@ -66,6 +71,7 @@ export function Profiles() {
       </div>
       {edit && <ProfileEditor {...edit} onClose={() => { setEdit(null); reload(); }} />}
     </Panel>
+    </>
   );
 }
 function ProfileEditor({ p, isNew, onClose }: { p: Profile; isNew: boolean; onClose: () => void }) {
@@ -89,8 +95,10 @@ export function Networks() {
   const { api, instances } = useStore();
   const [nets] = usePoll(async () => Promise.all((await api.networks()).map(async (n) => ({ ...n, st: await api.networkState(n.name).catch(() => null) }))), [api], 15000);
   return (
+    <>
+    <PageHead title="Networks" count={nets?.length} sub="The bridge guests share, and what is attached to it." />
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <Panel title="Networks" sub={nets ? `${nets.length}` : ""} dense>
+      <Panel title="Interfaces" dense>
         <div className="table" style={{ gridTemplateColumns: "120px 80px 1fr 80px 60px 1fr" }}>
           <span className="h">name</span><span className="h">type</span><span className="h">addresses</span><span className="h">state</span><span className="h">used</span><span className="h">traffic</span>
           {(nets ?? []).map((n) => (
@@ -107,6 +115,7 @@ export function Networks() {
       </Panel>
       <Panel title="Topology" dense><Topology instances={instances} networks={nets ?? []} /></Panel>
     </div>
+    </>
   );
 }
 
@@ -115,6 +124,7 @@ export function Storage() {
   const [pools] = usePoll(async () => Promise.all((await api.pools()).map(async (p) => ({ ...p, res: await api.poolResources(p.name).catch(() => null), vols: await api.volumes(p.name).catch(() => []) }))), [api], 30000);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <PageHead title="Storage" count={pools?.length} sub="Storage pools and the volumes in them." />
       {(pools ?? []).map((p) => {
         const used = p.res?.space.used ?? 0;
         const total = p.res?.space.total ?? 0;
@@ -142,7 +152,9 @@ export function Operations() {
   const { operations, api, run } = useStore();
   const sorted = [...operations].sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
-    <Panel title="Operations" sub={`${operations.filter((o) => o.status === "Running").length} running`} dense>
+    <>
+    <PageHead title="Operations" count={`${operations.filter((o) => o.status === "Running").length} running`} sub="What the daemon is doing, and what it did." />
+    <Panel dense>
       <div className="table" style={{ gridTemplateColumns: "1fr 160px 90px 80px 80px" }}>
         <span className="h">description</span><span className="h">resource</span><span className="h">status</span><span className="h">age</span><span className="h" />
         {sorted.map((o) => (
@@ -157,6 +169,7 @@ export function Operations() {
       </div>
       {!operations.length && <Empty>No operations</Empty>}
     </Panel>
+    </>
   );
 }
 
@@ -185,15 +198,14 @@ export function Settings() {
   const ownFinish = localStorage.getItem("nixie.finish");
   const swatch = (f: string) => (f === "graphite" ? "#1f2226" : f === "umber" ? "#231b16" : "#e4e1da");
   return (
+    <>
+    <PageHead title="Settings" sub="Saved on this host for every browser. They start from the site's nixie.ui.* settings; Reset goes back to those.">
+      {draft && <span className="chip hot">unsaved changes</span>}
+      <button className="btn" disabled={!draft} onClick={() => setDraft(null)}>Discard</button>
+      <button className="btn" onClick={() => confirm("Reset the control panel settings to the site's defaults for every browser?") && run("reset panel settings", saveUi({})).then(() => setDraft(null))}>Reset</button>
+      <button className="btn primary" disabled={!draft} onClick={() => run("save panel settings", saveUi(d)).then(() => setDraft(null))}>Save</button>
+    </PageHead>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <Panel title="Control panel settings" sub="saved on this host, for every browser" value={draft ? "unsaved changes" : undefined} dense style={{ gridColumn: "span 2" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-          <span className="muted" style={{ flex: 1 }}>They start from the site's nixie.ui.* settings; Reset goes back to those.</span>
-          <button className="btn" disabled={!draft} onClick={() => setDraft(null)}>Discard</button>
-          <button className="btn" onClick={() => confirm("Reset the control panel settings to the site's defaults for every browser?") && run("reset panel settings", saveUi({})).then(() => setDraft(null))}>Reset</button>
-          <button className="btn primary" disabled={!draft} onClick={() => run("save panel settings", saveUi(d)).then(() => setDraft(null))}>Save</button>
-        </div>
-      </Panel>
 
       <Panel title="Appearance" dense>
         <div style={{ display: "flex", gap: 10, margin: "10px 0" }}>
@@ -295,5 +307,6 @@ export function Settings() {
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><button className="btn primary" disabled={!cfg} onClick={() => run("save server config", api.updateServer(cfg!)).then(() => setCfg(null))}>Save</button></div>
       </Panel>
     </div>
+    </>
   );
 }

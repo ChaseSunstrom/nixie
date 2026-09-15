@@ -14,10 +14,26 @@ let
   # The setup generation owns tty1 while setup is pending; the kiosk keeps
   # tty1 when it is on, so the panel moves to tty2.
   panelTty = if cfg.kiosk.enable then "tty2" else "tty1";
+  # The lock page is the setup pairing card in the host's finish.
+  t = (import ../lib/tokens.nix { inherit lib; }).forFinish config.nixie.ui.theme;
   lockPage = pkgs.writeText "lock.html" ''
     <!doctype html><meta charset="utf-8"><title>nixie</title>
-    <style>body{margin:0;height:100vh;display:grid;place-items:center;background:#1f2226;color:#eceae5;font:15px Archivo,sans-serif}form{background:#292d33;border:1px solid #383e46;border-radius:6px;padding:24px;display:grid;gap:10px;width:320px}input{background:#181b1e;border:1px solid #383e46;border-radius:3px;color:#eceae5;padding:8px;font:inherit}button{background:#5277c3;border:0;border-radius:3px;color:#fff;padding:8px;font:inherit}</style>
-    <form method="post" action="/unlock"><b>nixie</b><span style="color:#9a9ea6">Administrator login</span><input name="password" type="password" placeholder="password" autofocus><input name="code" placeholder="second factor, if enrolled"><button>Unlock</button></form>
+    <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(900px 480px at 50% -200px,color-mix(in srgb,${t.brand} 22%,transparent),transparent 70%),${t.bg};color:${t.ink};font:14px Archivo,sans-serif}
+    form{width:360px;background:${t.s1};border:1px solid ${t.line};border-radius:14px;padding:28px;display:grid;gap:12px;box-shadow:0 24px 60px -24px ${t.shadow};animation:pop .32s cubic-bezier(.2,.8,.2,1) both}
+    @keyframes pop{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-motion:reduce){form{animation:none}}
+    .brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:600;letter-spacing:-.03em}h1{margin:6px 0 0;font-size:22px;font-weight:500}p{margin:0;color:${t.muted}}
+    label{display:grid;gap:4px;font-weight:500}input{background:${t.s2};border:1px solid ${t.line};border-radius:6px;color:${t.ink};height:36px;padding:0 10px;font:inherit}input:focus{outline:2px solid ${t.brand2};outline-offset:1px}
+    button{margin-top:4px;height:38px;background:${t.brand};border:0;border-radius:6px;color:#fff;font:inherit;cursor:pointer}button:hover{filter:brightness(1.12)}
+    </style>
+    <form method="post" action="/unlock">
+      <div class="brand"><svg width="28" height="28" viewBox="0 0 72 72" aria-hidden="true"><rect x="10" y="18" width="10" height="44" rx="3" fill="${t.brand}"/><rect x="10" y="18" width="52" height="10" rx="3" fill="${t.brand}"/><rect x="52" y="18" width="10" height="44" rx="3" fill="${t.brand2}"/></svg>nixie</div>
+      <h1>Unlock the control panel</h1><p>The administrator's password, and the code from the authenticator app if one is enrolled.</p>
+      <label>Password<input name="password" type="password" autofocus></label>
+      <label>Second factor<input name="code" inputmode="numeric" placeholder="if enrolled"></label>
+      <button>Unlock</button>
+    </form>
   '';
   # A small local gate: the kiosk checks the password with `unix_chkpwd`, the
   # pam_unix helper (it reads the password from stdin, so no terminal is

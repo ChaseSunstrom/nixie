@@ -65,6 +65,10 @@ in
       # desktop session came up here before and nothing led back to setup.
       services.greetd.enable = lib.mkForce false;
       programs.regreet.enable = lib.mkForce false;
+      # Any other display manager (HyDE's sddm) waits too. Masked rather than
+      # switched off: switched off, the desktop's "something starts a
+      # session" assertion fails inside this specialisation.
+      systemd.services.display-manager.enable = lib.mkForce false;
       environment.systemPackages = [
         cfg.packages.nixie-installer
         cfg.packages.deploy

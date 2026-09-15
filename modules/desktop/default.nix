@@ -299,16 +299,20 @@ in
       type = t.bool;
       default = false;
       description = ''
-        Hand the desktop to HyDE itself instead of the Nixie one. Nixie stops
-        configuring the session, the shell, Hyprland and the theme, and your
-        site brings HyDE in (the hydenix flake is the packaged form). The
-        rest of the platform is unchanged: the same installer, the same
-        security options, the same `nixie` command. Off by default because
-        HyDE is a large third-party desktop whose theme tool downloads themes
-        at the moment you switch them, which the Nixie desktop never does.
-        Not offered by the installer: a site it creates has no HyDE in it, so
-        the machine would start with no desktop at all.
+        Use HyDE, a complete third-party Hyprland desktop with its own look,
+        instead of the Nixie desktop. The site brings it in as the hydenix
+        flake input (the installer adds it when you choose HyDE), and Nixie
+        stops configuring the session, the shell, Hyprland and the theme;
+        the finish, wallpaper and keyboard settings then do not apply, the
+        apps you pick still install. The rest of the platform is unchanged:
+        the same security options and the same `nixie` command. Installing
+        it needs a network connection, and HyDE's theme tool downloads themes
+        when you switch them, which the Nixie desktop never does.
       '';
+      nixieUi = {
+        section = "desktop";
+        order = -1;
+      };
     };
     hyde.themes = mkOption {
       type = t.attrsOf t.path;

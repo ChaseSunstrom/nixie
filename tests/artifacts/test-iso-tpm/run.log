@@ -1,0 +1,8 @@
+== medium -cdrom, security tpm, profile server
+== boot the ISO (graphical entry)
+== phases 1 to 3: the site flake is evaluated and built on the ISO
+install took 177 s
+== first boot: unlock, then the setup generation
+== reboot: the TPM and PIN open the outer layer, the code is shown
+== finish: the setup service goes, the control panel stays
+test-iso: PASS (artifacts in tests/artifacts/test-iso-tpm)
