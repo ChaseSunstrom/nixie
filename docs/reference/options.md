@@ -1056,6 +1056,14 @@ you text to paste into the site yourself.
 
 Extra entries in the control panel navigation, for a site's own pages.
 
+## `nixie.ui.machines`
+
+*list of (submodule)*, default: `[]`.
+
+Internal: every machine of this site, written by `lib.mkSite` from
+site.nix. The control panel lists them so one site's deployments are
+managed from any of them.
+
 ## `nixie.ui.theme`
 
 *one of "graphite", "umber", "paper" (graphite, umber, paper)*, default: `"graphite"`. Wizard section: desktop.

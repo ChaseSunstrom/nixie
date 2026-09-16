@@ -22,6 +22,7 @@ let
           section = o.nixieUi.section or null;
           label = wizard.${lib.showOption o.loc}.label or null;
           advanced = wizard.${lib.showOption o.loc}.advanced or false;
+          picker = wizard.${lib.showOption o.loc}.picker or null;
           order = o.nixieUi.order or 0;
           secret = o.nixieUi.secret or null;
           readOnly = o.readOnly or false;

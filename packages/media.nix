@@ -66,12 +66,19 @@ pkgs.writeShellApplication {
       fi
       # Not frames/: those are the individual frames of a video, not gallery
       # images, and there are hundreds of them.
-      mapfile -t pngs < <(find "$p" -maxdepth 2 -name '*.png' -not -path '*/frames/*' | sort)
+      # Not maxdepth 2: a run that drives a browser copies its screenshots out
+      # of the other VM into a directory of their own.
+      declare -A seen=()
+      mapfile -t pngs < <(find "$p" -name '*.png' -not -path '*/frames/*' | sort)
       for f in "''${pngs[@]}"; do
         n=$(basename "$f")
-        # Assets are named by their basename, so two runs using one name would
-        # leave the gallery with the second and the shot list claiming both.
+        # One run can copy the same directory out twice (the installer does,
+        # after the install and again after the continuation), so a repeat
+        # inside a run is the same picture; a repeat across runs would leave
+        # the gallery with the second and the shot list claiming both.
+        [ -z "''${seen[$n]:-}" ] || continue
         if [ -e "$out/$n" ]; then echo "two runs both produced $n; rename one of them" >&2; exit 1; fi
+        seen[$n]=1
         cp "$f" "$out/$n"
         # shellcheck disable=SC2016  # markdown backticks, not command substitution
         printf '| `%s` | `mediaTests.%s` (machine.screenshot or Playwright) |\n' "$n" "$name" >>"$shot"

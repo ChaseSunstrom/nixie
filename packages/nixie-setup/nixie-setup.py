@@ -99,6 +99,37 @@ def materialise_secrets():
         os.chmod(os.path.join(d, "age.key"), 0o600)
 
 
+# --------------------------------------------------------------- devices
+# Somewhere to put a backup or the header bundle: the filesystems this machine
+# could write to, removable ones first because that is what a person just
+# plugged in. The system's own layers are not offers: swap, a LUKS container
+# (its unlocked mapping is listed instead) and a pool member hold no folders,
+# and nothing can be written to the installer's own read-only medium.
+SKIP_FS = ("swap", "zfs_member", "crypto_LUKS", "linux_raid_member", "LVM2_member", "iso9660", "squashfs", "erofs", "udf")
+
+
+def block_devices(tree):
+    out = []
+
+    def walk(nodes):
+        for d in nodes:
+            if d.get("fstype") not in SKIP_FS and d.get("fstype") and d.get("type") in ("part", "disk", "crypt", "lvm"):
+                out.append({
+                    "path": d["path"],
+                    "size": d.get("size") or 0,
+                    "label": d.get("label") or "",
+                    "fstype": d.get("fstype"),
+                    "mountpoint": d.get("mountpoint") or "",
+                    "removable": bool(d.get("rm")),
+                    "model": (d.get("model") or "").strip(),
+                })
+            walk(d.get("children") or [])
+
+    walk(tree.get("blockdevices", []))
+    out.sort(key=lambda d: (not d["removable"], d["path"]))
+    return out
+
+
 # ------------------------------------------------------------------- TOTP
 def totp_code(secret_b32, t=None):
     key = base64.b32decode(secret_b32 + "=" * (-len(secret_b32) % 8))
@@ -376,6 +407,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except OSError:
                 hw["online"] = False
             return self.send_json(hw)
+        if path == "/api/timezones":
+            # From the machine itself, so the list is the one its own tzdata has.
+            r = sh(["timedatectl", "list-timezones"])
+            zones = [z for z in r.stdout.split() if "/" in z or z == "UTC"] if r.returncode == 0 else []
+            return self.send_json({"zones": zones or ["UTC"]})
+        if path == "/api/devices":
+            r = sh(["lsblk", "-J", "-b", "-o", "PATH,SIZE,LABEL,FSTYPE,MOUNTPOINT,RM,TYPE,MODEL"])
+            try:
+                devices = block_devices(json.loads(r.stdout))
+            except (ValueError, KeyError):
+                # An older lsblk, or none at all: the field stays a text box.
+                devices = []
+            return self.send_json({"devices": devices})
         if path == "/api/finish":
             # Finish runs as a unit of its own; what it printed since the
             # button was pressed is how a failure reaches the page.
@@ -464,6 +508,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with open(os.path.join(ARGS.site, b["path"]), "w") as f:
                 f.write(b.get("content", ""))
             return self.send_json({"ok": True})
+        if u.path == "/api/header-backup":
+            # The same bundle the Download button offers, written to a drive
+            # instead: the browser may be the kiosk on this very machine.
+            src = os.path.join(ARGS.state_dir, "header-backup.tar.age")
+            dest = str(b.get("dest", ""))
+            if not os.path.exists(src):
+                return self.send_json({"error": "no header backup yet"}, 404)
+            if not dest.startswith("/"):
+                return self.send_json({"error": "need a folder"}, 400)
+            try:
+                os.makedirs(dest, exist_ok=True)
+                out = os.path.join(dest, f"nixie-{read_state().get('host', 'host')}-headers.tar.age")
+                shutil.copyfile(src, out)
+                os.chmod(out, 0o600)
+                sh(["sync", "-f", out])
+            except OSError as e:
+                return self.send_json({"error": str(e)}, 400)
+            return self.send_json({"ok": True, "path": out})
+        if u.path == "/api/mount":
+            # A device picked in the wizard has to be a directory before
+            # anything can be written to it.
+            dev = str(b.get("path", ""))
+            if not re.fullmatch(r"/dev/[\w/-]+", dev) or not os.path.exists(dev):
+                return self.send_json({"error": "no such device"}, 400)
+            r = sh(["findmnt", "-n", "-o", "TARGET", "--source", dev])
+            at = r.stdout.split("\n")[0].strip() if r.returncode == 0 else ""
+            if not at:
+                at = os.path.join("/run/nixie/media", os.path.basename(dev))
+                os.makedirs(at, exist_ok=True)
+                m = sh(["mount", dev, at])
+                if m.returncode != 0:
+                    return self.send_json({"error": m.stderr.strip() or "mount failed"}, 400)
+            return self.send_json({"ok": True, "mountpoint": at})
         if u.path == "/api/check":
             return self.send_json(check_site(read_state().get("host", "")))
         if u.path == "/api/secrets":

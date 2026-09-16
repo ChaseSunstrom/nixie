@@ -85,7 +85,20 @@ let
             await page.fill(".field:has-text(\"Administrator password\") input", "nixie")
             await page.fill(".field:has-text(\"Disk passphrase\") input", "hunter2")
             await page.click("button:has-text(\"Next\")"); await shot(page, "network")
+            # The time zone is picked from this machine's own list, not typed.
+            # A datalist is drawn by the browser itself, so a picture would not
+            # show it: what is checked is that the list arrived at all.
+            await page.wait_for_function("document.querySelector('datalist')?.options.length > 100", timeout=30000)
+            zones = await page.evaluate("document.querySelector('datalist').options.length")
+            assert zones > 100, f"time zone list has {zones} entries"
             await page.click("button:has-text(\"Next\")"); await shot(page, "services")
+            # A backup goes to a folder, and the folder can be picked from the
+            # drives this machine can see. Opened and closed again: choosing one
+            # would write a repository into the site being installed.
+            await page.click("button:has-text(\"Choose a drive\")")
+            await page.wait_for_selector(".pick, .picker .caption", timeout=30000)
+            await shot(page, "services-backup-drive")
+            await page.click("button:has-text(\"Choose a drive\")")
             # Review writes the site and evaluates the host before Install unlocks.
             await page.click(".wizard-foot .btn.primary")
             await page.wait_for_selector(".status.ok", timeout=900000); await shot(page, "review")

@@ -1,8 +1,9 @@
 # How the installer's wizard presents each option it shows: a short label in
-# place of the option path, and `advanced` for the ones behind "More options"
-# rather than in the step itself. The description stays with the option, and
-# `checks.option-docs` wants an entry here for every option with a wizard
-# section.
+# place of the option path, `advanced` for the ones behind "More options"
+# rather than in the step itself, and `picker` for the ones this machine can
+# offer a list for instead of a text field. The description stays with the
+# option, and `checks.option-docs` wants an entry here for every option with a
+# wizard section.
 {
   "nixie.profile".label = "What this machine is for";
   "nixie.host.name".label = "Host name";
@@ -77,7 +78,11 @@
     advanced = true;
   };
 
-  "nixie.host.timezone".label = "Time zone";
+  "nixie.host.timezone" = {
+    label = "Time zone";
+    # The machine's own tzdata, listed rather than typed.
+    picker = "timezone";
+  };
   "nixie.network.tailscale.enable".label = "Join a Tailscale network";
   "nixie.network.tailscale.authKeyFile".label = "Tailscale auth key";
   "nixie.network.bridge.mode".label = "Guest network";
@@ -124,7 +129,11 @@
     advanced = true;
   };
   "nixie.backups.enable".label = "Back up state and guests";
-  "nixie.backups.repository".label = "Backup repository";
+  "nixie.backups.repository" = {
+    label = "Backup repository";
+    # A restic URL, or a folder on a disk this machine can see.
+    picker = "path";
+  };
   "nixie.backups.schedule" = {
     label = "Backup schedule";
     advanced = true;

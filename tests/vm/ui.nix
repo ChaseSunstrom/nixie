@@ -31,6 +31,19 @@ pkgs.testers.runNixOSTest {
         url = "https://example.invalid/docs";
       }
     ];
+    # What `lib.mkSite` writes from a site with more than one machine; this
+    # test builds its host from the modules directly, so it stands in for it.
+    nixie.ui.machines = [
+      {
+        name = "server";
+        profile = "server";
+        url = "https://192.168.1.1:8443";
+      }
+      {
+        name = "laptop";
+        profile = "desktop";
+      }
+    ];
     environment.systemPackages = [
       pkgs.curl
       pkgs.jq
@@ -50,6 +63,11 @@ pkgs.testers.runNixOSTest {
     site = host.succeed("curl -sfk https://127.0.0.1:8443/ui/nixie.json")
     cfg = __import__("json").loads(site)
     assert cfg["theme"] == "umber" and cfg["links"][0]["label"] == "Docs" and "web" in cfg["declared"], site
+    # The Machines page is drawn from these: every machine of the site, and
+    # which of them is the one answering.
+    assert cfg["host"] == "server", site
+    assert [m["name"] for m in cfg["machines"]] == ["server", "laptop"], site
+    assert cfg["machines"][1]["url"] is None and cfg["machines"][1]["profile"] == "desktop", site
     js = host.succeed("curl -sfk https://127.0.0.1:8443/ui/ | grep -o 'assets/ui-[^\"]*\\.js'").strip()
     host.succeed(f"curl -sfk https://127.0.0.1:8443/ui/{js} -o /tmp/ui.js && grep -q 'Command palette' /tmp/ui.js")
     # Each font as the stylesheet names it, resolved against the stylesheet's

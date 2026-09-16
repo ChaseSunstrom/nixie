@@ -46,6 +46,15 @@
 .btn.more { align-self: flex-start; background: transparent; border-style: dashed; border-color: var(--line2); color: var(--muted); }
 .btn.more:hover { color: var(--ink); border-color: var(--brand2); background: transparent; }
 .reveal { animation: reveal 260ms var(--ease) both; }
+.row.tight { gap: 6px; flex-wrap: nowrap; }
+.row.tight .input { flex: 1 1 auto; min-width: 0; }
+.caption.err { color: var(--err); }
+/* The drives this machine can see, as one card per drive. */
+.picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+.pick { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--s1); color: var(--ink); cursor: pointer; transition: border-color 160ms var(--ease), transform 160ms var(--ease); }
+.pick:hover:not(:disabled) { border-color: var(--brand); transform: translateY(-1px); }
+.pick:disabled { opacity: .55; cursor: progress; }
+.pick-name { font-weight: 500; }
 .notice { margin: 0; padding: 9px 12px; border-radius: 6px; white-space: pre-wrap; animation: reveal 260ms var(--ease) both; }
 .notice.err { background: color-mix(in oklch, var(--err) 12%, transparent); box-shadow: inset 3px 0 0 var(--err); }
 

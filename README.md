@@ -28,6 +28,7 @@ Services and, on a desktop, Desktop.
 |---|---|
 | ![The wizard on the machine's own screen](docs/media/installer-kiosk-wizard.png) | ![What this machine is for](docs/media/installer-profile.png) |
 | ![Disks](docs/media/installer-hardware.png) | ![Security and the administrator](docs/media/installer-security.png) |
+| ![Network: the time zone comes from the machine's own list](docs/media/installer-network.png) | ![Services: a backup folder can be picked from the drives this machine can see](docs/media/installer-services-backup-drive.png) |
 
 Review shows a summary of every step, opens each file the install uses in an
 editor with completion and help for every `nixie.*` option, and checks that
@@ -57,12 +58,13 @@ passphrase on the same screen.
 ### Control panel
 
 Every screen in all three finishes; here Graphite and Paper. A walk-through
-video: [`docs/media/walkthrough.webm`](docs/media/walkthrough.webm).
+video: [`docs/media/panel-walkthrough.webm`](docs/media/panel-walkthrough.webm).
 
 | | |
 |---|---|
 | ![Overview](docs/media/panel-overview-graphite.png) | ![An instance](docs/media/panel-instances-web-graphite.png) |
-| ![Settings](docs/media/panel-settings-graphite.png) | ![Overview in Paper](docs/media/panel-overview-paper.png) |
+| ![Machines: every machine of the site](docs/media/panel-machines-graphite.png) | ![Settings](docs/media/panel-settings-graphite.png) |
+| ![Overview in Paper](docs/media/panel-overview-paper.png) | ![Machines in Paper](docs/media/panel-machines-paper.png) |
 
 ### Console, host page and desktop
 
@@ -103,7 +105,10 @@ switch ([`desktop-finish-runtime.webm`](docs/media/desktop-finish-runtime.webm))
    enter the pairing code.
 3. Walk the steps: Machine, Disks, Name, Security, Network, Services, and
    Desktop on a desktop. Each field shows the first sentence of its help,
-   with More for the rest; anything advanced is behind More options. The
+   with More for the rest; anything advanced is behind More options. A field
+   the machine can answer for you offers a list rather than a blank: the time
+   zone comes from this machine's own tzdata, and a backup folder can be
+   picked from the drives it can see, which are mounted when picked. The
    Machine step also asks how much security you want: **Standard** leaves
    each feature a choice, **Hardened** turns them all on (TPM and PIN, an
    attestation code, Secure Boot, a duress passphrase, USB device blocking,
@@ -120,8 +125,9 @@ switch ([`desktop-finish-runtime.webm`](docs/media/desktop-finish-runtime.webm))
 5. Setup carries on by itself after the restart, in the same front end, as
    a checklist: steps this machine does not use are skipped without being
    shown, and it stops only for what needs you — one restart for Secure
-   Boot enrolment, and the disk passphrase and PIN to bind the TPM.
-   Finish removes the wizard. Details:
+   Boot enrolment, and the disk passphrase and PIN to bind the TPM. On an
+   encrypted machine the last step writes the disk's header backup to a
+   drive you pick, or downloads it. Finish removes the wizard. Details:
    [docs/guides/install-graphically.md](docs/guides/install-graphically.md).
 
 ## Quick start B: Nix
@@ -184,6 +190,11 @@ costs are from [docs/concepts/security.md](docs/concepts/security.md).
   };
 }
 ```
+
+One site holds as many machines as you like: another entry under `hosts`,
+installed from the same ISO with this site's repository or with
+`nix run nixie#deploy`. Every machine of the site is listed on the panel's
+Machines page, on each of them.
 
 ```nix
 # guests.nix: the only place guest names appear
@@ -272,8 +283,11 @@ losing the disk.
 
 `https://<host>:8443/ui/` is the Incus daemon serving the panel: instances
 with their terminal, files, logs, snapshots and metrics, images, profiles,
-networks, storage, operations, dashboards and guest history. A browser gets
-in with a client certificate the daemon trusts; the panel's first page gives
+networks, storage, operations, dashboards and guest history. Machines lists
+every machine in the site, not only the one serving the page, and opens any
+other machine's panel; the list is written from `site.nix` by `lib.mkSite`,
+so a machine added to the site appears there after the next `nixie apply`.
+A browser gets in with a client certificate the daemon trusts; the panel's first page gives
 the commands. The gear in the header opens Settings: the finish, the figures
 in the header, the time range a browser starts with, which Overview panels
 show and in what order and width, the pages in the navigation and extra

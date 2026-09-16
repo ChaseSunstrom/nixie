@@ -54,6 +54,8 @@ pkgs.writeShellApplication {
     pkgs.openssl
     pkgs.qrencode
     pkgs.iproute2
+    # The wizard's drive picker: lsblk to list them, findmnt and mount to use one.
+    pkgs.util-linux
     pkgs.git
     pkgs.nix
     pkgs.systemd

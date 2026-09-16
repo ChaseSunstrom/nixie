@@ -1130,6 +1130,20 @@ and runs `nixie apply`.
   the installer's steps slide) with transform and opacity only, stopped by
   `prefers-reduced-motion`. `docs/design-tokens.md` keeps the extracted
   values as the record of the design file.
+- **D36 The machine answers what it can; the site lists its machines.** A
+  field whose answer this machine already knows is a list, not a blank line:
+  `lib/wizard.nix` carries a `picker` for it, the backend serves the values
+  (`/api/timezones` from `timedatectl`, `/api/devices` from `lsblk` with
+  swap, containers, pool members and read-only media left out), and picking a
+  drive mounts it (`/api/mount`) so what lands in the field is a folder that
+  exists. The same picker names where the disk's header backup is written
+  (`/api/header-backup`), which answers question 5 for every front end rather
+  than only the kiosk's. The control panel's Machines page lists every host
+  in `site.nix` and links to each one's panel: `lib.mkSite` derives the list
+  from the site data, never from the other hosts' evaluated configurations,
+  because each of those would need this list in turn and the evaluation would
+  not terminate. A machine whose site gives no fixed address is linked by its
+  name.
 - **D8 Control panel scope.** The panel is built view by view in slice (h)
   starting from the two screens the design file draws. Every Incus feature the
   brief lists is implemented, but ones the design does not draw follow the
@@ -1143,7 +1157,8 @@ and runs `nixie apply`.
 3. UI framework. React + uPlot + xterm.js (section 10).
 4. Desktop shell. Quickshell (section 11).
 5. Header backup destination in the graphical path. Browser download in the
-   LAN path, a chosen USB path in the kiosk and headless paths, both offered.
+   LAN path, a chosen USB path in the kiosk and headless paths, both offered;
+   since D36 the drive is picked in the page itself in every path.
 
 ## 15. Change-request slices (added 2026-09-11)
 

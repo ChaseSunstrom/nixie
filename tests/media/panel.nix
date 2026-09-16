@@ -15,7 +15,7 @@ let
     from playwright.async_api import async_playwright
     OUT = "/tmp/media"; os.makedirs(OUT, exist_ok=True)
     BASE = "https://127.0.0.1:8443/ui/"
-    SCREENS = ["overview", "instances", "instances/web", "instances/web/terminal", "instances/web/devices", "instances/web/snapshots", "instances/web/logs", "instances/web/files", "instances/web/metrics", "images", "profiles", "networks", "storage", "operations", "dashboards", "dashboards/nixie-guest", "settings"]
+    SCREENS = ["overview", "machines", "instances", "instances/web", "instances/web/terminal", "instances/web/devices", "instances/web/snapshots", "instances/web/logs", "instances/web/files", "instances/web/metrics", "images", "profiles", "networks", "storage", "operations", "dashboards", "dashboards/nixie-guest", "settings"]
     async def main():
         async with async_playwright() as p:
             browser = await p.chromium.launch(args=["--ignore-certificate-errors"])

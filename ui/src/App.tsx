@@ -4,6 +4,7 @@ import { Mark, useHashRoute, Toasts, go } from "./components/ui";
 import { Palette, PAGES } from "./components/Palette";
 import { Overview } from "./pages/Overview";
 import { Instances, CreateInstance } from "./pages/Instances";
+import { Machines } from "./pages/Machines";
 import { InstancePage } from "./pages/Instance";
 import { Images, Profiles, Networks, Storage, Operations, Settings } from "./pages/Others";
 import { Dashboards } from "./pages/Dashboards";
@@ -135,6 +136,7 @@ export function App() {
       <main className="page">
         <div className="route" key={page}>
         {page === "overview" && <Overview />}
+        {page === "machines" && <Machines />}
         {page === "instances" && !route[1] && <Instances />}
         {page === "instances" && route[1] === "new" && <CreateInstance />}
         {page === "instances" && route[1] && route[1] !== "new" && <InstancePage name={route[1]} tab={route[2] ?? "overview"} />}

@@ -248,6 +248,31 @@ in
         touch $out
       '';
 
+  # The wizard's drive picker offers what this check describes: a person must
+  # not be offered swap or a locked container as a place to put a backup.
+  setup-devices = pkgs.runCommand "setup-devices" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+    cp ${../packages/nixie-setup/nixie-setup.py} setup.py
+    python3 - <<'PY'
+    import setup
+    tree = {"blockdevices": [
+        {"path": "/dev/sda", "type": "disk", "size": 500107862016, "model": "SYSTEM DISK", "rm": False, "children": [
+            {"path": "/dev/sda1", "type": "part", "fstype": "vfat", "size": 536870912, "mountpoint": "/boot", "rm": False},
+            {"path": "/dev/sda2", "type": "part", "fstype": "swap", "size": 8589934592, "rm": False},
+            {"path": "/dev/sda3", "type": "part", "fstype": "crypto_LUKS", "size": 400000000000, "rm": False, "children": [
+                {"path": "/dev/mapper/root", "type": "crypt", "fstype": "ext4", "size": 400000000000, "mountpoint": "/", "rm": False}]}]},
+        {"path": "/dev/sdb", "type": "disk", "fstype": None, "size": 31000000000, "model": " Cruzer ", "rm": True, "children": [
+            {"path": "/dev/sdb1", "type": "part", "fstype": "exfat", "label": "BACKUP", "size": 31000000000, "rm": True}]},
+        {"path": "/dev/sdc", "type": "disk", "fstype": "iso9660", "label": "NIXIE", "size": 2000000000, "rm": True},
+    ]}
+    got = setup.block_devices(tree)
+    assert [d["path"] for d in got] == ["/dev/sdb1", "/dev/mapper/root", "/dev/sda1"], got
+    assert got[0]["label"] == "BACKUP" and got[0]["removable"], got[0]
+    assert setup.block_devices({}) == []
+    print("device listing checked")
+    PY
+    touch $out
+  '';
+
   # The committed reference must match what the module tree says.
   option-reference = pkgs.runCommand "option-reference" { } ''
     diff -u ${../docs/reference/options.md} ${self.packages.x86_64-linux.docs}/options.md
@@ -372,6 +397,29 @@ in
         done
         touch $out
       '';
+
+  # The panel's Machines page is only as right as this list: `lib.mkSite`
+  # reads it from the site's own data, so every host of a site knows the
+  # others without evaluating them.
+  site-machines =
+    let
+      machines =
+        (nixieLib.mkSite ./sites/two-hosts/site.nix).nixosConfigurations.alpha.config.nixie.ui.machines;
+      want = [
+        {
+          name = "alpha";
+          profile = "server";
+          url = "https://192.0.2.10:8443";
+        }
+        {
+          name = "beta";
+          profile = "desktop";
+          url = null;
+        }
+      ];
+    in
+    assert lib.assertMsg (machines == want) "mkSite derived ${builtins.toJSON machines}";
+    pkgs.writeText "site-machines" (builtins.toJSON machines);
 
   eval-matrix = pkgs.writeText "eval-matrix" (lib.concatStringsSep "\n" (lib.attrValues matrix));
 

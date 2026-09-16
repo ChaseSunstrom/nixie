@@ -48,6 +48,30 @@ let
         || lib.any (n: name == n || lib.hasPrefix "${n}-" name) chosen;
     };
 
+  # What one host can say about its siblings without evaluating them: their
+  # own configurations would need this list in turn, and the evaluation would
+  # not terminate. site.nix is plain data, so it is read directly.
+  settingsOf =
+    host:
+    let
+      s = if lib.isPath host.settings then import host.settings else host.settings;
+    in
+    # A site is free to write a host's settings as a module function; then
+    # this reads nothing and the machine is listed without its details.
+    if lib.isAttrs s then s else { };
+  machines =
+    site:
+    lib.mapAttrsToList (name: host: {
+      inherit name;
+      profile = (settingsOf host).nixie.profile or "unknown";
+      url =
+        let
+          addr = (settingsOf host).nixie.network.address or null;
+          port = (settingsOf host).nixie.incus.ui.port or 8443;
+        in
+        if addr == null then null else "https://${lib.head (lib.splitString "/" addr)}:${toString port}";
+    }) site.hosts;
+
   hostModules =
     siteDir: name: host:
     hostModulesRev null siteDir name host;
@@ -72,7 +96,7 @@ let
     ];
 
   mkHost =
-    rev: siteInputs: siteDir: name: host:
+    rev: siteInputs: siteMachines: siteDir: name: host:
     lib.nixosSystem {
       inherit system;
       specialArgs = {
@@ -83,6 +107,7 @@ let
       };
       modules =
         hostModulesRev rev siteDir name host
+        ++ [ { nixie.ui.machines = siteMachines; } ]
         # HyDE comes from the site's hydenix input, never the platform's (D27).
         ++ lib.optional (siteInputs ? hydenix) ../modules/desktop/hyde.nix;
     };
@@ -97,7 +122,7 @@ let
       rev = if lib.isAttrs arg then (arg.rev or null) else null;
       siteInputs = if lib.isAttrs arg then (arg.inputs or { }) else { };
       site = import sitePath;
-      hosts = lib.mapAttrs (mkHost rev siteInputs (dirOf sitePath)) site.hosts;
+      hosts = lib.mapAttrs (mkHost rev siteInputs (machines site) (dirOf sitePath)) site.hosts;
     in
     {
       nixosConfigurations = hosts;

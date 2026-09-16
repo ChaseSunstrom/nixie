@@ -39,6 +39,11 @@ let
           # there being no DHCP server in the test network.
           nixie.network.bridge.uplinks = lib.mkForce [ "52:54:00:12:01:03" ];
           nixie.network.address = "192.168.1.3/24";
+          # The committed hardware.nix of the example site lists storage
+          # drivers only; on a real install phase 1 adds the wired ports'
+          # drivers, without which the initrd's SSH has no network to listen
+          # on and the passphrase can never be answered.
+          boot.initrd.availableKernelModules = lib.mkAfter [ "virtio_net" ];
           nixie.disks.system = lib.mkForce "/dev/vda";
           # Prompts on the screen for the camera; the serial console stays for the driver.
           boot.kernelParams = lib.mkAfter [ "console=tty0" ];
@@ -135,7 +140,7 @@ pkgs.testers.runNixOSTest {
         # is pending, in order. The prompts themselves are drawn on tty0 for
         # the pictures, and nothing in the driver can type on that console.
         client.succeed("ip neigh flush all")
-        client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=120)
+        client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=300)
         feed = "; ".join(f"sleep {2 if i == 0 else gap}; printf %s\\n '{a}'" for i, a in enumerate(answers))
         client.succeed("timeout 180 sh -c \"(" + feed + "; sleep 5) | " + ssh + "\" || true")
 
@@ -145,11 +150,21 @@ pkgs.testers.runNixOSTest {
     # port opening is the signal that the prompt is up, the same one
     # vm-encryption uses.
     client.succeed("ip neigh flush all")
-    client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=180)
-    target.sleep(3); target.screenshot("boot-passphrase-first")
+    # Two VMs and a recording share the host; the initrd needs longer here
+    # than the encryption check does.
+    client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=420)
+    # The driver's own clock: the guest is in the initrd at the passphrase
+    # prompt, where machine.sleep() would wait for a shell that only stage 2
+    # starts.
+    import time
+    time.sleep(3); target.screenshot("boot-passphrase-first")
     remote_unlock(["hunter2", "hunter2"])
     target.wait_for_unit("multi-user.target")
-    target.succeed(keys); target.succeed("nixie-phase 4 >&2 && nixie-phase 6 >&2")
+    target.succeed(keys)
+    # Bounded: succeed() waits for ever by default, and a phase that stops for
+    # input would hang the whole run with nothing on screen to say so.
+    target.succeed("nixie-phase 4 >&2", timeout=900)
+    target.succeed("nixie-phase 6 >&2", timeout=900)
     target.succeed("cat /run/nixie/keys/attestation-qr | head -40 > /tmp/attestation-qr.txt || true")
     target.copy_from_vm("/tmp/attestation-qr.txt", "attestation-qr.txt")
     target.shutdown()
@@ -165,7 +180,7 @@ pkgs.testers.runNixOSTest {
         "'until nc -z 192.168.1.3 2222; do sleep 1; done; "
         "{ sleep 2; printf \"1234\\n\"; sleep 25; printf \"hunter2\\n\"; sleep 5; } | " + ssh + "'"
     )
-    import os, time
+    import os
     os.makedirs("frames", exist_ok=True)
     i = 0
     t0 = time.time()

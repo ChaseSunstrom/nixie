@@ -3,6 +3,7 @@
 // folded under Details.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Field } from "../components/ui";
+import { PathPicker } from "./fields";
 import { api, type State } from "./api";
 
 export type ItemState = "done" | "current" | "running" | "failed" | "pending";
@@ -73,6 +74,10 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
   const [recovery, setRecovery] = useState({ key: "", qr: "", attest: "" });
   // What phase 5 asked for: 10 a restart that enrols the keys, 11 the firmware settings.
   const [sb, setSb] = useState<number | null>(null);
+  // The kiosk browser is on this machine, where a download goes nowhere; the
+  // headers can be written to a drive instead.
+  const [dest, setDest] = useState("");
+  const [copied, setCopied] = useState("");
 
   const phases = [
     { n: 4, title: "First start", blurb: "The identity and the site are in place.", used: true },
@@ -171,10 +176,23 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
       blurb: "Switch to the normal system and remove setup. From then on the control panel is the only web page on this host.",
       state: next ? "pending" : busy ? "running" : "current",
       body: (
-        <div className="row">
-          <button className="btn primary" disabled={busy} onClick={finishSetup}>Finish</button>
-          {features.encryption && <a className="btn" href="/api/download/header-backup" download>Download header backup</a>}
-        </div>
+        <>
+          {features.encryption && (
+            <div className="fields">
+              <Field label="Copy the disk's encryption headers to a drive">
+                <PathPicker value={dest} onChange={(v) => { setDest(v); setCopied(""); }} placeholder="a folder, or choose a drive" />
+              </Field>
+              <div className="row">
+                <button className="btn" disabled={!dest} onClick={() => api.copyHeaderBackup(dest).then((r) => setCopied(r.path)).catch((e) => setErr((e as Error).message))}>Copy</button>
+                <a className="btn" href="/api/download/header-backup" download>Download instead</a>
+                {copied && <span className="caption">Written to {copied}</span>}
+              </div>
+            </div>
+          )}
+          <div className="row">
+            <button className="btn primary" disabled={busy} onClick={finishSetup}>Finish</button>
+          </div>
+        </>
       ),
     },
   ];

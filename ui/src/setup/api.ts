@@ -1,5 +1,6 @@
 // The setup backend's JSON API, same origin.
-export type Opt = { path: string; type: string; values: string[]; default: unknown; required: boolean; description: string; section: string | null; order: number; secret: string | null; label: string | null; advanced: boolean };
+export type Opt = { path: string; type: string; values: string[]; default: unknown; required: boolean; description: string; section: string | null; order: number; secret: string | null; label: string | null; advanced: boolean; picker: "timezone" | "path" | null };
+export type Device = { path: string; size: number; label: string; fstype: string; mountpoint: string; removable: boolean; model: string };
 export type SiteFile = { path: string; content: string };
 export type Check = { ok: boolean; message: string; detail?: string; locations: { path: string; line: number; col: number }[] };
 export type Hardware = { disks: { path: string; size: number; model: string | null; serial: string | null; transport: string | null; id: string | null }[]; nics: { mac: string; name: string; up: boolean }[]; gpu: string; tpm: boolean; efi: boolean; online?: boolean };
@@ -23,6 +24,10 @@ export const api = {
   state: () => j<State>("GET", "/api/state"),
   hardware: () => j<Hardware>("GET", "/api/hardware"),
   options: () => j<Opt[]>("GET", "/api/options"),
+  timezones: () => j<{ zones: string[] }>("GET", "/api/timezones"),
+  devices: () => j<{ devices: Device[] }>("GET", "/api/devices"),
+  mount: (path: string) => j<{ ok: boolean; mountpoint: string }>("POST", "/api/mount", { path }),
+  copyHeaderBackup: (dest: string) => j<{ ok: boolean; path: string }>("POST", "/api/header-backup", { dest }),
   site: (b: Record<string, unknown>) => j<{ ok: boolean; hosts: string[] }>("POST", "/api/site", b),
   config: (b: Record<string, unknown>) => j<{ ok: boolean }>("POST", "/api/config", b),
   secrets: (b: Record<string, string>) => j<{ ok: boolean; have: string[] }>("POST", "/api/secrets", b),

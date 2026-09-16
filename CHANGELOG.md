@@ -38,6 +38,13 @@ config errors, and mixing the two glibcs left the compositor unable to start at
 all. The wizard takes an existing machine's age key when a cloned site already
 holds its secrets.
 
+Fields the machine can answer are lists, not blank lines: the time zone comes
+from the machine's own tzdata, and a backup folder — or where the disk's
+header backup is written at the end of setup — is picked from the drives it
+can see, which are mounted when picked. The control panel gains a Machines
+page: every machine in `site.nix`, with a link to each one's own panel, so a
+site with more than one deployment is managed from any of them.
+
 The control panel matches: softer radii, pill navigation, a heading row with
 actions on every page, pages, panels, dialogs and toasts that animate in (off
 under reduced motion), a centred card for the trust page and for the kiosk's

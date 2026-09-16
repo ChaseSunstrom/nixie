@@ -44,6 +44,33 @@ in
       default = [ ];
       description = "Extra entries in the control panel navigation, for a site's own pages.";
     };
+    machines = mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            name = mkOption {
+              type = lib.types.str;
+              description = "The host's name in the site.";
+            };
+            profile = mkOption {
+              type = lib.types.str;
+              description = "What that machine is, server or desktop.";
+            };
+            url = mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "Where its control panel answers, if the site gave it a fixed address.";
+            };
+          };
+        }
+      );
+      default = [ ];
+      description = ''
+        Internal: every machine of this site, written by `lib.mkSite` from
+        site.nix. The control panel lists them so one site's deployments are
+        managed from any of them.
+      '';
+    };
     allowSiteEdits = mkOption {
       type = lib.types.bool;
       default = false;

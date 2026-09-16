@@ -27,8 +27,10 @@
    Services (backups, monitoring, host page), and Desktop on a desktop (the
    Nixie desktop or HyDE, the finish, the apps). Each field shows its first
    sentence of help with More for the rest; advanced settings are behind
-   More options. Secrets typed here stay in the backend until a phase needs
-   them.
+   More options. A field the machine can answer offers a list: the time zone
+   comes from its own tzdata, and a backup folder can be picked from the
+   drives it can see, which are mounted when picked. Secrets typed here stay
+   in the backend until a phase needs them.
 4. Review: a summary with a Change link per step, every file the install
    uses (`site.nix`, the host's `configuration.nix` and `hardware.nix`,
    `guests.nix`, `data.nix`, `flake.nix`) in an editor with Nix highlighting
@@ -50,10 +52,10 @@
    enrolment (or a restart into the firmware settings when Setup Mode is not
    on yet), and the disk passphrase and a PIN to bind the TPM. Binding tests
    right away that the TPM and PIN open the disk, so no restart is needed to
-   verify it; the recovery key, the attestation QR and the header-backup
-   download stay on the page until Finish. Finish switches to the normal
-   generation and removes the wizard; from then on the control panel is the
-   only web page.
+   verify it; the recovery key and the attestation QR stay on the page until
+   Finish, which also writes the disk's header backup to a drive you pick
+   there, or downloads it. Finish switches to the normal generation and
+   removes the wizard; from then on the control panel is the only web page.
 
 Everything the wizard did is in the site checkout on the host; the phases
 are the same scripts `nixie-phase N` runs. If Finish stops, the setup page
@@ -68,6 +70,7 @@ After setup:
 - **Control panel.** `https://<address>:8443/ui/`. The first visit explains
   how to trust the browser: a client certificate made with `openssl` on the
   host and `incus config trust add-certificate`. The gear opens Settings.
+  Machines lists every machine in this site and opens any other one's panel.
 - **The site.** `/etc/nixie/site` is a git checkout owned by root: edit it
   with `sudo`, then `sudo nixie apply`, which commits the edits first so
   every generation names its commit. With `nixie.site.repo` set (the wizard's

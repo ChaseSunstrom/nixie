@@ -6,8 +6,11 @@ import { demo, demoSeries } from "./demo";
 import { applyFinish, type Finish, type Tokens } from "../tokens";
 import { UI_KEY, type UiConfig } from "./ui-config";
 
+export type Machine = { name: string; profile: string; url: string | null };
 export type SiteConfig = {
   theme: Finish;
+  host: string;
+  machines: Machine[];
   tokens: Partial<Tokens>;
   links: { label: string; url: string }[];
   declared: Record<string, { kind: string; ip: string; image: string }>;
@@ -20,7 +23,7 @@ export type SiteConfig = {
   grafanaUrl: string | null;
   gpuPowerCap: number | null;
 };
-const defaultSite: SiteConfig = { theme: "graphite", tokens: {}, links: [], declared: {}, allowSiteEdits: false, declareUrl: null, hostUiUrl: null, prometheusPath: null, grafanaPath: null, prometheusUrl: null, grafanaUrl: null, gpuPowerCap: null };
+const defaultSite: SiteConfig = { theme: "graphite", host: "", machines: [], tokens: {}, links: [], declared: {}, allowSiteEdits: false, declareUrl: null, hostUiUrl: null, prometheusPath: null, grafanaPath: null, prometheusUrl: null, grafanaUrl: null, gpuPowerCap: null };
 
 // Services published by tailscale serve live under paths on the tailnet
 // name the panel was opened on; the host page is a port on the same host.

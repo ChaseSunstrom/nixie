@@ -100,6 +100,10 @@ let
           if g.kind == "nixos" then images.${name}.alias else "${g.image.remote}:${g.image.fingerprint}";
       }) guests;
       inherit (config.nixie.ui) allowSiteEdits;
+      # Every machine of this site, so the panel can show them all and open
+      # any one of them; this host is marked by its own name.
+      inherit (config.nixie.ui) machines;
+      host = config.nixie.host.name;
       declareUrl = null;
       hostUiUrl = if config.nixie.hostUi.enable then ":${toString config.nixie.hostUi.port}" else null;
       # Long history and Grafana are published on the tailnet by tailscale
