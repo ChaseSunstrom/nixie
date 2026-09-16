@@ -89,6 +89,9 @@ svg.check-icon { border: 0; padding: 0; background: none; animation: pop 300ms v
 svg.check-icon circle { fill: var(--ok); }
 svg.check-icon path { fill: none; stroke: var(--bg); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; stroke-dashoffset: 16; animation: draw 320ms 120ms var(--ease) forwards; }
 .check-title { font-size: 15px; font-weight: 500; }
+.step-progress { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-width: 460px; }
+.progress-line { height: 4px; border-radius: 2px; background: var(--s2); overflow: hidden; }
+.progress-line > i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--brand), var(--brand2)); transition: width 500ms var(--ease); }
 .check-body { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--s1); border: 1px solid var(--line); border-radius: 10px; }
 ol.steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
 .btn.pulse { position: relative; }

@@ -1,0 +1,3 @@
+== medium -cdrom, security plain, profile desktop
+== boot the ISO (graphical entry)
+== phases 1 to 3: the site flake is evaluated and built on the ISO

@@ -12,6 +12,13 @@ STATE="$NIXIE_SETUP_DIR/state.json"
 export TPM2TOOLS_TCTI="${TPM2TOOLS_TCTI:-device:/dev/tpmrm0}"
 
 log() { printf '[nixie %s] %s\n' "${PHASE:-}" "$*" >&2; }
+# A phase's own progress, for the bar every front end draws: the phase sets
+# STEPS to how many steps it has, then calls step before each one.
+STEP=0
+step() {
+  STEP=$((STEP + 1))
+  printf '[nixie %s] step %s/%s %s\n' "${PHASE:-}" "$STEP" "${STEPS:-0}" "$*" >&2
+}
 die() { log "$*"; exit 1; }
 marker() { echo "$NIXIE_SETUP_DIR/$1.done"; }
 need() { for c in "$@"; do command -v "$c" >/dev/null || die "missing tool: $c"; done; }

@@ -9,6 +9,7 @@
 #   --profile desktop     install a desktop: setup shows the wizard on its
 #                         screen too, and Finish hands over to the greeter
 #   --security plain      encryption only (default)
+#   --security hardened   what the wizard's hardened setup turns on
 #   --security tpm        and TPM with PIN, attestation, duress, to Finish
 #   --security secureboot and Secure Boot, until the keys are staged: firmware
 #                         enrolment then needs real hardware (VERIFICATION.md)
@@ -39,7 +40,7 @@ pkgs.writeShellApplication {
         --usb) medium=(-drive "if=none,id=stick,format=raw,readonly=on,file=$iso" -device qemu-xhci -device "usb-storage,drive=stick,bootindex=0") ;;
         --security) security=$2; shift ;;
         --profile) profile=$2; shift ;;
-        *) echo "usage: nixie-test-iso [--usb] [--security plain|tpm|secureboot] [--profile server|desktop]" >&2; exit 2 ;;
+        *) echo "usage: nixie-test-iso [--usb] [--security plain|tpm|secureboot|hardened] [--profile server|desktop]" >&2; exit 2 ;;
       esac
       shift
     done
@@ -128,6 +129,10 @@ pkgs.writeShellApplication {
     features='{"nixie.security.encryption.enable":true}'
     [ "$security" != tpm ] || features='{"nixie.security.encryption.enable":true,"nixie.security.tpm.enable":true,"nixie.security.attestation.enable":true,"nixie.security.duress.enable":true}'
     [ "$security" != secureboot ] || features='{"nixie.security.encryption.enable":true,"nixie.security.secureBoot.enable":true}'
+    # What the wizard's hardened setup writes, without Secure Boot: this
+    # firmware stages the keys but will not boot the signed chain (see the
+    # secureboot run), so the rest of the setup could never be checked.
+    [ "$security" != hardened ] || features='{"nixie.security.encryption.enable":true,"nixie.security.tpm.enable":true,"nixie.security.attestation.enable":true,"nixie.security.duress.enable":true,"nixie.security.hardening.usbguard.enable":true,"nixie.security.hardening.memoryEncryption.enable":true,"nixie.auth.ssh.passwordLogin":false}'
     # The installed system's console is the serial port, so its prompts and
     # banner reach this script.
     api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --arg p "$profile" --argjson f "$features" '{host:"iso-test",profile:$p,systemDisk:$d,uplinks:(if $p == "server" then [$m] else [] end),settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
@@ -159,7 +164,7 @@ pkgs.writeShellApplication {
     phase 5
     api -X POST -H 'Content-Type: application/json' -d '{"passphrase":"hunter2","pin":"1234"}' https://127.0.0.1:9443/api/secrets >/dev/null
     phase 6
-    if [ "$security" = tpm ]; then
+    if [ "$security" = tpm ] || [ "$security" = hardened ]; then
       echo "== reboot: the TPM and PIN open the outer layer, the code is shown" | tee -a "$out/run.log"
       api -X POST https://127.0.0.1:9443/api/reboot >/dev/null; stopped "$pid"
       mark; pid=$(boot)
@@ -179,6 +184,15 @@ pkgs.writeShellApplication {
     [ "$gone" = 1 ] || { echo "the setup service still answers" >&2; exit 1; }
     # A server's control panel; a desktop's greeter is on the screenshot.
     [ "$profile" = desktop ] || curl -sfk --max-time 10 https://127.0.0.1:8443/ui/ | grep -q '<title>nixie</title>'
+    # The hardened setup asks for more than the others. What this VM can show
+    # is on its console: USB blocking started, the attestation code and the
+    # PIN prompt appeared at boot (waited for above). Memory encryption is a
+    # kernel parameter with nothing to say on a machine without an IOMMU, and
+    # the whole set is proven to build by tests/sites/wizard-server.nix.
+    if [ "$security" = hardened ]; then
+      grep -qi 'usbguard' "$out/serial.log" || { echo "usbguard did not start" >&2; exit 1; }
+      echo "hardened: USB blocking started, the attestation code and PIN prompt appeared" | tee -a "$out/run.log"
+    fi
     sleep 15; shot finished
     printf 'quit\n' | socat - UNIX-CONNECT:"$out/monitor.sock" >/dev/null 2>&1 || true
     stopped "$pid"

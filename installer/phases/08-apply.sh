@@ -8,5 +8,7 @@ set -euo pipefail
 # shellcheck source=../lib.sh
 . "$(dirname "$0")/../lib.sh"
 phase_start 8
+STEPS=1
+step "guests, data and services from the site"
 if command -v nixie >/dev/null; then nixie apply --skip-host --yes; else log "nixie CLI not installed; nothing to apply"; fi
 phase_finish

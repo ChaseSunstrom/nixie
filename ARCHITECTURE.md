@@ -1024,16 +1024,21 @@ and runs `nixie apply`.
   shell, pinned and offline. `nixie.desktop.hyde.enable` gives the real HyDE
   desktop through the hydenix flake, which is an input of the *site*: the
   installer's Desktop step offers it when the machine is online and writes
-  `inputs.hydenix` (pinned, following the platform's nixpkgs) into the
-  site's flake, and `mkSite { …; inherit inputs; }` hands a site's inputs
-  to its hosts and adds `modules/desktop/hyde.nix` to every host of a site
+  `inputs.hydenix` (pinned, with its own nixpkgs) into the site's flake, and
+  `mkSite { …; inherit inputs; }` hands a site's inputs to its hosts and adds `modules/desktop/hyde.nix` to every host of a site
   that has hydenix. That module carries the glue hydenix needs on this
   platform: its boot, network and nix modules stay off (they collide with
   lanzaboote, Nixie's nftables and `nixpkgs.config`), the system state
   version and sshd stay Nixie's, the cursor it fetches from a moved URL
   comes from the pinned HyDE source, and its Steam, Spotify, Discord and VS
   Code modules stay off because they are unfree and Steam opens firewall
-  ports; the installer's Apps offer those instead. Setup masks the display
+  ports; the installer's Apps offer those instead. The desktop runs on
+  hydenix's own package set — the compositor, what its home-manager modules
+  install, and the graphics drivers — because HyDE's configuration is
+  written for the Hyprland it pins: on the platform's newer one the session
+  drew over a thousand "config error" lines, and mixing the two glibcs left
+  the compositor unable to create a backend at all. The system around the
+  session stays on the platform's nixpkgs. Setup masks the display
   manager until Finish, as it stops greetd. The platform still takes no
   dependency: hydenix pulls home-manager and a large third-party tree, and
   HyDE's theme switcher fetches from the network at use, which the

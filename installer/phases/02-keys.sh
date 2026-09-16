@@ -7,9 +7,11 @@ set -euo pipefail
 . "$(dirname "$0")/../lib.sh"
 phase_start 2
 need age age-keygen sops jq mkpasswd openssl uuidgen
+STEPS=3
 h=$(host); secrets="$NIXIE_SITE/secrets/$h.yaml"; mkdir -p "$NIXIE_SITE/secrets"
 key="$NIXIE_SETUP_DIR/age.key"
 
+step "this machine's own key"
 if have_secret age.key; then
   install -m 0600 "$(secret_file age.key)" "$key"
 elif [ ! -s "$key" ]; then
@@ -18,6 +20,7 @@ fi
 pub=$(age-keygen -y "$key"); echo "$pub" >"$NIXIE_SETUP_DIR/age.pub"
 export SOPS_AGE_KEY_FILE="$key"
 
+step "the secrets this machine needs"
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 existing=""
 if [ -s "$secrets" ] && existing=$(sops -d "$secrets" 2>/dev/null); then
@@ -52,6 +55,7 @@ fi
 } >"$tmp/plain.yaml"
 
 # Recipients: this host, plus anyone already listed for it in .sops.yaml.
+step "encrypting them to this machine"
 rules="$NIXIE_SITE/.sops.yaml"
 if [ ! -s "$rules" ]; then
   cat >"$rules" <<YAML

@@ -12,6 +12,26 @@
 let
   on = config.nixie.desktop.hyde.enable && config.nixie.profile == "desktop";
   user = config.nixie.desktop.user;
+  # hydenix fetches the cursor from HyDE's master branch, where it is gone;
+  # the pinned HyDE source has the same file with the same hash.
+  cursor = _: prev: {
+    Bibata-Modern-Ice = prev.Bibata-Modern-Ice.overrideAttrs {
+      src = "${inputs.hydenix.inputs.hyde}/Source/arcs/Cursor_BibataIce.tar.gz";
+    };
+  };
+  # HyDE's configuration files are written for the Hyprland and the tools
+  # hydenix pins. On the platform's newer nixpkgs those options are renamed or
+  # gone, and the session came up under a thousand "config error" lines, so
+  # the desktop's own packages come from hydenix's nixpkgs while the system
+  # around them stays on the platform's.
+  hydePkgs = import inputs.hydenix.inputs.nixpkgs {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    config.allowUnfree = true;
+    overlays = [
+      inputs.hydenix.overlays.default
+      cursor
+    ];
+  };
 in
 {
   imports = [
@@ -46,17 +66,26 @@ in
         gaming.enable = false;
       };
       # hydenix.nix.enable would build pkgs itself (allowUnfree, extra
-      # substituters) past nixpkgs.config; its overlay is all HyDE needs.
+      # substituters) past nixpkgs.config; its overlay is all HyDE needs from
+      # the system's own package set.
       nixpkgs.overlays = [
         inputs.hydenix.overlays.default
-        # hydenix fetches the cursor from HyDE's master branch, where it is
-        # gone; the pinned HyDE source has the same file with the same hash.
-        (_: prev: {
-          Bibata-Modern-Ice = prev.Bibata-Modern-Ice.overrideAttrs {
-            src = "${inputs.hydenix.inputs.hyde}/Source/arcs/Cursor_BibataIce.tar.gz";
-          };
-        })
+        cursor
       ];
+      # The session itself: HyDE's own Hyprland, its portal, and every package
+      # its home-manager modules install.
+      programs.hyprland = {
+        package = lib.mkForce hydePkgs.hyprland;
+        portalPackage = lib.mkForce hydePkgs.xdg-desktop-portal-hyprland;
+      };
+      # The driver stack has to match the compositor: HyDE's Hyprland links
+      # hydenix's glibc, the platform's newer Mesa in /run/opengl-driver needs
+      # a newer one ("GLIBC_ABI_GNU2_TLS not found"), and the compositor then
+      # dies with "CBackend::create() failed" before it draws anything.
+      hardware.graphics = {
+        package = lib.mkForce hydePkgs.mesa;
+        package32 = lib.mkForce hydePkgs.pkgsi686Linux.mesa;
+      };
       # hydenix's system module turns sshd on whatever the site says.
       services.openssh.enable = lib.mkOverride 99 (
         config.nixie.auth.sshKeys != [ ] || config.nixie.auth.ssh.passwordLogin
@@ -76,6 +105,7 @@ in
         extraSpecialArgs = { inherit inputs; };
         users.${user} = {
           imports = [ inputs.hydenix.homeModules.default ];
+          _module.args.pkgs = lib.mkForce hydePkgs;
           hydenix.hm = {
             enable = true;
             spotify.enable = false;

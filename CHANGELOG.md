@@ -24,6 +24,20 @@ offered on the Desktop step when the machine is online: the site gets a
 pinned hydenix input, `mkSite { …; inherit inputs; }` passes a site's inputs
 to its hosts, and `modules/desktop/hyde.nix` wires hydenix to the platform
 (HyDE's unfree app modules stay off; the Apps still install under HyDE).
+The Machine step asks Standard or Hardened; the hardened setup turns on every
+security feature the installer can set by itself and walks through each one
+with its secrets, in the web wizard and the terminal one. Phases report their
+steps, and the install and setup checklists draw a progress bar from them. The
+boot splash centres the mark and shows an indeterminate bar instead of a still
+logo, and hides it while asking for the passphrase. `nixie apply` no longer
+fails when two guests build the same image (the second only gains an alias).
+HyDE installs and runs: its desktop, and the graphics drivers under it, come
+from hydenix's own nixpkgs, because HyDE's configuration is written for the
+Hyprland it pins — on the platform's newer one the session drew over a thousand
+config errors, and mixing the two glibcs left the compositor unable to start at
+all. The wizard takes an existing machine's age key when a cloned site already
+holds its secrets.
+
 The control panel matches: softer radii, pill navigation, a heading row with
 actions on every page, pages, panels, dialogs and toasts that animate in (off
 under reduced motion), a centred card for the trust page and for the kiosk's

@@ -13,12 +13,14 @@ h=$(host)
 # the installer's memory-backed store and nixos-install builds the system
 # straight into the target disk.
 flake=0
+STEPS=6
 if [ "$NIXIE_TOPLEVEL" = /run/current-system ]; then
   flake=1
+  STEPS=7
   # A git flake sees only tracked files, and phases 1 and 2 have just written
   # hardware.nix, the secrets and the sops rules.
   [ ! -d "$NIXIE_SITE/.git" ] || git -C "$NIXIE_SITE" add -A
-  log "evaluating $h from $NIXIE_SITE"
+  step "evaluating $h from $NIXIE_SITE"
   layoutFile=$(nix build --no-link --print-out-paths "$NIXIE_SITE#nixosConfigurations.$h.config.environment.etc.\"nixie/layout.json\".source")
   mkdir -p "$NIXIE_SETUP_DIR/layout/etc/nixie"
   cp "$layoutFile" "$NIXIE_SETUP_DIR/layout/etc/nixie/layout.json"
@@ -35,7 +37,7 @@ if feature encryption; then
   [ "$(layout .data)" = null ] || (umask 077; head -c 64 /dev/urandom >/run/nixie/keys/dpool.key)
 fi
 
-log "partitioning and formatting"
+step "partitioning and formatting"
 "$NIXIE_DISKO"
 
 if feature duress; then
@@ -45,6 +47,7 @@ if feature duress; then
   log "duress passphrase enrolled in slot 7 of $dev"
 fi
 
+step "writing this machine's keys"
 install -d -m 0700 /mnt/var/lib/nixie /mnt/var/lib/nixie/setup
 install -m 0600 "$NIXIE_SETUP_DIR/age.key" /mnt/var/lib/nixie/age.key
 export SOPS_AGE_KEY_FILE="$NIXIE_SETUP_DIR/age.key"
@@ -70,12 +73,13 @@ fi
 
 # The site checkout travels to the installed system first: activation reads
 # the secrets from it, and any front end resumes from phase 4 after the reboot.
+step "copying the site"
 mkdir -p /mnt/etc/nixie && cp -a "$NIXIE_SITE" /mnt/etc/nixie/site
 if [ "$flake" = 1 ]; then
-  log "installing $h from the site (built on the target disk)"
+  step "building and installing $h (the long one)"
   nixos-install --flake "$NIXIE_SITE#$h" --root /mnt --no-root-passwd --no-channel-copy
 else
-  log "installing $NIXIE_TOPLEVEL"
+  step "installing $NIXIE_TOPLEVEL"
   nixos-install --system "$NIXIE_TOPLEVEL" --root /mnt --no-root-passwd --no-channel-copy
 fi
 # Which loader entry comes up is loader.conf's business (modules/setup.nix).
@@ -84,12 +88,14 @@ fi
 # again; BootNext sends the next boot to the installed loader regardless. The
 # entry is picked by this ESP's partition GUID: a machine installed before
 # keeps a stale "Linux Boot Manager" pointing at a partition that is gone.
+step "pointing the next start at this disk"
 esp=$(lsblk -no PARTUUID "$(findmnt -no SOURCE /mnt/boot)" 2>/dev/null || true)
 n=$(efibootmgr 2>/dev/null | grep -i "Linux Boot Manager.*GPT,${esp:-none}," | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\).*/\1/p' | head -1 || true)
 [ -z "$n" ] || efibootmgr -q --bootnext "$n" || log "could not point the next boot at the installed system"
 phase_finish
 cp -a "$NIXIE_SETUP_DIR"/*.done "$STATE" /mnt/var/lib/nixie/setup/
 
+step "closing the disks"
 umount -R /mnt
 zpool export -a
 for name in $(layout '.luks[].name' | tac); do cryptsetup close "$name" 2>/dev/null || true; done

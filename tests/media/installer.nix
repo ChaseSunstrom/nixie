@@ -36,7 +36,9 @@ let
     # up is the driver's directory, which both nodes share.
     virtualisation.diskImage = "../target.qcow2";
     virtualisation.diskSize = 8 * 1024;
-    virtualisation.memorySize = 3072;
+    # Phase 3 evaluates and copies the whole system here; at 3 GB with the
+    # installer's compressed swap the kernel fell over mid-copy.
+    virtualisation.memorySize = 6144;
     virtualisation.cores = 4;
     virtualisation.useEFIBoot = true;
     virtualisation.tpm.enable = true;

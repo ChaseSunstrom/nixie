@@ -131,8 +131,8 @@ def site_files(host):
     return ["site.nix", f"hosts/{host}/configuration.nix", f"hosts/{host}/hardware.nix", "guests.nix", "data.nix", "flake.nix"]
 
 
-# The HyDE a site gets when the installer is asked for it (D27): pinned, and on
-# the platform's nixpkgs so the system has one package set.
+# The HyDE a site gets when the installer is asked for it (D27): pinned, and
+# with hydenix's own nixpkgs, which its desktop configuration is written for.
 HYDENIX = "github:richen604/hydenix/55370cd2ab2361bf0066e3bc89987b1717381c6d"
 
 
@@ -140,7 +140,7 @@ def site_flake(platform, hyde):
     return (
         "{\n  description = \"Nixie site\";\n"
         f"  inputs.nixie.url = {json.dumps(platform)};\n"
-        + (f"  inputs.hydenix.url = {json.dumps(HYDENIX)};\n  inputs.hydenix.inputs.nixpkgs.follows = \"nixie/nixpkgs\";\n" if hyde else "")
+        + (f"  inputs.hydenix.url = {json.dumps(HYDENIX)};\n" if hyde else "")
         + "  outputs =\n    { self, nixie, ... }@inputs:\n    nixie.lib.mkSite {\n      site = ./site.nix;\n"
         "      rev = self.shortRev or self.dirtyShortRev or null;\n      inherit inputs;\n    };\n}\n"
     )

@@ -156,11 +156,20 @@ pkgs.writeShellApplication {
         : "''${label:=$(date +%Y%m%d-%H%M%S)}"
         [ -e /run/current-system/etc/nixie/tofu/config.tf.json ] || { echo "no guests to manage on this host"; push_site; exit 0; }
         # Step 2: NixOS guest images, built with the host, imported by alias.
+        # Two guests whose configurations build the same image share one store
+        # path, and importing that image twice fails ("Image with same
+        # fingerprint already exists"), so the second one only gains an alias.
+        declare -A imported=()
         while IFS=$'\t' read -r name alias path; do
           [ -z "$path" ] || [ "$path" = null ] && continue
-          if ! incus image alias list -f csv | cut -d, -f1 | grep -qx "$alias"; then
+          if incus image alias list -f csv | cut -d, -f1 | grep -qx "$alias"; then continue; fi
+          if [ -n "''${imported[$path]:-}" ]; then
+            echo "image for $name is the one already imported; adding the alias $alias"
+            incus image alias create "$alias" "''${imported[$path]}"
+          else
             echo "importing image for $name as $alias"
             incus image import "$path/metadata.tar.xz" "$path/rootfs.tar.xz" --alias "$alias"
+            imported[$path]=$(incus image info "$alias" | sed -n 's/^Fingerprint: *//p' | head -1)
           fi
         done < <(jq -r '.declared | to_entries[] | [.key, .value.image, .value.imagePath] | @tsv' /run/current-system/etc/nixie/guests.json)
         # Step 3: instances from the generated tofu configuration. Scratch

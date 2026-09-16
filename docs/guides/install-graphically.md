@@ -14,9 +14,16 @@
    Alt+F2 opens the terminal wizard from either of the first two.
 2. Pair (if on another device): open the URL, compare the fingerprint the
    browser shows with the printed one, enter the code. It works once.
-3. Walk the steps: Machine (server or desktop), Disks (system disk, optional
+3. Walk the steps: Machine (server or desktop, and Standard or Hardened:
+   Hardened turns on every security feature the installer can set without a
+   decision from you — TPM and PIN, attestation, Secure Boot, duress, USB
+   blocking, memory encryption, key-only SSH, a second factor — and walks
+   through each one, asking for what it needs; kernel lockdown stays out
+   because it builds the kernel from source), Disks (system disk, optional
    data disk, ports for guests), Name (the host name, and a new site, a git
-   URL or an upload), Security (encryption and the administrator), Network,
+   URL or an upload; a cloned site whose secrets already name this machine
+   also takes its `age.key` from the backup kit), Security (encryption and
+   the administrator), Network,
    Services (backups, monitoring, host page), and Desktop on a desktop (the
    Nixie desktop or HyDE, the finish, the apps). Each field shows its first
    sentence of help with More for the rest; advanced settings are behind

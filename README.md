@@ -10,25 +10,75 @@ anyone.
 
 ## Gallery
 
-Every image and video in `docs/media/` comes from a real run in a VM,
-regenerated with `nix run .#media`; `docs/media/SHOTLIST.md` names the run
-and commit behind each file. The gallery is kept under 100 MB, with each
-video under 8 MB, so it is committed as ordinary files with no large-file
-storage; `nix run .#media` fails rather than exceed that. The gallery is filled in by that command; until
-it has run at a release, this section lists what it produces.
+Every picture and video below is a real run in a virtual machine: a NixOS
+test that boots the machine, drives it and screenshots or records it.
+`nix run .#media` regenerates the lot, and `docs/media/SHOTLIST.md` names the
+run and the commit behind each file. The gallery stays under 100 MB with each
+video under 8 MB, so it lives in git with no large-file storage; that command
+fails rather than exceed it. GitHub does not play the videos inline, so they
+are linked.
 
-- Installer: ISO console with the URL, QR and pairing code; the kiosk wizard
-  step by step; the same from a LAN browser; the continuation after the
-  reboot.
-- Boot: the passphrase prompt, the attestation code, the PIN prompt.
-- Console: the tty1 front panel; the kiosk lock page and control panel.
-- Control panel: every screen in all three finishes, Export, the command
-  palette; one walk-through video.
-- Guests: the examples answering, as a terminal recording.
-- Desktop: greeter, session, launcher modes, notifications, OSDs, power menu,
-  control centre, calendar, wallpaper picker, lock screen, overview, window
-  motion, a runtime finish switch and wallpaper change on video.
-- Host page: Cockpit with Nixie branding and the second-factor login.
+### Installing
+
+The wizard on the machine's own screen, and the same pages from a browser on
+another device. The steps are Machine, Disks, Name, Security, Network,
+Services and, on a desktop, Desktop.
+
+| | |
+|---|---|
+| ![The wizard on the machine's own screen](docs/media/installer-kiosk-wizard.png) | ![What this machine is for](docs/media/installer-profile.png) |
+| ![Disks](docs/media/installer-hardware.png) | ![Security and the administrator](docs/media/installer-security.png) |
+
+Review shows a summary of every step, opens each file the install uses in an
+editor with completion and help for every `nixie.*` option, and checks that
+the machine evaluates before Install is allowed. Install is a checklist with a
+progress bar per step.
+
+| | |
+|---|---|
+| ![Review](docs/media/installer-review.png) | ![Install](docs/media/installer-install-streaming.png) |
+
+After the restart, setup runs by itself: steps this machine does not use are
+skipped without being shown, and it stops only for the Secure Boot restart and
+for the disk passphrase and PIN.
+
+![Setup after the first restart](docs/media/installer-continuation-kiosk.png)
+
+### Booting
+
+The splash in the machine's finish: the mark and an indeterminate bar while it
+starts, the attestation code before anything is typed, the TPM PIN and the
+passphrase on the same screen.
+
+| | |
+|---|---|
+| ![Attestation code](docs/media/boot-attestation-code.png) | ![PIN prompt](docs/media/boot-pin-prompt.png) |
+
+### Control panel
+
+Every screen in all three finishes; here Graphite and Paper. A walk-through
+video: [`docs/media/walkthrough.webm`](docs/media/walkthrough.webm).
+
+| | |
+|---|---|
+| ![Overview](docs/media/panel-overview-graphite.png) | ![An instance](docs/media/panel-instances-web-graphite.png) |
+| ![Settings](docs/media/panel-settings-graphite.png) | ![Overview in Paper](docs/media/panel-overview-paper.png) |
+
+### Console, host page and desktop
+
+The front panel on the first text console, the kiosk's lock page, Cockpit
+with the Nixie tokens, and the desktop profile's Hyprland session.
+
+| | |
+|---|---|
+| ![Front panel](docs/media/front-panel.png) | ![Kiosk lock page](docs/media/kiosk-lock.png) |
+| ![Host page](docs/media/hostui-overview.png) | ![Desktop](docs/media/desktop-bar.png) |
+
+More of the desktop: the launcher, notification centre, control centre,
+calendar, wallpaper picker, lock screen and power menu are in `docs/media/`,
+with videos of the window motion
+([`desktop-motion.webm`](docs/media/desktop-motion.webm)) and a runtime finish
+switch ([`desktop-finish-runtime.webm`](docs/media/desktop-finish-runtime.webm)).
 
 ## Requirements
 
@@ -51,12 +101,27 @@ it has run at a release, this section lists what it produces.
 2. Use the wizard on the machine's screen, or open the printed
    `https://<address>:9443/` on another device, compare the fingerprint and
    enter the pairing code.
-3. Choose the profile, the disk, the ports, a new site, the security
-   features you want, the administrator and the network.
-4. Review the generated `hardware.nix` and `site.nix`, then Install and
-   reboot.
-5. The same page continues after the reboot through enrolment, verification
-   and apply; Finish removes the wizard. Details:
+3. Walk the steps: Machine, Disks, Name, Security, Network, Services, and
+   Desktop on a desktop. Each field shows the first sentence of its help,
+   with More for the rest; anything advanced is behind More options. The
+   Machine step also asks how much security you want: **Standard** leaves
+   each feature a choice, **Hardened** turns them all on (TPM and PIN, an
+   attestation code, Secure Boot, a duress passphrase, USB device blocking,
+   memory encryption, key-only SSH, a second factor) and walks through every
+   one of them, asking for what each needs.
+4. Review: a summary of every step, and every file the install uses
+   (`site.nix`, the machine's own `configuration.nix`, `hardware.nix`,
+   `guests.nix`, `data.nix`, `flake.nix`) in an editor with Nix
+   highlighting, completion and help for every `nixie.*` option. The
+   machine is evaluated the way the install will build it and errors are
+   marked on their line; Install waits for that check to pass. Then
+   install and restart. Installing is a checklist with a progress bar per
+   step.
+5. Setup carries on by itself after the restart, in the same front end, as
+   a checklist: steps this machine does not use are skipped without being
+   shown, and it stops only for what needs you — one restart for Secure
+   Boot enrolment, and the disk passphrase and PIN to bind the TPM.
+   Finish removes the wizard. Details:
    [docs/guides/install-graphically.md](docs/guides/install-graphically.md).
 
 ## Quick start B: Nix
@@ -69,8 +134,9 @@ it has run at a release, this section lists what it produces.
    installs over SSH (kexec if the target is another Linux, the ISO as is).
 4. After the reboot: `nixie-phase 4` … `nixie-phase 8` and `nixie-finish`
    over SSH.
-5. From then on, `nix run .#apply` from the site, or `nixie apply` on the
-   host. Details:
+5. From then on, `nixie apply` on the host: it commits hand edits in
+   `/etc/nixie/site`, switches the system, and pushes the site back when
+   `nixie.site.repo` is set. Details:
    [docs/guides/install-headlessly.md](docs/guides/install-headlessly.md).
 
 ## Profiles
@@ -182,9 +248,10 @@ grep -q 'gpu = true' guests.nix
 
 What the kit plus the site repository give back, and the order:
 
-1. Install from the ISO (either quick start) with the site repository;
-   when the wizard asks for the host's age key, give it `age.key` from the
-   kit so the site's secrets decrypt for this machine.
+1. Install from the ISO (either quick start), cloning the site repository
+   on the Name step, and give that step `age.key` from the kit (the
+   headless deploy asks for its path) so the secrets the site already holds
+   for this machine decrypt again.
 2. Put `restic-password` (and `restic-env` or `rclone.conf` if the kit has
    them) back as the site's sops secrets for `nixie.backups`.
 3. On the new machine: `nixie apply`, then `nixie restore latest`. Guests
@@ -214,6 +281,9 @@ links. They are kept on the host for every browser, in the daemon's
 `user.nixie.ui` setting, and start from `nixie.ui.theme` and
 `nixie.ui.links`
 ([VERIFICATION.md#a-server-installed-through-the-web-wizard](VERIFICATION.md#a-server-installed-through-the-web-wizard)).
+The panel, the installer and the machine's own screens share one set of
+tokens and one look: the same three finishes, the same controls, and motion
+that stops when the browser asks for reduced motion.
 
 ## Console and kiosk
 
@@ -292,9 +362,9 @@ Version 0.1.0, unreleased. By section of the brief:
 | 12.1 server host page | done (TOTP; no passkeys, see ARCHITECTURE D3) |
 | 12.2 desktop | done; overview is the shell's window panel (D29); change request: the full rice, Lua config, runtime finish and wallpaper switching, network, device, volume and screenshot menus, system readouts, keep-awake, wallpaper-derived accent, site and HyDE themes ([VERIFICATION.md#slice-r-desktop-rice](VERIFICATION.md#slice-r-desktop-rice)) |
 | 13 extension points | done |
-| 14 docs, examples | done; media gallery generated per release |
+| 14 docs, examples | done; the gallery above is regenerated by `nix run .#media` |
 | console slice | done |
-| showcase slice | in progress: media generation and this README |
+| showcase slice | done: the gallery comes from media runs, this README is checked |
 
 ## Roadmap
 

@@ -1,0 +1,39 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+
+Loading graphical boot menu...
+
+Press 't' to use the text boot menu on this console...
+
+[    0.037838] RDSEED32 is broken. Disabling the corresponding CPUID bit.
+[    0.219622] tpm tpm0: A TPM error (256) occurred attempting the self test
+
+  Nixie setup
+
+  Open https://10.0.2.15:9443/ in a browser on this network
+  Pairing code: 304813
+  Certificate fingerprint: E1:56:AE:57:1F:AB:E7:2E:1A:6A:2D:0A:9A:44:30:00:83:86:7C:C4:99:83:3E:51:ED:47:DB:84:93:72:BE:AD
+
+█ ▄▄▄▄▄ █ ▀▀▄ ▄▄ ▀█ ▄▄▄▄▄ █
+█ █   █ ███ ▄▄▀▄▄██ █   █ █
+█ █▄▄▄█ █ ▄▄ █ █▄▀█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█ █ ▀ █▄█▄█▄▄▄▄▄▄▄█
+█▄ ▄▀▀ ▄▀   ██ ▄ ▀▄▄▄▄▀█  █
+█ ▄ ▀▄█▄▀▀▀█▄█▀██▀▄▄▄█ ▄█▄█
+███▀▀▀▀▄▄▄▄█▄ ▄█  ▄▀▀▀██▀ █
+█▄▄▀█▄ ▄▀▀▀ ▀ ▄ ▄▄▄█▀█ ▄█▄█
+█▄▄██▄▄▄▄▀▀▄██  ▄ ▄▄▄ ██▄▀█
+█ ▄▄▄▄▄ █▀██▄█▀█  █▄█ ██▀▄█
+█ █   █ ██▀ ▄ ▄█▄▄▄▄▄ ▄██▄█
+█ █▄▄▄█ █  █▀ ▄ ▄█▀▄▀▀▄ ▄▄█
+█▄▄▄▄▄▄▄█▄▄▄██▄▄▄▄█▄█▄█▄█▄█
+
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=a5fb9cc2b9734e58b3d132e99e9af45b;user=root;hostname=nixie-installer;machineid=bc55f8d7be8f47ecbcdb71306e4b7b5f;bootid=0c75265b786b4bf092ca236ee51406ac;pid=856;pidfdid=857;comm=(agetty);servicename=serial-getty@ttyS0.service;invocationid=19cb6b3ffa274e43b761b9492e0dbc8b;type=service\P+q6E616D65\
+
+[1;32m<<< Welcome to Nixie 0.1.0 (x86_64) - ttyS0 >>>[0m
+Nixie installer. Terminal install: nixie-deploy --local
+To install from another machine over SSH, set a root password with passwd
+and run the deploy app of the Nixie flake there.
+
+
+nixie-installer login: 

@@ -11,6 +11,11 @@ phase_start 6
 dest=""; force=0
 while [ $# -gt 0 ]; do case "$1" in --backup-dest) dest="$2"; shift 2 ;; --force) force=1; shift ;; *) shift ;; esac; done
 feature encryption || { phase_finish; exit 0; }
+# The header backup always; the TPM and the attestation code only when the
+# host has them, so the bar counts what will actually run.
+STEPS=1
+if feature tpm; then STEPS=$((STEPS + 1)); fi
+if feature attestation; then STEPS=$((STEPS + 1)); fi
 need cryptsetup age tar openssl systemd-cryptenroll
 recovery=""
 
@@ -20,6 +25,7 @@ recovery_slots() {
 }
 
 if feature tpm; then
+  step "binding the disk to the TPM"
   need tpm2_changeauth tpm2_dictionarylockout
   have_secret pin || die "no PIN given"
   # The install passphrase opens the outer layer at setup; afterwards only
@@ -76,6 +82,7 @@ if feature tpm; then
 fi
 
 if feature attestation; then
+  step "the attestation code"
   need tpm2-totp
   if [ "$force" = 1 ] || ! tpm2-totp calculate >/dev/null 2>&1; then
     # A recovery password lets `nixie reseal` re-seal the same secret to a new
@@ -91,6 +98,7 @@ if feature attestation; then
   mkdir -p /boot/nixie && cat /run/current-system/nixos-version >/boot/nixie/attestation-generation
 fi
 
+step "the header backup"
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for pair in $(layout '.luks[] | .name + "=" + .device'); do
   cryptsetup luksHeaderBackup "${pair#*=}" --header-backup-file "$tmp/${pair%%=*}.header"

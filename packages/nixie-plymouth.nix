@@ -1,7 +1,7 @@
-# The boot splash in the host's finish: the mark and wordmark, messages
-# under them, and the disk passphrase asked in a field drawn like the
-# installer's. A Plymouth script theme, so nothing beyond the plugins NixOS
-# ships.
+# The boot splash in the host's finish: the mark and wordmark centred with a
+# progress bar under them, messages below, and the disk passphrase asked in a
+# field drawn like the installer's. A Plymouth script theme, so nothing beyond
+# the plugins NixOS ships.
 {
   pkgs,
   lib ? pkgs.lib,
@@ -24,16 +24,37 @@ let
     cx = Window.GetX() + Window.GetWidth() / 2;
     cy = Window.GetY() + Window.GetHeight() / 2;
 
+    # The mark, the wordmark and the bar are one group about the middle of
+    # the screen; the passphrase field opens below it.
     logo.image = Image("mark.png");
     logo.sprite = Sprite(logo.image);
-    logo.sprite.SetPosition(cx - logo.image.GetWidth() / 2, cy - 190, 1);
+    logo.sprite.SetPosition(cx - logo.image.GetWidth() / 2, cy - 150, 1);
     word.image = Image.Text("nixie", ${rgb t.ink}, 1, "Archivo 30");
     word.sprite = Sprite(word.image);
-    word.sprite.SetPosition(cx - word.image.GetWidth() / 2, cy - 6, 1);
+    word.sprite.SetPosition(cx - word.image.GetWidth() / 2, cy + 40, 1);
+
+    # An indeterminate bar: the machine cannot say how far along it is, but a
+    # still logo looks like a machine that has stopped.
+    track.image = Image("track.png");
+    track.sprite = Sprite(track.image);
+    trackX = cx - track.image.GetWidth() / 2;
+    track.sprite.SetPosition(trackX, cy + 104, 1);
+    fill.image = Image("fill.png");
+    fill.sprite = Sprite(fill.image);
+    span = track.image.GetWidth() - fill.image.GetWidth();
+    pos = 0;
+    dir = 1;
+    fun refresh() {
+      pos = pos + dir * 0.012;
+      if (pos > 1) { pos = 1; dir = -1; }
+      if (pos < 0) { pos = 0; dir = 1; }
+      fill.sprite.SetPosition(trackX + pos * span, cy + 104, 2);
+    }
+    Plymouth.SetRefreshFunction(refresh);
 
     field.image = Image("field.png");
     field.sprite = Sprite(field.image);
-    field.sprite.SetPosition(cx - field.image.GetWidth() / 2, cy + 96, 2);
+    field.sprite.SetPosition(cx - field.image.GetWidth() / 2, cy + 166, 2);
     field.sprite.SetOpacity(0);
     prompt.sprite = Sprite();
     dots.sprite = Sprite();
@@ -45,13 +66,20 @@ let
       sprite.SetOpacity(1);
     }
 
+    fun bar(shown) {
+      track.sprite.SetOpacity(shown);
+      fill.sprite.SetOpacity(shown);
+    }
+
     fun password(text, bullets) {
-      centred(prompt.sprite, Image.Text(text, ${rgb t.muted}, 1, "Archivo 13"), cy + 66);
+      # Nothing is progressing while a person types: the bar would be a lie.
+      bar(0);
+      centred(prompt.sprite, Image.Text(text, ${rgb t.muted}, 1, "Archivo 13"), cy + 136);
       field.sprite.SetOpacity(1);
       shown = " ";
       for (i = 0; i < bullets && i < 32; i++)
         shown = shown + "•";
-      centred(dots.sprite, Image.Text(shown, ${rgb t.ink}, 1, "Archivo 18"), cy + 106);
+      centred(dots.sprite, Image.Text(shown, ${rgb t.ink}, 1, "Archivo 18"), cy + 176);
     }
     Plymouth.SetDisplayPasswordFunction(password);
 
@@ -59,11 +87,12 @@ let
       field.sprite.SetOpacity(0);
       prompt.sprite.SetOpacity(0);
       dots.sprite.SetOpacity(0);
+      bar(1);
     }
     Plymouth.SetDisplayNormalFunction(normal);
 
     fun message(text) {
-      centred(note.sprite, Image.Text(text, ${rgb t.muted}, 1, "Archivo 12"), cy + 170);
+      centred(note.sprite, Image.Text(text, ${rgb t.muted}, 1, "Archivo 12"), cy + 240);
     }
     Plymouth.SetMessageFunction(message);
   '';
@@ -74,6 +103,8 @@ pkgs.runCommand "nixie-plymouth" { nativeBuildInputs = [ pkgs.imagemagick ]; } '
   magick -size 200x180 xc:none ${mark 200 180} PNG32:mark.png
   magick -size 420x48 xc:none -fill "${t.s2}" -stroke "${t.line}" -strokewidth 1 \
     -draw "roundrectangle 0.5,0.5 419.5,47.5 8,8" PNG32:field.png
+  magick -size 260x4 xc:none -fill "${t.line2}" -draw "roundrectangle 0,0 259,3 2,2" PNG32:track.png
+  magick -size 84x4 xc:none -fill "${t.brand2}" -draw "roundrectangle 0,0 83,3 2,2" PNG32:fill.png
   cat >nixie.script <<'SCRIPT'
   ${script}
   SCRIPT

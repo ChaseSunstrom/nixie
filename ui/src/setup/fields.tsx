@@ -24,7 +24,7 @@ function Help({ o }: { o: Opt }) {
   );
 }
 
-export function OptionField({ o, value, onChange }: { o: Opt; value: unknown; onChange: (v: unknown) => void }) {
+export function OptionField({ o, value, onChange, locked }: { o: Opt; value: unknown; onChange: (v: unknown) => void; locked?: boolean }) {
   const label = o.label ?? o.path.replace(/^nixie\./, "");
   // Structured entries (monitors) have no form here; the editor on the review step takes them.
   if (o.type.includes("submodule")) return null;
@@ -37,8 +37,8 @@ export function OptionField({ o, value, onChange }: { o: Opt; value: unknown; on
   );
   if (o.type === "boolean")
     return (
-      <div className="field">
-        <Toggle on={Boolean(value)} onChange={onChange} label={<span className="field-label">{label}</span>} />
+      <div className="field" data-locked={locked || undefined}>
+        <Toggle on={Boolean(value)} onChange={locked ? () => undefined : onChange} label={<span className="field-label">{label}{locked && <span className="chip brand">hardened</span>}</span>} />
         <Help o={o} />
       </div>
     );
@@ -50,18 +50,29 @@ export function OptionField({ o, value, onChange }: { o: Opt; value: unknown; on
 }
 
 // A step's options: the essentials, then the rest behind "More options".
-export function OptionGroup({ opts, values, set, children }: { opts: Opt[]; values: Record<string, unknown>; set: (k: string, v: unknown) => void; children?: ReactNode }) {
+// A hardened setup walks through every one of them instead, with the ones it
+// turns on shown as locked.
+export function OptionGroup({ opts, values, set, children, expanded, locked }: { opts: Opt[]; values: Record<string, unknown>; set: (k: string, v: unknown) => void; children?: ReactNode; expanded?: boolean; locked?: (o: Opt) => boolean }) {
   const [more, setMore] = useState(false);
+  const field = (o: Opt) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} locked={locked?.(o)} />;
   const essential = opts.filter((o) => !o.advanced);
   const rest = opts.filter((o) => o.advanced);
+  if (expanded)
+    return (
+      <div className="fields">
+        {essential.map(field)}
+        {children}
+        {rest.map(field)}
+      </div>
+    );
   return (
     <div className="fields">
-      {essential.map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}
+      {essential.map(field)}
       {children}
       {rest.length > 0 && (
         <>
           <button className="btn more" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Fewer options" : `More options (${rest.length})`}</button>
-          {more && <div className="fields reveal">{rest.map((o) => <OptionField key={o.path} o={o} value={values[o.path]} onChange={(v) => set(o.path, v)} />)}</div>}
+          {more && <div className="fields reveal">{rest.map(field)}</div>}
         </>
       )}
     </div>

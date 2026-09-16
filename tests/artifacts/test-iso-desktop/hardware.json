@@ -1,0 +1,1 @@
+{"disks": [{"path": "/dev/vda", "size": 42949672960, "model": null, "serial": "nixie-system", "transport": "virtio", "id": "/dev/disk/by-id/virtio-nixie-system"}], "nics": [{"mac": "52:54:00:12:34:56", "name": "enp0s3", "up": true}], "gpu": "none", "tpm": true, "efi": true, "online": true}

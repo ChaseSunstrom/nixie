@@ -1,0 +1,1265 @@
+data: "[nixie 1] starting"
+
+data: "[nixie 1] wrote /etc/nixie/site/hosts/iso-test/hardware.nix"
+
+data: "[nixie 1] done"
+
+event: done
+data: {"rc": 0, "done": [1]}
+
+data: "[nixie 2] starting"
+
+data: "[nixie 2] step 1/3 this machine's own key"
+
+data: "[nixie 2] step 2/3 the secrets this machine needs"
+
+data: "[nixie 2] step 3/3 encrypting them to this machine"
+
+data: "[nixie 2] wrote /etc/nixie/site/secrets/iso-test.yaml (recipients age1xf544hewp4ax7scgh9d2upe7cgv563hky4fee5546ft9js40pd8q8k7lvx)"
+
+data: "[nixie 2] done"
+
+event: done
+data: {"rc": 0, "done": [1, 2]}
+
+data: "[nixie 3] starting"
+
+data: "[nixie 3] step 1/7 evaluating iso-test from /etc/nixie/site"
+
+data: "warning: Git tree '/etc/nixie/site' is dirty"
+
+data: "this derivation will be built:"
+
+data: "  /nix/store/93zrsfddqkdmmg0i761mwpsig06cgjls-etc-nixie-layout.json.drv"
+
+data: "building '/nix/store/93zrsfddqkdmmg0i761mwpsig06cgjls-etc-nixie-layout.json.drv'..."
+
+data: "warning: Git tree '/etc/nixie/site' is dirty"
+
+data: "these 3 derivations will be built:"
+
+data: "  /nix/store/9ysy7hfc4jqaqlagh63alvj765h5aqhl-cryptsetup-2.8.6.drv"
+
+data: "  /nix/store/gi4faqbf2sqjh5g5bigdayks2x29fzsg-disko.drv"
+
+data: "  /nix/store/6imxvzvclnbybb4m8hqvpdi4brx6w9c3-disko.drv"
+
+data: "these 15 paths will be fetched (98.6 MiB download, 313.3 MiB unpacked):"
+
+data: "  /nix/store/63wdfxcylc7rzym8iwhv84yppg8gj3vv-binutils-2.46"
+
+data: "  /nix/store/g4fbgh99yml0wr57798brfl64iwdbpd2-binutils-2.46-lib"
+
+data: "  /nix/store/la0zcwbbm1jazcjqf80m49xfyj14k4b3-binutils-wrapper-2.46"
+
+data: "  /nix/store/qqlrkblzhy8mkrrgz5d1vaxn14v98d0r-die-hook"
+
+data: "  /nix/store/53s7nxi6k9ij09si7rr7qjcvr1jc257j-expand-response-params"
+
+data: "  /nix/store/6hjng4hd5c688hjgdcyb1rzfjz220srh-gcc-15.2.0"
+
+data: "  /nix/store/hbsz2ngi9ixbhd9na1xagh2yc8qnmj7y-gcc-wrapper-15.2.0"
+
+data: "  /nix/store/rlrznkmvs6jyp5kgq5jv2wqam83jv1r7-glibc-2.42-84-dev"
+
+data: "  /nix/store/n22dkvywg4pb1jpb77mvkdw9cpzkfcpb-gmp-6.3.0"
+
+data: "  /nix/store/qq5xqq26g23xp1w38208595305m9vfn8-isl-0.20"
+
+data: "  /nix/store/9ncd81d1p1rpk2ik6iz50vjb29204hz9-libmpc-1.4.0"
+
+data: "  /nix/store/dmpn2sl84sqf9fskr16qwp4pbs5nm729-linux-headers-6.18.7"
+
+data: "  /nix/store/zgi7n65namq775ixng2m8q5ivnb91qfi-make-binary-wrapper-hook"
+
+data: "  /nix/store/bpjwzx5qrfcpfnnl18nj6xxx6mpm5bqm-make-shell-wrapper-hook"
+
+data: "  /nix/store/fnfzxz5x42p8wqp852kn6mskijqljphk-mpfr-4.2.2"
+
+data: "copying path '/nix/store/qqlrkblzhy8mkrrgz5d1vaxn14v98d0r-die-hook' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/53s7nxi6k9ij09si7rr7qjcvr1jc257j-expand-response-params' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/dmpn2sl84sqf9fskr16qwp4pbs5nm729-linux-headers-6.18.7' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/n22dkvywg4pb1jpb77mvkdw9cpzkfcpb-gmp-6.3.0' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/g4fbgh99yml0wr57798brfl64iwdbpd2-binutils-2.46-lib' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/bpjwzx5qrfcpfnnl18nj6xxx6mpm5bqm-make-shell-wrapper-hook' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/fnfzxz5x42p8wqp852kn6mskijqljphk-mpfr-4.2.2' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/qq5xqq26g23xp1w38208595305m9vfn8-isl-0.20' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/63wdfxcylc7rzym8iwhv84yppg8gj3vv-binutils-2.46' from 'https://cache.nixos.org'..."
+
+data: "building '/nix/store/9ysy7hfc4jqaqlagh63alvj765h5aqhl-cryptsetup-2.8.6.drv'..."
+
+data: "copying path '/nix/store/rlrznkmvs6jyp5kgq5jv2wqam83jv1r7-glibc-2.42-84-dev' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/9ncd81d1p1rpk2ik6iz50vjb29204hz9-libmpc-1.4.0' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/6hjng4hd5c688hjgdcyb1rzfjz220srh-gcc-15.2.0' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/la0zcwbbm1jazcjqf80m49xfyj14k4b3-binutils-wrapper-2.46' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/hbsz2ngi9ixbhd9na1xagh2yc8qnmj7y-gcc-wrapper-15.2.0' from 'https://cache.nixos.org'..."
+
+data: "copying path '/nix/store/zgi7n65namq775ixng2m8q5ivnb91qfi-make-binary-wrapper-hook' from 'https://cache.nixos.org'..."
+
+data: "building '/nix/store/gi4faqbf2sqjh5g5bigdayks2x29fzsg-disko.drv'..."
+
+data: "building '/nix/store/6imxvzvclnbybb4m8hqvpdi4brx6w9c3-disko.drv'..."
+
+data: "[nixie 3] step 2/7 partitioning and formatting"
+
+data: "umount: /mnt: not mounted"
+
+data: "++ realpath /dev/disk/by-id/virtio-nixie-system"
+
+data: "+ disk=/dev/vda"
+
+data: "+ lsblk -a -f"
+
+data: "NAME  FSTYPE   FSVER            LABEL UUID                                 FSAVAIL FSUSE% MOUNTPOINTS"
+
+data: "loop0 squashfs 4.0                                                               0   100% /nix/.ro-store"
+
+data: "loop1"
+
+data: "loop2"
+
+data: "loop3"
+
+data: "loop4"
+
+data: "loop5"
+
+data: "loop6"
+
+data: "loop7"
+
+data: "sr0   iso9660  Joliet Extension NIXIE 1980-01-01-00-00-00-00                     0   100% /iso"
+
+data: "zram0 swap     1                zram0 f0a974b5-ef03-416d-8e5c-a3689af0dad5                [SWAP]"
+
+data: "vda"
+
+data: "+ lsblk --output-all --json"
+
+data: "+ bash -x"
+
+data: "++ dirname /nix/store/4asyz4vmi5pjgnzns70pr7hsl91f6r8z-disk-deactivate/disk-deactivate"
+
+data: "+ jq -r -f /nix/store/4asyz4vmi5pjgnzns70pr7hsl91f6r8z-disk-deactivate/zfs-swap-deactivate.jq"
+
+data: "+ lsblk --output-all --json"
+
+data: "+ bash -x"
+
+data: "++ dirname /nix/store/4asyz4vmi5pjgnzns70pr7hsl91f6r8z-disk-deactivate/disk-deactivate"
+
+data: "+ jq -r --arg disk_to_clear /dev/vda -f /nix/store/4asyz4vmi5pjgnzns70pr7hsl91f6r8z-disk-deactivate/disk-deactivate.jq"
+
+data: "+ set -fu"
+
+data: "++ type zdb"
+
+data: "++ zdb -l /dev/vda"
+
+data: "++ sed -nr 's/ +name: '\\''(.*)'\\''/\\1/p'"
+
+data: "+ zpool="
+
+data: "+ [[ -n '' ]]"
+
+data: "+ unset zpool"
+
+data: "++ lsblk /dev/vda -l -p -o type,name"
+
+data: "++ awk 'match($1,\"raid.*\") {print $2}'"
+
+data: "+ md_dev="
+
+data: "+ [[ -n '' ]]"
+
+data: "+ wipefs --all -f /dev/vda"
+
+data: "+ dd if=/dev/zero of=/dev/vda bs=440 count=1"
+
+data: "1+0 records in"
+
+data: "1+0 records out"
+
+data: "440 bytes copied, 3.6758e-05 s, 12.0 MB/s"
+
+data: "+ lsblk -a -f"
+
+data: "NAME  FSTYPE   FSVER            LABEL UUID                                 FSAVAIL FSUSE% MOUNTPOINTS"
+
+data: "loop0 squashfs 4.0                                                               0   100% /nix/.ro-store"
+
+data: "loop1"
+
+data: "loop2"
+
+data: "loop3"
+
+data: "loop4"
+
+data: "loop5"
+
+data: "loop6"
+
+data: "loop7"
+
+data: "sr0   iso9660  Joliet Extension NIXIE 1980-01-01-00-00-00-00                     0   100% /iso"
+
+data: "zram0 swap     1                zram0 f0a974b5-ef03-416d-8e5c-a3689af0dad5                [SWAP]"
+
+data: "vda"
+
+data: "++ mktemp -d"
+
+data: "+ disko_devices_dir=/tmp/tmp.ikPJ4aM1Zq"
+
+data: "+ trap 'rm -rf \"$disko_devices_dir\"' EXIT"
+
+data: "+ mkdir -p /tmp/tmp.ikPJ4aM1Zq"
+
+data: "+ destroy=1"
+
+data: "+ device=/dev/disk/by-id/virtio-nixie-system"
+
+data: "+ imageName=system"
+
+data: "+ imageSize=2G"
+
+data: "+ name=system"
+
+data: "+ type=disk"
+
+data: "+ device=/dev/disk/by-id/virtio-nixie-system"
+
+data: "+ efiGptPartitionFirst=1"
+
+data: "+ type=gpt"
+
+data: "+ blkid /dev/disk/by-id/virtio-nixie-system"
+
+data: "+ sgdisk --clear /dev/disk/by-id/virtio-nixie-system"
+
+data: "Creating new GPT entries in memory."
+
+data: "The operation has completed successfully."
+
+data: "+ sgdisk --align-end --new=1:0:+1G --partition-guid=1:R --change-name=1:disk-system-esp --typecode=1:EF00 --attributes=1:=:0 /dev/disk/by-id/virtio-nixie-system"
+
+data: "The operation has completed successfully."
+
+data: "+ partprobe /dev/disk/by-id/virtio-nixie-system"
+
+data: "+ udevadm trigger --subsystem-match=block"
+
+data: "+ udevadm settle --timeout 120"
+
+data: "+ sgdisk --align-end --new=2:0:-0 --partition-guid=2:R --change-name=2:disk-system-system --typecode=2:8300 --attributes=2:=:0 /dev/disk/by-id/virtio-nixie-system"
+
+data: "The operation has completed successfully."
+
+data: "+ partprobe /dev/disk/by-id/virtio-nixie-system"
+
+data: "+ udevadm trigger --subsystem-match=block"
+
+data: "+ udevadm settle --timeout 120"
+
+data: "+ device=/dev/disk/by-partlabel/disk-system-esp"
+
+data: "+ extraArgs=()"
+
+data: "+ declare -a extraArgs"
+
+data: "+ format=vfat"
+
+data: "+ mountOptions=('umask=0077')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/boot"
+
+data: "+ type=filesystem"
+
+data: "+ blkid /dev/disk/by-partlabel/disk-system-esp"
+
+data: "+ grep -q TYPE="
+
+data: "+ mkfs.vfat /dev/disk/by-partlabel/disk-system-esp"
+
+data: "mkfs.fat 4.2 (2021-01-31)"
+
+data: "+ additionalKeyFiles=()"
+
+data: "+ declare -a additionalKeyFiles"
+
+data: "+ askPassword="
+
+data: "+ device=/dev/disk/by-partlabel/disk-system-system"
+
+data: "+ enrollFido2="
+
+data: "+ enrollRecovery="
+
+data: "+ extraFido2EnrollArgs=()"
+
+data: "+ declare -a extraFido2EnrollArgs"
+
+data: "+ extraFormatArgs=()"
+
+data: "+ declare -a extraFormatArgs"
+
+data: "+ extraOpenArgs=()"
+
+data: "+ declare -a extraOpenArgs"
+
+data: "+ initrdUnlock=1"
+
+data: "+ keyFile="
+
+data: "+ name=rpool"
+
+data: "+ passwordFile=/run/nixie/keys/rpool"
+
+data: "+ settings=(['allowDiscards']='1')"
+
+data: "+ declare -A settings"
+
+data: "+ type=luks"
+
+data: "+ blkid /dev/disk/by-partlabel/disk-system-system"
+
+data: "+ cryptsetup isLuks /dev/disk/by-partlabel/disk-system-system"
+
+data: "+ cryptsetup -q luksFormat /dev/disk/by-partlabel/disk-system-system --key-file /dev/fd/63"
+
+data: "++ set +x"
+
+data: "+ cryptsetup open /dev/disk/by-partlabel/disk-system-system rpool --allow-discards --key-file /dev/fd/63 --persistent"
+
+data: "++ set +x"
+
+data: "+ cryptsetup status rpool"
+
+data: "+ device=/dev/mapper/rpool"
+
+data: "+ pool=rpool"
+
+data: "+ type=zfs"
+
+data: "+ echo /dev/mapper/rpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ readarray -t zfs_devices"
+
+data: "++ cat /tmp/tmp.ikPJ4aM1Zq/zfs_rpool"
+
+data: "+ '[' 1 -eq 0 ']'"
+
+data: "+ zpool import -N -f rpool"
+
+data: "cannot import 'rpool': no such pool available"
+
+data: "+ zpool list rpool"
+
+data: "cannot open 'rpool': no such pool"
+
+data: "+ continue=1"
+
+data: "+ for dev in \"${zfs_devices[@]}\""
+
+data: "+ blkid /dev/mapper/rpool"
+
+data: "+ :"
+
+data: "+ '[' 1 -eq 1 ']'"
+
+data: "+ topology="
+
+data: "+ mode="
+
+data: "+ '[' '' '!=' prescribed ']'"
+
+data: "+ topology=' /dev/mapper/rpool'"
+
+data: "+ '[' 1 -eq 1 ']'"
+
+data: "+ zpool create -f rpool -R /mnt -o ashift=12 -O acltype=posixacl -O compression=zstd -O mountpoint=none -O xattr=sa /dev/mapper/rpool"
+
+data: "++ zfs get -H mounted rpool"
+
+data: "++ cut -f3"
+
+data: "+ [[ no == yes ]]"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=__root"
+
+data: "+ options=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool"
+
+data: "+ zfs set -u acltype=posixacl compression=zstd mountpoint=none xattr=sa rpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data"
+
+data: "+ name=data"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/data"
+
+data: "+ zfs create -up rpool/data -o mountpoint=/data"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data/cache"
+
+data: "+ name=data/cache"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/data/cache"
+
+data: "+ zfs create -up rpool/data/cache -o mountpoint=/data/cache"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data/media"
+
+data: "+ name=data/media"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/data/media"
+
+data: "+ zfs create -up rpool/data/media -o mountpoint=/data/media"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data/state"
+
+data: "+ name=data/state"
+
+data: "+ options=(['com.sun:auto-snapshot']='true')"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/data/state"
+
+data: "+ zfs create -up rpool/data/state -o com.sun:auto-snapshot=true -o mountpoint=/data/state"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/home"
+
+data: "+ name=home"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/home"
+
+data: "+ zfs create -up rpool/home -o mountpoint=/home"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/nix"
+
+data: "+ name=nix"
+
+data: "+ options=(['atime']='off')"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/nix"
+
+data: "+ zfs create -up rpool/nix -o atime=off -o mountpoint=/nix"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/"
+
+data: "+ name=root"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/root"
+
+data: "+ zfs create -up rpool/root -o mountpoint=/"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/var"
+
+data: "+ name=var"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ zfs get type rpool/var"
+
+data: "+ zfs create -up rpool/var -o mountpoint=/var"
+
+data: "+ set -efux"
+
+data: "+ destroy=1"
+
+data: "+ device=/dev/disk/by-id/virtio-nixie-system"
+
+data: "+ imageName=system"
+
+data: "+ imageSize=2G"
+
+data: "+ name=system"
+
+data: "+ type=disk"
+
+data: "+ device=/dev/disk/by-id/virtio-nixie-system"
+
+data: "+ efiGptPartitionFirst=1"
+
+data: "+ type=gpt"
+
+data: "+ additionalKeyFiles=()"
+
+data: "+ declare -a additionalKeyFiles"
+
+data: "+ askPassword="
+
+data: "+ device=/dev/disk/by-partlabel/disk-system-system"
+
+data: "+ enrollFido2="
+
+data: "+ enrollRecovery="
+
+data: "+ extraFido2EnrollArgs=()"
+
+data: "+ declare -a extraFido2EnrollArgs"
+
+data: "+ extraFormatArgs=()"
+
+data: "+ declare -a extraFormatArgs"
+
+data: "+ extraOpenArgs=()"
+
+data: "+ declare -a extraOpenArgs"
+
+data: "+ initrdUnlock=1"
+
+data: "+ keyFile="
+
+data: "+ name=rpool"
+
+data: "+ passwordFile=/run/nixie/keys/rpool"
+
+data: "+ settings=(['allowDiscards']='1')"
+
+data: "+ declare -A settings"
+
+data: "+ type=luks"
+
+data: "+ cryptsetup status rpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ zpool list rpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/"
+
+data: "+ name=root"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/root /mnt/"
+
+data: "+ mount rpool/root /mnt/ -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ destroy=1"
+
+data: "+ device=/dev/disk/by-id/virtio-nixie-system"
+
+data: "+ imageName=system"
+
+data: "+ imageSize=2G"
+
+data: "+ name=system"
+
+data: "+ type=disk"
+
+data: "+ device=/dev/disk/by-id/virtio-nixie-system"
+
+data: "+ efiGptPartitionFirst=1"
+
+data: "+ type=gpt"
+
+data: "+ device=/dev/disk/by-partlabel/disk-system-esp"
+
+data: "+ extraArgs=()"
+
+data: "+ declare -a extraArgs"
+
+data: "+ format=vfat"
+
+data: "+ mountOptions=('umask=0077')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/boot"
+
+data: "+ type=filesystem"
+
+data: "+ findmnt /dev/disk/by-partlabel/disk-system-esp /mnt/boot"
+
+data: "+ mount /dev/disk/by-partlabel/disk-system-esp /mnt/boot -t vfat -o umask=0077 -o X-mount.mkdir"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data"
+
+data: "+ name=data"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/data /mnt/data"
+
+data: "+ mount rpool/data /mnt/data -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data/cache"
+
+data: "+ name=data/cache"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/data/cache /mnt/data/cache"
+
+data: "+ mount rpool/data/cache /mnt/data/cache -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data/media"
+
+data: "+ name=data/media"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/data/media /mnt/data/media"
+
+data: "+ mount rpool/data/media /mnt/data/media -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/data/state"
+
+data: "+ name=data/state"
+
+data: "+ options=(['com.sun:auto-snapshot']='true')"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/data/state /mnt/data/state"
+
+data: "+ mount rpool/data/state /mnt/data/state -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/home"
+
+data: "+ name=home"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/home /mnt/home"
+
+data: "+ mount rpool/home /mnt/home -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/nix"
+
+data: "+ name=nix"
+
+data: "+ options=(['atime']='off')"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/nix /mnt/nix"
+
+data: "+ mount rpool/nix /mnt/nix -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint="
+
+data: "+ name=rpool"
+
+data: "+ options=(['ashift']='12')"
+
+data: "+ declare -A options"
+
+data: "+ rootFsOptions=(['acltype']='posixacl' ['compression']='zstd' ['mountpoint']='none' ['xattr']='sa')"
+
+data: "+ declare -A rootFsOptions"
+
+data: "+ type=zpool"
+
+data: "+ mountOptions=('defaults')"
+
+data: "+ declare -a mountOptions"
+
+data: "+ mountpoint=/var"
+
+data: "+ name=var"
+
+data: "+ options=()"
+
+data: "+ declare -A options"
+
+data: "+ type=zfs_fs"
+
+data: "+ findmnt rpool/var /mnt/var"
+
+data: "+ mount rpool/var /mnt/var -o X-mount.mkdir -o defaults -o zfsutil -t zfs"
+
+data: "+ rm -rf /tmp/tmp.ikPJ4aM1Zq"
+
+data: "[nixie 3] step 3/7 writing this machine's keys"
+
+data: "[nixie 3] step 4/7 copying the site"
+
+data: "[nixie 3] step 5/7 building and installing iso-test (the long one)"
+
+data: "warning: Git tree '/etc/nixie/site' is dirty"
+
+data: "building the flake in git+file:///etc/nixie/site..."
+
+data: "warning: Git tree '/etc/nixie/site' is dirty"
+
+data: "copying path '/nix/store/w9b43sw9m3vivf86wd7aksixrxk2ba4f-source' to 'local'..."
+
+data: "copying path '/nix/store/9g5ii96ynv0cgdnninnv0rw37w5aai63-source' to 'local'..."
+
+data: "copying path '/nix/store/w2c23ykc12mswlg8hrrjzb5gv9gvkzwq-source' to 'local'..."
+
+data: "copying path '/nix/store/wwnl1ilqlhy8dqxi8ly1qwibad01rzns-source' to 'local'..."
+
+data: "copying path '/nix/store/s4gqn8gq5qhhy0svzj3pj7zhvlmkc9db-source' to 'local'..."
+
+data: "warning: unable to download 'https://cache.nixos.org/n5mn1kppcjvfkrg9asm679n01ba1j0rg.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 341 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lw8dacvwzmajr50sp0gqaw1ip4c5qq3c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 279 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/jl1b6l6pqvr01wn0g3j1hca10m9s4hsd.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 325 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/3kbn7n4j8cy8qj4s84xfhnc67izawwiz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 307 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q4sdigrvdnq2x8h7vzj4dsmy8814mmfm.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 349 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xjd3j50qzfvvvkjcc35khqjllnlz9599.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 307 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/56b3yqb3zsh0s0y2ri1gbxcdycb251nj.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 305 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/b6wcj4j0d214smib771l87zcw0vpiwl9.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 297 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6d9hq89y1d3973dnw231x6mvm9k7y6rf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 294 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q1ik98dfw6w5zqbng0pac57wap8sp05i.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 330 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6cwich1jyzmwdrrsv7srdxpk36a1c9kx.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 262 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/qarrvxcdvh0hppzv4a1hjdb7xab6ma6w.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 337 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zh8l3590wkjdlxdphga4a7crkwvrbhab.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 301 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xdm9kkbv3nv4wr8cl7b3dh00ivbicg27.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 313 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vxys1ykd6z74yh6918c1rhrpm9nh0ifn.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 346 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lx3qandxb6pdy4mr2d60zrwzs6ddal24.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 260 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/sc9i5gr8fbnia6zgx5qdgqssmd1gsnd1.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 265 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/y8fljlv1ykwi1s4fvp44jwsm4kk2yw5c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 320 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/71x5r55xp1xmli88xipg8j3gmr8l37v4.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 264 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/9arnp76160iff35swc97ipdpngswp296.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 296 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/1ykwnxm6dsgqgifiwk2p047npsg51dcz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 263 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vpvnk6dhjra16nqcbcflfaa3al7564dc.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 348 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zzn0mw1qwq7fd27k0swjnqq26gbzwjmf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 340 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/553nci1npfs7rsvq8pc29ki7bvq4si1k.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 295 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/rg6wwi5s6xsgbbc2qqbnssbiv9rpani6.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 282 ms (attempt 1/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lx3qandxb6pdy4mr2d60zrwzs6ddal24.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 574 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6cwich1jyzmwdrrsv7srdxpk36a1c9kx.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 686 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/1ykwnxm6dsgqgifiwk2p047npsg51dcz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 661 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/71x5r55xp1xmli88xipg8j3gmr8l37v4.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 589 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/sc9i5gr8fbnia6zgx5qdgqssmd1gsnd1.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 578 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lw8dacvwzmajr50sp0gqaw1ip4c5qq3c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 661 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/rg6wwi5s6xsgbbc2qqbnssbiv9rpani6.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 653 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6d9hq89y1d3973dnw231x6mvm9k7y6rf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 691 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/553nci1npfs7rsvq8pc29ki7bvq4si1k.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 704 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/9arnp76160iff35swc97ipdpngswp296.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 530 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/b6wcj4j0d214smib771l87zcw0vpiwl9.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 506 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zh8l3590wkjdlxdphga4a7crkwvrbhab.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 557 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/56b3yqb3zsh0s0y2ri1gbxcdycb251nj.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 587 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/3kbn7n4j8cy8qj4s84xfhnc67izawwiz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 652 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xjd3j50qzfvvvkjcc35khqjllnlz9599.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 553 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xdm9kkbv3nv4wr8cl7b3dh00ivbicg27.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 586 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/y8fljlv1ykwi1s4fvp44jwsm4kk2yw5c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 627 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/jl1b6l6pqvr01wn0g3j1hca10m9s4hsd.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 585 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q1ik98dfw6w5zqbng0pac57wap8sp05i.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 606 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/n5mn1kppcjvfkrg9asm679n01ba1j0rg.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 565 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/qarrvxcdvh0hppzv4a1hjdb7xab6ma6w.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 619 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zzn0mw1qwq7fd27k0swjnqq26gbzwjmf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 627 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vxys1ykd6z74yh6918c1rhrpm9nh0ifn.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 552 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vpvnk6dhjra16nqcbcflfaa3al7564dc.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 567 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q4sdigrvdnq2x8h7vzj4dsmy8814mmfm.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 578 ms (attempt 2/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/b6wcj4j0d214smib771l87zcw0vpiwl9.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1032 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/9arnp76160iff35swc97ipdpngswp296.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1344 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lx3qandxb6pdy4mr2d60zrwzs6ddal24.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1317 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/sc9i5gr8fbnia6zgx5qdgqssmd1gsnd1.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1338 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/71x5r55xp1xmli88xipg8j3gmr8l37v4.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1169 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zh8l3590wkjdlxdphga4a7crkwvrbhab.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1307 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xjd3j50qzfvvvkjcc35khqjllnlz9599.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1053 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/56b3yqb3zsh0s0y2ri1gbxcdycb251nj.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1138 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vxys1ykd6z74yh6918c1rhrpm9nh0ifn.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1226 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xdm9kkbv3nv4wr8cl7b3dh00ivbicg27.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1351 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/n5mn1kppcjvfkrg9asm679n01ba1j0rg.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1378 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/jl1b6l6pqvr01wn0g3j1hca10m9s4hsd.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1025 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vpvnk6dhjra16nqcbcflfaa3al7564dc.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1198 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/1ykwnxm6dsgqgifiwk2p047npsg51dcz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1054 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q4sdigrvdnq2x8h7vzj4dsmy8814mmfm.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1254 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/rg6wwi5s6xsgbbc2qqbnssbiv9rpani6.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1147 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q1ik98dfw6w5zqbng0pac57wap8sp05i.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1275 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lw8dacvwzmajr50sp0gqaw1ip4c5qq3c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1319 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/y8fljlv1ykwi1s4fvp44jwsm4kk2yw5c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1259 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6cwich1jyzmwdrrsv7srdxpk36a1c9kx.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1092 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/qarrvxcdvh0hppzv4a1hjdb7xab6ma6w.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1111 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/3kbn7n4j8cy8qj4s84xfhnc67izawwiz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1038 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zzn0mw1qwq7fd27k0swjnqq26gbzwjmf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1031 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6d9hq89y1d3973dnw231x6mvm9k7y6rf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1073 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/553nci1npfs7rsvq8pc29ki7bvq4si1k.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 1249 ms (attempt 3/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/b6wcj4j0d214smib771l87zcw0vpiwl9.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2265 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xjd3j50qzfvvvkjcc35khqjllnlz9599.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2268 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/jl1b6l6pqvr01wn0g3j1hca10m9s4hsd.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2037 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/1ykwnxm6dsgqgifiwk2p047npsg51dcz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2745 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/3kbn7n4j8cy8qj4s84xfhnc67izawwiz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2329 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zzn0mw1qwq7fd27k0swjnqq26gbzwjmf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2256 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/71x5r55xp1xmli88xipg8j3gmr8l37v4.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2624 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/56b3yqb3zsh0s0y2ri1gbxcdycb251nj.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2078 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6cwich1jyzmwdrrsv7srdxpk36a1c9kx.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2468 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/6d9hq89y1d3973dnw231x6mvm9k7y6rf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2519 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/qarrvxcdvh0hppzv4a1hjdb7xab6ma6w.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2018 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/rg6wwi5s6xsgbbc2qqbnssbiv9rpani6.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2438 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vpvnk6dhjra16nqcbcflfaa3al7564dc.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2092 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/vxys1ykd6z74yh6918c1rhrpm9nh0ifn.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2457 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lx3qandxb6pdy4mr2d60zrwzs6ddal24.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2289 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/zh8l3590wkjdlxdphga4a7crkwvrbhab.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2787 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/9arnp76160iff35swc97ipdpngswp296.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2601 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q4sdigrvdnq2x8h7vzj4dsmy8814mmfm.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2468 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/sc9i5gr8fbnia6zgx5qdgqssmd1gsnd1.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2725 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/y8fljlv1ykwi1s4fvp44jwsm4kk2yw5c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2266 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/q1ik98dfw6w5zqbng0pac57wap8sp05i.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2272 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/553nci1npfs7rsvq8pc29ki7bvq4si1k.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2272 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/xdm9kkbv3nv4wr8cl7b3dh00ivbicg27.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2263 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/lw8dacvwzmajr50sp0gqaw1ip4c5qq3c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2231 ms (attempt 4/5)"
+
+data: "warning: unable to download 'https://cache.nixos.org/n5mn1kppcjvfkrg9asm679n01ba1j0rg.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org; retrying in 2328 ms (attempt 4/5)"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/qarrvxcdvh0hppzv4a1hjdb7xab6ma6w.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/b6wcj4j0d214smib771l87zcw0vpiwl9.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/56b3yqb3zsh0s0y2ri1gbxcdycb251nj.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/xjd3j50qzfvvvkjcc35khqjllnlz9599.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/vpvnk6dhjra16nqcbcflfaa3al7564dc.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/zzn0mw1qwq7fd27k0swjnqq26gbzwjmf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/3kbn7n4j8cy8qj4s84xfhnc67izawwiz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/lx3qandxb6pdy4mr2d60zrwzs6ddal24.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/y8fljlv1ykwi1s4fvp44jwsm4kk2yw5c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/q1ik98dfw6w5zqbng0pac57wap8sp05i.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/lw8dacvwzmajr50sp0gqaw1ip4c5qq3c.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/6cwich1jyzmwdrrsv7srdxpk36a1c9kx.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/xdm9kkbv3nv4wr8cl7b3dh00ivbicg27.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/553nci1npfs7rsvq8pc29ki7bvq4si1k.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/rg6wwi5s6xsgbbc2qqbnssbiv9rpani6.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/6d9hq89y1d3973dnw231x6mvm9k7y6rf.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/vxys1ykd6z74yh6918c1rhrpm9nh0ifn.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/n5mn1kppcjvfkrg9asm679n01ba1j0rg.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/71x5r55xp1xmli88xipg8j3gmr8l37v4.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/q4sdigrvdnq2x8h7vzj4dsmy8814mmfm.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/1ykwnxm6dsgqgifiwk2p047npsg51dcz.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/9arnp76160iff35swc97ipdpngswp296.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/sc9i5gr8fbnia6zgx5qdgqssmd1gsnd1.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error (ignored): unable to download 'https://cache.nixos.org/zh8l3590wkjdlxdphga4a7crkwvrbhab.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+data: "error: unable to download 'https://cache.nixos.org/jl1b6l6pqvr01wn0g3j1hca10m9s4hsd.narinfo': Could not resolve hostname (6) Could not resolve host: cache.nixos.org"
+
+event: done
+data: {"rc": 1, "done": [1, 2]}
+

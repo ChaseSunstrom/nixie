@@ -55,19 +55,32 @@ if [ "$local" = 1 ]; then
           uplinks=$(jq -r '.nics[].mac' <<<"$hw" | gum choose --no-limit --header "Ports joining the bridge" | jq -R . | jq -sc .)
           mode=$(gum choose --header "Bridge mode" unmanaged-lan managed-nat)
         fi
-        enc=$(gum confirm "Encrypt the disk (passphrase every boot)?" && echo true || echo false)
-        tpm=false; att=false; sb=false; dur=false; ru=false
+        # The hardened setup is the web wizard's: every feature on, each one
+        # still asked for what it needs. Kernel lockdown stays out (it builds
+        # the kernel from source), and so does unlocking over SSH.
+        hard=false
+        [ "$(gum choose --header "How much security" "Standard" "Hardened")" = Hardened ] && hard=true
+        enc=$(if [ "$hard" = true ]; then echo true; else gum confirm "Encrypt the disk (passphrase every boot)?" && echo true || echo false; fi)
+        tpm=false; att=false; sb=false; dur=false; ru=false; usb=false; memenc=false
         if [ "$enc" = true ]; then
           secret "Disk passphrase" >/run/nixie/keys/passphrase
-          if [ "$(jq -r .tpm <<<"$hw")" = true ]; then
-            tpm=$(gum confirm "Bind to the TPM with a PIN?" && echo true || echo false)
+          if [ "$hard" = true ]; then
+            sb=true; dur=true; usb=true; memenc=true
+            [ "$(jq -r .tpm <<<"$hw")" = true ] && { tpm=true; att=true; }
             [ "$tpm" = true ] && secret "TPM PIN" >/run/nixie/keys/pin
-            att=$(gum confirm "Attestation code before the passphrase prompt?" && echo true || echo false)
+            secret "Duress passphrase (typed at boot, it destroys the disk)" >/run/nixie/keys/duress
+            say "Hardened: Secure Boot, a duress passphrase, USB device blocking and memory encryption are on${tpm:+, with the TPM and an attestation code}."
+          else
+            if [ "$(jq -r .tpm <<<"$hw")" = true ]; then
+              tpm=$(gum confirm "Bind to the TPM with a PIN?" && echo true || echo false)
+              [ "$tpm" = true ] && secret "TPM PIN" >/run/nixie/keys/pin
+              att=$(gum confirm "Attestation code before the passphrase prompt?" && echo true || echo false)
+            fi
+            sb=$(gum confirm "Secure Boot with your own keys?" && echo true || echo false)
+            dur=$(gum confirm "Duress passphrase (wipes the disk if typed)?" && echo true || echo false)
+            [ "$dur" = true ] && secret "Duress passphrase" >/run/nixie/keys/duress
+            ru=$(gum confirm "Remote unlock over SSH at boot?" && echo true || echo false)
           fi
-          sb=$(gum confirm "Secure Boot with your own keys?" && echo true || echo false)
-          dur=$(gum confirm "Duress passphrase (wipes the disk if typed)?" && echo true || echo false)
-          [ "$dur" = true ] && secret "Duress passphrase" >/run/nixie/keys/duress
-          ru=$(gum confirm "Remote unlock over SSH at boot?" && echo true || echo false)
         fi
         admin=$(ask "administrator user name" --value admin)
         # The system's own accounts cannot be the administrator (modules/auth.nix).
@@ -83,11 +96,16 @@ if [ "$local" = 1 ]; then
         # The same JSON the web wizard posts to /api/config, written by the same code.
         settings=$(jq -n --arg admin "$admin" --arg key "$keys" --arg mode "$mode" --argjson hyde "$hyde" \
           --argjson enc "$enc" --argjson tpm "$tpm" --argjson att "$att" --argjson sb "$sb" --argjson dur "$dur" --argjson ru "$ru" \
+          --argjson usb "$usb" --argjson memenc "$memenc" \
           '{"nixie.auth.admin.name": $admin, "nixie.auth.sshKeys": ([$key] | map(select(. != ""))),
             "nixie.security.encryption.enable": $enc, "nixie.security.tpm.enable": $tpm,
             "nixie.security.attestation.enable": $att, "nixie.security.secureBoot.enable": $sb,
             "nixie.security.duress.enable": $dur, "nixie.security.remoteUnlock.enable": $ru,
-            "nixie.network.bridge.mode": $mode} + (if $hyde then {"nixie.desktop.hyde.enable": true} else {} end)')
+            "nixie.network.bridge.mode": $mode}
+           + (if $hyde then {"nixie.desktop.hyde.enable": true} else {} end)
+           + (if $usb then {"nixie.security.hardening.usbguard.enable": true} else {} end)
+           + (if $memenc then {"nixie.security.hardening.memoryEncryption.enable": true,
+                               "nixie.auth.ssh.passwordLogin": false} else {} end)')
         jq -n --arg h "$host" --arg p "$profile" --arg d "$disk" --arg dd "$data" --argjson u "$uplinks" --arg g "$(jq -r .gpu <<<"$hw")" --argjson t "$(jq .tpm <<<"$hw")" --argjson s "$settings" \
           '{host:$h, profile:$p, systemDisk:$d, dataDisk:(if $dd=="" then null else $dd end), uplinks:$u, gpu:$g, tpm:$t, settings:$s}' \
           | nixie-setup --configure --front-end terminal --site "$NIXIE_SITE" --state-dir "$NIXIE_SETUP_DIR"

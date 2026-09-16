@@ -6,7 +6,8 @@ import { Field } from "../components/ui";
 import { api, type State } from "./api";
 
 export type ItemState = "done" | "current" | "running" | "failed" | "pending";
-export type Item = { key: string; title: string; blurb: string; state: ItemState; body?: ReactNode };
+export type Step = { phase: number; done: number; total: number; text: string };
+export type Item = { key: string; title: string; blurb: string; state: ItemState; body?: ReactNode; step?: Step };
 
 function Icon({ state, n }: { state: ItemState; n: number }) {
   if (state === "done")
@@ -33,6 +34,12 @@ export function Checklist({ items }: { items: Item[] }) {
           <div className="check-text">
             <div className="check-title">{it.title}</div>
             <div className="caption">{it.blurb}</div>
+            {it.step && it.state === "running" && (
+              <div className="step-progress">
+                <div className="progress-line"><i style={{ width: `${Math.round((it.step.done / Math.max(1, it.step.total)) * 100)}%` }} /></div>
+                <div className="caption small">{it.step.text} · {it.step.done} of {it.step.total}</div>
+              </div>
+            )}
             {it.body && it.state !== "done" && it.state !== "pending" && <div className="check-body reveal">{it.body}</div>}
           </div>
         </li>
@@ -58,7 +65,7 @@ type Run = (n: number, body?: Record<string, unknown>) => Promise<number>;
 // runs by itself: a phase this machine does not use is recorded without being
 // shown, and the page stops only for what a person must do, typing the
 // passphrase and PIN or restarting for Secure Boot.
-export function Continuation({ st, run, busy, setBusy, lines, setLines, err, setErr, failed, running }: { st: State; run: Run; busy: boolean; setBusy: (b: boolean) => void; lines: string[]; setLines: (f: (l: string[]) => string[]) => void; err: string; setErr: (e: string) => void; failed: number | null; running: number | null }) {
+export function Continuation({ st, run, busy, setBusy, lines, setLines, err, setErr, failed, running, step }: { st: State; run: Run; busy: boolean; setBusy: (b: boolean) => void; lines: string[]; setLines: (f: (l: string[]) => string[]) => void; err: string; setErr: (e: string) => void; failed: number | null; running: number | null; step: Step | null }) {
   const done = st.done;
   const features = (st.layout?.features ?? {}) as Record<string, boolean>;
   const host = String(st.state.host ?? st.host);
@@ -156,6 +163,7 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
       blurb: p.blurb,
       state: done.includes(p.n) ? "done" : running === p.n ? "running" : failed === p.n ? "failed" : p === next ? "current" : "pending",
       body: bodyFor(p.n),
+      step: step?.phase === p.n ? step : undefined,
     })),
     {
       key: "finish",

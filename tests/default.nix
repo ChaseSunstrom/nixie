@@ -114,6 +114,18 @@ let
   );
   unlabelled = lib.filter (p: !(wizardLabels ? ${p})) wizardPaths;
   staleLabels = lib.filter (p: !(lib.elem p wizardPaths)) (lib.attrNames wizardLabels);
+  # The hardened setup's list lives in the wizard's own source; a typo there
+  # would quietly turn nothing on.
+  hardenedPaths = lib.filter (p: p != "") (
+    map (m: lib.head (m ++ [ "" ])) (
+      builtins.filter lib.isList (
+        builtins.split ''"(nixie\.[a-zA-Z0-9_.]+)": '' (
+          lib.elemAt (lib.splitString "};" (lib.elemAt (lib.splitString "const HARDENED" (builtins.readFile ../ui/src/setup/main.tsx)) 1)) 0
+        )
+      )
+    )
+  );
+  unknownHardened = lib.filter (p: !(lib.elem p wizardPaths)) hardenedPaths;
 in
 {
   fmt = pkgs.runCommand "fmt" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
@@ -173,6 +185,12 @@ in
     assert lib.assertMsg (
       staleLabels == [ ]
     ) "lib/wizard.nix labels options the wizard does not show: ${toString staleLabels}";
+    assert lib.assertMsg (
+      unknownHardened == [ ]
+    ) "the wizard's hardened setup names options it does not show: ${toString unknownHardened}";
+    assert lib.assertMsg (
+      lib.length hardenedPaths > 5
+    ) "the wizard's hardened setup list could not be read from main.tsx";
     pkgs.writeText "option-docs" (toString (lib.length (lib.collect lib.isOption nixieOptions)));
 
   # Every fenced block tagged `sh test` in the README runs against the

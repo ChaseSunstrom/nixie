@@ -65,13 +65,20 @@ turn the option on.
 ```nix
 # flake.nix of your site
 inputs.hydenix.url = "github:richen604/hydenix/55370cd2ab2361bf0066e3bc89987b1717381c6d";
-inputs.hydenix.inputs.nixpkgs.follows = "nixie/nixpkgs";
 outputs = { self, nixie, ... }@inputs:
   nixie.lib.mkSite { site = ./site.nix; rev = self.shortRev or null; inherit inputs; };
 
 # the host's settings
 nixie.desktop.hyde.enable = true;
 ```
+
+hydenix keeps its own nixpkgs, and so does the desktop it brings: HyDE's
+configuration files are written for the Hyprland version hydenix pins, and on
+a newer one the session comes up under a thousand "config error" lines. The
+compositor, the packages its home-manager modules install and the graphics
+drivers therefore come from hydenix's package set, while the system around
+them (kernel, boot chain, ZFS, the `nixie` command) stays on the platform's.
+The cost is a second package set to download.
 
 `mkSite` does the rest for every host of a site with that input: HyDE's
 system and home-manager modules for the administrator, its sddm login, and
