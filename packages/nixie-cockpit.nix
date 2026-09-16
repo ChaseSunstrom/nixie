@@ -38,14 +38,14 @@ pkgs.runCommand "nixie-cockpit" { meta.priority = 4; } ''
       <link rel="stylesheet" href="../base1/cockpit.css" />
       <style>
         body { background: ${t.bg}; color: ${t.ink}; font-family: Archivo, sans-serif; margin: 0; padding: 16px; }
-        h2 { font-size: 15px; font-weight: 500; margin: 18px 0 8px; }
-        .card { background: ${t.s1}; border: 1px solid ${t.line}; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; }
+        h2 { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; margin: 18px 0 8px; }
+        .card { background: ${t.s1}; border: 1px solid ${t.line}; border-radius: 10px; box-shadow: 0 8px 24px -14px ${t.shadow}; padding: 12px 14px; margin-bottom: 14px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         td, th { text-align: left; padding: 5px 8px; border-bottom: 1px solid ${t.line}; }
-        th { color: ${t.muted}; font-weight: 400; }
+        th { color: ${t.muted}; font-weight: 500; }
         .mono { font-family: "JetBrains Mono", monospace; }
         .muted { color: ${t.muted}; }
-        .chip { background: ${t.brand}; color: #fff; border-radius: 3px; padding: 1px 6px; font-size: 11px; }
+        .chip { background: ${t.brand}; color: ${t.bg}; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
         .err { color: ${t.err}; }
       </style>
     </head>

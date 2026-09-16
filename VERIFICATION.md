@@ -944,6 +944,80 @@ stages the keys but does not boot the signed chain); the media gallery
 (`nix run .#media`), whose installer walkthrough was updated to the new
 steps but not run; the terminal installer's colours on a real console.
 
+## Lists instead of blank fields, and a site's other machines (2026-09-16)
+
+Asked for: a time zone chosen from a dropdown rather than typed, several
+deployments on different machines managed in the UI, and folders or drives
+picked for backups and for the key backup.
+
+Changes (ARCHITECTURE D36):
+- `lib/wizard.nix` carries a `picker` for an option this machine can answer
+  and `lib/options-json.nix` passes it to the wizard. `nixie.host.timezone`
+  becomes a list from the machine's own tzdata (`GET /api/timezones`,
+  `timedatectl list-timezones`); `nixie.backups.repository` becomes a folder
+  that can also be picked from the drives the machine can see
+  (`GET /api/devices` from `lsblk`, `POST /api/mount` to mount the one
+  picked). `packages/nixie-setup.nix` gained `pkgs.util-linux` for them.
+- The setup checklist's last step writes the disk's header backup to a folder
+  picked the same way (`POST /api/header-backup`); until now the kiosk on the
+  machine itself could only offer a browser download, which goes nowhere.
+- `block_devices` leaves out swap, LUKS containers (their unlocked mapping is
+  listed instead), pool members and read-only media, and puts removable
+  drives first.
+- `lib.mkSite` derives `nixie.ui.machines` from site.nix's own data. It cannot
+  come from the other hosts' evaluated configurations: each of those would
+  need this same list, and the evaluation would not terminate. A host whose
+  `settings` is a module function is listed without its details rather than
+  guessed at. `modules/incus.nix` writes the list, with this host's name, into
+  the panel's `nixie.json`, and `ui/src/pages/Machines.tsx` draws it.
+
+| check | result |
+|---|---|
+| `fmt`, `statix`, `deadnix`, `option-docs`, `option-reference` (regenerated for `nixie.ui.machines`), `readme` | pass |
+| `setup-devices` (new): the `lsblk` filter over a tree with a system disk, its swap and LUKS container, the unlocked mapping, a removable stick, and a stick holding the installer's own iso9660 | pass |
+| `site-machines` (new): `lib.mkSite` over `tests/sites/two-hosts/`, both machines with their profile and the panel URL of the one with a fixed address | pass |
+| `vm-ui`: the served `nixie.json` carries `host` and both machines, the one without an address with `url: null` | pass |
+| `vm-installer-lan`: the wizard over the LAN against the changed backend | pass |
+| `tsc` and `vite build` of both pages | pass |
+| the new endpoints against a running `nixie-setup` on this machine: `/api/timezones` returned 554 zones including `Europe/Amsterdam`; `/api/devices` listed the plugged-in USB stick first with its label and model, and left out swap, the LUKS container and the ISO on the stick | pass |
+| VirtualBox 7.2.16, a hardened **desktop** end to end (EFI, TPM 2.0, NAT with the setup port forwarded, driven through the same web API a browser uses): the ISO's kiosk, pairing with the code from the machine's own console, hardware discovery (`"efi": true, "tpm": true`, the disk by its id), phase 1, the review step's check, phases 2 and 3, the restart, the passphrase typed on the machine's own console, the setup generation's own pairing code (463469) read from that console, `/api/timezones` there (554 zones, `Europe/Amsterdam` among them), `/api/devices` there (only the writable ESP: the LUKS container and the ZFS members are left out, as intended), phases 4, 6, 7 and 8, the header backup written to a chosen folder, the recovery key and the attestation code, and Finish | pass |
+| the same walkthrough as a hardened **server**: the same install and setup, and after Finish the panel answers and its `nixie.json` reads `{"host": "vbox", "machines": [{"name": "vbox", "profile": "server", "url": null}]}` — the Machines page's list, on a real install | pass |
+| the gallery: `nix run .#media` at 6644be4, 124 assets, 20 MB. `installer-services-backup-drive.png` is the picker open in a real browser against a real backend, listing two real filesystems with size, type and mountpoint; the Network step asserts the time zone datalist holds more than 100 zones; `panel-machines-*.png` shows both machines of the site with this one marked | pass |
+
+Defects this found in the media runs themselves, all fixed:
+- the boot run's unlock relay wrote the answer with `printf %s\n` unquoted, so
+  the shell ate the backslash and the passphrase arrived without a newline;
+  the prompt never took it and the target sat in the initrd until the test
+  timed out. `vm-encryption` quotes the format, which is why it passed and
+  this one had never produced a single asset.
+- `copy_from_vm` for the attestation text needs the 9p `shared` mount, which
+  that target does not have: it boots the filesystems the install made.
+- `systemd-run` starts with an empty PATH, so the second relay found neither
+  `nc` nor `sleep` and nothing answered the PIN and passphrase of the
+  recorded boot.
+- `machine.sleep()` runs `sleep` inside the guest, which deadlocks the driver
+  while the guest is at the initrd passphrase prompt; the driver's own clock
+  is used there instead.
+- the panel run builds its host from the modules rather than through
+  `lib.mkSite`, so its Machines page was empty; it now sets
+  `nixie.ui.machines` the way `vm-ui` does.
+
+Two things VirtualBox needed, neither of them Nixie's doing, both found by
+running it: with VirtualBox's default Intel PRO/1000 the installed guest's
+NIC wedges ("e1000 enp0s3: Detected Tx Unit Hang") and the machine ends up
+with no address at all, so its setup page is unreachable from another device
+(the paravirtualised adapter has no such trouble); and with four vCPUs and no
+explicit paravirt clock the guest starved its own RCU ("rcu_preempt kthread
+starved", "Possible timer handling issue") on an idle host, which left it
+stuck at the passphrase prompt. The walkthrough therefore asks VirtualBox for
+`--nictype1 virtio --paravirtprovider kvm --hpet on`. The installer half of
+the run is unaffected by both and passed every time.
+
+Housekeeping: `tests/artifacts/*/target.qcow2` and the EFI variable files left
+by earlier `nix run .#test-iso` runs had grown to 28 GB. They are gitignored
+but they filled the disk to 97%, which made `nix eval` fail with "No space
+left on device"; they are deleted after a run now.
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a
