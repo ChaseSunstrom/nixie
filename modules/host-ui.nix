@@ -252,8 +252,11 @@ let
       color: ${t.ink};
     }
     #brand::before {
-      content: "nixie · ";
+      content: "nixie";
       color: ${t.brand2};
+    }
+    #brand:not(:empty)::before {
+      content: "nixie · ";
     }
 
     @media (prefers-reduced-motion: reduce) {
