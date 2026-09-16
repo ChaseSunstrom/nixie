@@ -110,6 +110,19 @@ pkgs.testers.runNixOSTest {
         ip = "10.90.0.10/24";
       };
     };
+    # What `lib.mkSite` writes for a site with more than one machine; this
+    # host is built from the modules directly, so the test stands in for it.
+    nixie.ui.machines = [
+      {
+        name = "server";
+        profile = "server";
+        url = "https://192.168.1.1:8443";
+      }
+      {
+        name = "laptop";
+        profile = "desktop";
+      }
+    ];
     nixie.monitoring.enable = true;
     nixie.monitoring.grafana.enable = true;
     nixie.hostUi = {

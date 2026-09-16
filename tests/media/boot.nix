@@ -141,7 +141,7 @@ pkgs.testers.runNixOSTest {
         # the pictures, and nothing in the driver can type on that console.
         client.succeed("ip neigh flush all")
         client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=300)
-        feed = "; ".join(f"sleep {2 if i == 0 else gap}; printf %s\\n '{a}'" for i, a in enumerate(answers))
+        feed = "; ".join(f"sleep {2 if i == 0 else gap}; printf '%s\\n' '{a}'" for i, a in enumerate(answers))
         client.succeed("timeout 180 sh -c \"(" + feed + "; sleep 5) | " + ssh + "\" || true")
 
     target.start()
@@ -165,8 +165,7 @@ pkgs.testers.runNixOSTest {
     # input would hang the whole run with nothing on screen to say so.
     target.succeed("nixie-phase 4 >&2", timeout=900)
     target.succeed("nixie-phase 6 >&2", timeout=900)
-    target.succeed("cat /run/nixie/keys/attestation-qr | head -40 > /tmp/attestation-qr.txt || true")
-    target.copy_from_vm("/tmp/attestation-qr.txt", "attestation-qr.txt")
+    target.succeed("test -s /run/nixie/keys/attestation-qr")
     target.shutdown()
 
     target.start()
@@ -176,7 +175,7 @@ pkgs.testers.runNixOSTest {
     # the driver wait for EOF instead of returning.
     client.succeed("ip neigh flush all")
     client.succeed(
-        "systemd-run --collect --unit=nixie-unlock /bin/sh -c "
+        "systemd-run --collect --unit=nixie-unlock --setenv=PATH=/run/current-system/sw/bin /bin/sh -c "
         "'until nc -z 192.168.1.3 2222; do sleep 1; done; "
         "{ sleep 2; printf \"1234\\n\"; sleep 25; printf \"hunter2\\n\"; sleep 5; } | " + ssh + "'"
     )
