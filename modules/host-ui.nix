@@ -53,7 +53,8 @@ let
       font-display: swap;
     }
 
-    :root {
+    :root,
+    .pf-v6-theme-dark {
       --pf-t--color--white: ${t.s1};
       --pf-t--color--black: ${t.ink};
       --pf-t--color--gray--10: ${t.bg};
@@ -206,24 +207,42 @@ let
       background: ${t.s3};
     }
 
-    /* The login page, as the panel's trust page and the installer draw a
-       lone card: centred on the page background, one surface, soft radius. */
-    body.login-pf,
-    .login-pf-page {
-      background: ${t.bg};
-      color: ${t.ink};
+    /* The login page keeps colours of its own rather than PatternFly's
+       tokens, so it takes the finish through those: without them it stays
+       PatternFly's light page, with this stylesheet's near-white brand line
+       invisible on it. */
+    :root,
+    .pf-v6-theme-dark {
+      --color-body-background: ${t.bg};
+      --color-background: ${t.s1};
+      --color-secondary-background: ${t.s2};
+      --color-text: ${t.ink};
+      --color-text-light: ${t.muted};
+      --color-text-lighter: ${t.muted};
+      --color-border: ${t.line};
+      --color-border-light: ${t.line2};
+      --color-input: ${t.ink};
+      --color-input-background: ${t.s2};
+      --color-input-hover: ${t.line2};
+      --color-link: ${t.brand2};
+      --color-link-active: ${t.brand2};
+      --color-primary: ${t.brand};
+      --color-primary-active: ${t.brand2};
+      --color-error: ${t.err};
+      --color-danger: ${t.err};
+      --color-warning: ${t.hot};
+      --color-disabled-background: ${t.s3};
+      --color-disabled-text: ${t.muted};
     }
-    .login-pf-page .login-pf-page-header,
-    #login {
-      color: ${t.ink};
-    }
-    #login-details-group,
-    .login-pf-page .card-pf,
-    #login-wrapper {
-      background: ${t.s1};
+    .login-pf .container {
       border: 1px solid ${t.line};
-      border-radius: 14px;
       box-shadow: 0 8px 24px -14px ${t.shadow};
+    }
+    .login-pf .btn-primary,
+    .login-pf #login-button {
+      background: ${t.brand};
+      color: ${t.bg};
+      border-radius: 6px;
     }
     #brand {
       font-family: Archivo, system-ui, sans-serif;
@@ -245,6 +264,24 @@ let
     }
   '';
 
+  # Only each package's index.html asks for branding.css, so Logs, Services,
+  # Terminal, hardware information and the firewall would keep PatternFly's
+  # own look inside an otherwise finished shell. The same link is added to
+  # them; everything else is the package as it comes, symlinked rather than
+  # rebuilt.
+  brandedCockpit =
+    pkgs.runCommand "cockpit-branded" { passthru = { inherit (pkgs.cockpit) version; }; }
+      ''
+        mkdir -p $out
+        cp -rs ${pkgs.cockpit}/. $out/
+        chmod -R u+w $out
+        for f in $out/share/cockpit/*/*.html; do
+          if grep -q branding.css "$f"; then continue; fi
+          sed 's|</head>|<link href="../../static/branding.css" rel="stylesheet" />\n</head>|' "$f" >branded.html
+          rm "$f"
+          mv branded.html "$f"
+        done
+      '';
   historyPage = import ../packages/nixie-cockpit.nix { inherit pkgs; };
   port = toString cfg.port;
   wsDropin = {
@@ -301,6 +338,7 @@ in
   config = lib.mkIf cfg.enable {
     services.cockpit = {
       enable = true;
+      package = brandedCockpit;
       inherit (cfg) port;
       plugins = [
         branding
