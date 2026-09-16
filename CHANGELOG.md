@@ -38,6 +38,13 @@ config errors, and mixing the two glibcs left the compositor unable to start at
 all. The wizard takes an existing machine's age key when a cloned site already
 holds its secrets.
 
+A HyDE desktop builds again: crates.io refuses any user agent that begins
+with "curl/", which is what `fetchurl` sends, and HyDE's `hyde-ipc` comes
+from a flake whose nixpkgs still asks `crates.io/api/v1` for its crates, so
+the whole home-manager generation failed on a 403. That one program is built
+from the same source with the platform's toolchain, which fetches crates from
+static.crates.io.
+
 Fields the machine can answer are lists, not blank lines: the time zone comes
 from the machine's own tzdata, and a backup folder — or where the disk's
 header backup is written at the end of setup — is picked from the drives it

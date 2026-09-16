@@ -19,6 +19,21 @@ let
       src = "${inputs.hydenix.inputs.hyde}/Source/arcs/Cursor_BibataIce.tar.gz";
     };
   };
+  # crates.io answers 403 to any user agent that begins with "curl/", which is
+  # what fetchurl sends. The platform's nixpkgs fetches crates from
+  # static.crates.io for that reason; hyde-ipc comes from a flake of its own
+  # with an older nixpkgs that does not, and nothing has it cached, so a HyDE
+  # desktop could not be built at all. It is the only Rust program HyDE pulls
+  # in (hydectl is Go, hyq is C++), so the same source is built here with the
+  # platform's toolchain.
+  hydeIpc = _: prev: {
+    hyde-ipc = pkgs.rustPlatform.buildRustPackage {
+      pname = "hyde-ipc";
+      inherit (prev.hyde-ipc) version;
+      src = inputs.hydenix.inputs.hyde-ipc;
+      cargoLock.lockFile = "${inputs.hydenix.inputs.hyde-ipc}/Cargo.lock";
+    };
+  };
   # HyDE's configuration files are written for the Hyprland and the tools
   # hydenix pins. On the platform's newer nixpkgs those options are renamed or
   # gone, and the session came up under a thousand "config error" lines, so
@@ -30,6 +45,7 @@ let
     overlays = [
       inputs.hydenix.overlays.default
       cursor
+      hydeIpc
     ];
   };
 in
