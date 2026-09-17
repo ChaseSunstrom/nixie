@@ -1101,6 +1101,37 @@ callable set, so it cannot tell the two shapes apart.
 | the same host after it: `hyde-ipc` vendors its crates and builds, and the whole system builds (`nixos-system-laptop-26.05…`) | pass |
 | `fmt`, `statix`, `deadnix`, `eval-matrix` | pass |
 
+## Every check on the final tree (2026-09-17)
+
+All 32 checks in the flake, one build per check (the single-process
+`nix flake check` does not fit in this host's memory; see "Final run"), on
+commit 519cc22 with a clean tree. The platform source is part of every
+host's closure, so each check's derivation was new at that commit and every
+one of them ran; none was a result reused from an earlier commit. This
+section is the only change since.
+
+| check | result |
+|---|---|
+| fmt, statix, deadnix, no-hardware-facts, option-docs, option-reference, readme, setup-devices, site-machines, eval-matrix, no-secrets-in-store, systemd-security, iso-config, iso-grub-theme, boot-and-setup, profile-server-has-no-desktop, profile-server-kiosk-only, profile-desktop-has-no-server | pass |
+| vm-boot-plain (51s) | pass |
+| vm-egress (131s) | pass |
+| vm-guests (100s) | pass |
+| vm-data (57s) | pass |
+| vm-monitoring (109s) | pass |
+| vm-ui (44s) | pass |
+| vm-host-ui (45s) | pass |
+| vm-backup (58s) | pass |
+| vm-rollback (157s) | pass |
+| vm-hardware (40s) | pass |
+| vm-installer-lan (263s) | pass |
+| vm-console (246s) | pass |
+| vm-desktop (141s) | pass |
+| vm-encryption (1349s) | pass |
+
+Outside the checks: the gallery is 124 files and 21 MB from one run at
+92b784d (the only commits since change no pixels), every video is under the
+8 MB budget, and every `docs/media/` path in the README exists.
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a
