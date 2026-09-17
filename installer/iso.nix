@@ -9,6 +9,7 @@
   ...
 }:
 let
+  template = import ../lib/template.nix lib;
   inherit ((lib.importJSON ../ui/src/tokens/tokens.json)) graphite;
   argb = c: "#FF${lib.removePrefix "#" c}";
   mark = import ../lib/mark.nix graphite;
@@ -54,28 +55,11 @@ in
   specialisation.terminal = entry "terminal" "(terminal)";
   isoImage.grubTheme = grubTheme;
   isoImage.splashImage = splash;
-  isoImage.syslinuxTheme = ''
-    MENU TITLE Nixie
-    MENU RESOLUTION 800 600
-    MENU CLEAR
-    MENU ROWS 6
-    MENU CMDLINEROW -4
-    MENU TIMEOUTROW -3
-    MENU TABMSGROW  -2
-    MENU HELPMSGROW -1
-    MENU HELPMSGENDROW -1
-    MENU MARGIN 0
-    MENU COLOR BORDER       30;44   #00000000 #00000000 none
-    MENU COLOR SCREEN       37;40   ${argb graphite.ink} #00000000 none
-    MENU COLOR TABMSG       31;40   ${argb graphite.muted} #00000000 none
-    MENU COLOR TIMEOUT      1;37;40 ${argb graphite.ink} #00000000 none
-    MENU COLOR TIMEOUT_MSG  37;40   ${argb graphite.ink} #00000000 none
-    MENU COLOR CMDMARK      1;36;40 ${argb graphite.ink} #00000000 none
-    MENU COLOR CMDLINE      37;40   ${argb graphite.ink} #00000000 none
-    MENU COLOR TITLE        1;36;44 #00000000 #00000000 none
-    MENU COLOR UNSEL        37;44   ${argb graphite.ink} #00000000 none
-    MENU COLOR SEL          7;37;40 #FFFFFFFF ${argb graphite.brand} std
-  '';
+  isoImage.syslinuxTheme = template.fill ./iso/syslinux.cfg {
+    brand = argb graphite.brand;
+    ink = argb graphite.ink;
+    muted = argb graphite.muted;
+  };
   isoImage.makeEfiBootable = true;
   isoImage.makeUsbBootable = true;
   # The installed system is UEFI only, but VirtualBox and older machines

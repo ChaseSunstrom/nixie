@@ -1,0 +1,26 @@
+import re
+client.start(); installer.start()
+installer.wait_for_unit("nixie-setup.service"); installer.wait_for_open_port(9443)
+installer.wait_for_unit("cage-tty1.service")
+installer.wait_for_text("(Profile|Pair|nixie)", timeout=300)
+installer.screenshot("installer-kiosk-wizard")
+installer.send_key("ctrl-alt-f2"); installer.sleep(3); installer.screenshot("installer-console-banner"); installer.send_key("ctrl-alt-f1")
+# What the wizard's hardware step will be given, straight from the source.
+print("DISCOVER:", installer.succeed("nixie-discover 2>&1 || true")[:1200])
+banner = installer.succeed("cat /var/lib/nixie/setup/banner.txt")
+code = re.findall(r"Pairing code: (\d{6})", banner)[0]
+client.wait_until_succeeds("curl -sk https://192.168.1.2:9443/api/pair | grep -q needsCode", timeout=120)
+client.succeed(f"python3 @wizard@ https://192.168.1.2:9443/ {code} iso >&2")
+client.copy_from_vm("/tmp/media", "media-lan")
+installer.screenshot("installer-kiosk-after-install")
+installer.shutdown()
+target.start()
+target.wait_for_console_text("Disk passphrase"); target.screenshot("installer-target-passphrase")
+target.send_console("hunter2\n")
+target.wait_for_unit("nixie-setup.service"); target.wait_for_open_port(9443)
+target.wait_for_unit("cage-tty1.service"); target.wait_for_text("(First boot|Finished|nixie)", timeout=300)
+target.screenshot("installer-continuation-kiosk")
+banner = target.succeed("cat /var/lib/nixie/setup/banner.txt")
+code = re.findall(r"Pairing code: (\d{6})", banner)[0]
+client.succeed(f"python3 @wizard@ https://192.168.1.3:9443/ {code} continuation >&2")
+client.copy_from_vm("/tmp/media", "media-continuation")

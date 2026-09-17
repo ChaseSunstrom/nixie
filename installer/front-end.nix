@@ -10,6 +10,7 @@
   ...
 }:
 let
+  template = import ../lib/template.nix lib;
   inherit (import ../lib/option.nix lib) mkOption;
   cfg = config.nixie.frontEnd;
   graphical = cfg.mode == "graphical";
@@ -19,19 +20,9 @@ let
   wizardTty = if cfg.mode == "terminal" then "tty1" else "tty2";
   # tty1 in web mode, and in graphical mode when the display cannot run the
   # kiosk: the address, pairing code and fingerprint, redrawn when they change.
-  banner = pkgs.writeShellScript "nixie-banner" ''
-    f=/var/lib/nixie/setup/banner.txt; last=""
-    while :; do
-      now=$(${pkgs.coreutils}/bin/stat -c %Y "$f" 2>/dev/null || echo none)
-      if [ "$now" != "$last" ]; then
-        last=$now
-        printf '\033[2J\033[H'
-        ${pkgs.coreutils}/bin/cat "$f" 2>/dev/null || printf '\n  Starting the setup service...\n'
-        printf '\n  Terminal wizard: press Alt+F2.\n'
-      fi
-      ${pkgs.coreutils}/bin/sleep 2
-    done
-  '';
+  banner = pkgs.writeShellScript "nixie-banner" (
+    template.fill ./banner.sh { inherit (pkgs) coreutils; }
+  );
   onTty = tty: {
     StandardInput = "tty";
     StandardOutput = "tty";

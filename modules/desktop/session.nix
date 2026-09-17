@@ -7,6 +7,8 @@
   ...
 }:
 let
+  template = import ../../lib/template.nix lib;
+  tk = import ../../lib/tokens.nix { inherit lib; };
   inherit (import ../../lib/option.nix lib) mkOption;
   cfg = config.nixie.desktop;
   t = cfg.tokens;
@@ -48,31 +50,7 @@ in
       # over the wallpaper, the rest in stock GTK 4 widgets. Rules for class
       # names it does not use left GTK's light frame under this finish's light
       # text.
-      extraCss = ''
-        window { background-color: ${t.bg}; color: ${t.ink}; }
-        frame.background { background-color: ${t.s1}; color: ${t.ink}; border: 1px solid ${t.line}; border-radius: 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35); }
-        frame.background > border { border: none; }
-        frame label { color: ${t.ink}; }
-        entry, combobox button.combo {
-          background-image: none; background-color: ${t.s2}; color: ${t.ink};
-          border: 1px solid ${t.line}; border-radius: 8px; box-shadow: none; min-height: 38px;
-        }
-        entry:focus-within, combobox button.combo:focus { border-color: ${t.brand2}; outline: none; }
-        combobox button.combo cellview, entry text { color: ${t.ink}; }
-        popover contents, popover.menu contents { background-color: ${t.s1}; color: ${t.ink}; border: 1px solid ${t.line}; border-radius: 8px; }
-        popover contents :hover { background-color: ${t.s3}; }
-        button {
-          background-image: none; background-color: ${t.s3}; color: ${t.ink};
-          border: 1px solid ${t.line}; border-radius: 8px; box-shadow: none; min-height: 34px; padding: 0 16px;
-        }
-        button:hover { background-color: ${t.line}; }
-        button:checked { background-color: ${t.brand}; border-color: ${t.brand}; color: #fff; }
-        button.suggested-action { background-color: ${t.brand}; border-color: ${t.brand}; color: #fff; }
-        button.suggested-action:hover { background-color: ${t.brand2}; border-color: ${t.brand2}; }
-        button.destructive-action { background-color: ${t.s1}; }
-        button.destructive-action:hover { background-color: ${t.err}; border-color: ${t.err}; color: #fff; }
-        .error, label.error { color: ${t.err}; }
-      '';
+      extraCss = template.fill ./conf/greeter.css (tk.marks t);
     };
     # regreet runs the login shell unless its cache names a session for the
     # user; seeding it makes the first login land in Hyprland.

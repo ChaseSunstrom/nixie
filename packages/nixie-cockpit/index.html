@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>History</title>
+    <link rel="stylesheet" href="../base1/cockpit.css" />
+    <style>
+      body { background: @bg@; color: @ink@; font-family: Archivo, sans-serif; margin: 0; padding: 16px; }
+      h2 { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; margin: 18px 0 8px; }
+      .card { background: @s1@; border: 1px solid @line@; border-radius: 10px; box-shadow: 0 8px 24px -14px @shadow@; padding: 12px 14px; margin-bottom: 14px; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      td, th { text-align: left; padding: 5px 8px; border-bottom: 1px solid @line@; }
+      th { color: @muted@; font-weight: 500; }
+      .mono { font-family: "JetBrains Mono", monospace; }
+      .muted { color: @muted@; }
+      .chip { background: @brand@; color: @bg@; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+      .err { color: @err@; }
+    </style>
+  </head>
+  <body>
+    <div id="root" class="muted">reading the host's history…</div>
+    <script src="../base1/cockpit.js"></script>
+    <script src="history.js"></script>
+  </body>
+</html>

@@ -71,6 +71,16 @@ the whole home-manager generation failed on a 403. That one program is built
 from the same source with the platform's toolchain, which fetches crates from
 static.crates.io.
 
+The code the platform installs now lives in files of its own -- shell, Lua,
+CSS, HTML, JavaScript and the tests' Python -- next to the module that
+installs it, instead of inside Nix strings: `lib/template.nix` puts the
+values Nix knows in place of `@name@` marks, and a mark with nothing given
+for it stops the evaluation. The Nix files are what is left: the CLI's is 47
+lines instead of 629, the host page's 204 instead of 423, and every test is
+its definition plus a `.py` beside it. Nothing a machine installs changed:
+each generated script, configuration file and test script was compared with
+the one before, and they match.
+
 Hardened machines start on the splash like the rest. The duress check was a
 replacement for systemd's console password agent, which does not run under
 Plymouth, so the splash was off with duress or attestation; and that agent's

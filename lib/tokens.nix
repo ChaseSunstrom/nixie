@@ -41,4 +41,20 @@ in
   forFinish = f: raw.${f} // hex.${f} // { name = f; };
   # Hex without the hash, for formats that want it bare.
   bare = c: lib.removePrefix "#" c;
+  # What the configuration files beside each module ask for: every colour of
+  # a finish as `@name@` (the hex), `@rgb_name@` and `@bare_name@`.
+  marks =
+    c:
+    lib.listToAttrs (
+      lib.concatMap (
+        n:
+        [ (lib.nameValuePair n c.${n}) ]
+        # Only the plain hex colours have the other two forms; a shadow or a
+        # glow is already a whole CSS value.
+        ++ lib.optionals (lib.hasPrefix "#" c.${n}) [
+          (lib.nameValuePair "rgb_${n}" "rgb(${lib.removePrefix "#" c.${n}})")
+          (lib.nameValuePair "bare_${n}" (lib.removePrefix "#" c.${n}))
+        ]
+      ) (lib.attrNames (lib.filterAttrs (_: lib.isString) c))
+    );
 }

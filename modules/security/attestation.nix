@@ -6,6 +6,7 @@
 }:
 let
   inherit (import ../../lib/option.nix lib) mkOption;
+  template = import ../../lib/template.nix lib;
   cfg = config.nixie.security.attestation;
   splash = config.boot.plymouth.enable;
   plymouth = "${config.boot.plymouth.package}/bin/plymouth";
@@ -15,85 +16,16 @@ let
   # but not a boot chain.
   sealedFile = "nixie/attestation-generation";
 
-  # `once` prints the code on the console and puts it on the splash before
-  # the first prompt; `watch` keeps the splash's code current until the disks
-  # are open.
-  show = pkgs.writeShellScript "nixie-attestation" ''
-    set -u
-    booted=""
-    read -r cmdline </proc/cmdline
-    for w in $cmdline; do
-      case $w in init=*) booted=''${w#init=}; booted=''${booted%/init} ;; esac
-    done
-
-    state() {
-      sealed=$(cat /run/nixie-attestation-sealed 2>/dev/null || true)
-      if [ -n "$sealed" ] && [ "$sealed" != "$booted" ]; then
-        # Sealed for another system, so no code can match.
-        kind=warn
-        text="No attestation code: this system changed since it was sealed. Unlock only if you updated it."
-      elif code=$(${pkgs.tpm2-totp}/bin/tpm2-totp calculate 2>/dev/null); then
-        kind=code
-        text=$code
-      elif [ -z "$sealed" ]; then
-        # Before setup seals one; a machine set up long ago that says this
-        # has had its ESP changed.
-        kind=warn
-        text="No attestation code yet: setup seals one. If this machine was set up before, do not unlock it."
-      else
-        kind=warn
-        text="ATTESTATION FAILED: the boot chain was changed. Do not unlock unless you know why."
-      fi
+  # The code on the console and the splash: `once` before the first prompt,
+  # `watch` until the disks are open (attestation.sh, beside this file).
+  show = pkgs.writeShellScript "nixie-attestation" (
+    template.fill ./attestation.sh {
+      plymouth = lib.optionalString splash plymouth;
+      esp = lib.escapeShellArg esp;
+      tpm2totp = "${pkgs.tpm2-totp}/bin/tpm2-totp";
+      sealedFile = lib.escapeShellArg sealedFile;
     }
-
-    # Put a line on the splash, replacing the one shown before; any theme
-    # shows it, and the Nixie one draws a code large.
-    tell() {
-      ${lib.optionalString splash ''
-        old=$(cat /run/nixie-attestation-shown 2>/dev/null || true)
-        [ "$old" != "$1" ] || return 0
-        [ -z "$old" ] || ${plymouth} hide-message --text="$old" 2>/dev/null || true
-        printf '%s' "$1" >/run/nixie-attestation-shown
-        [ -z "$1" ] || ${plymouth} display-message --text="$1" 2>/dev/null || true
-      ''}
-      return 0
-    }
-    line() { if [ "$kind" = code ]; then echo "Attestation code $text"; else echo "$text"; fi; }
-
-    case ''${1:-once} in
-      once)
-        ${lib.optionalString (esp != "") ''
-          if [ -e ${lib.escapeShellArg esp} ]; then
-            mkdir -p /run/nixie-esp
-            if mount -o ro ${lib.escapeShellArg esp} /run/nixie-esp 2>/dev/null; then
-              cat /run/nixie-esp/${sealedFile} >/run/nixie-attestation-sealed 2>/dev/null || true
-              umount /run/nixie-esp 2>/dev/null || true
-            fi
-          fi
-        ''}
-        state
-        echo
-        if [ "$kind" = code ]; then echo "  Attestation code: $text"; else echo "  $text"; fi
-        echo
-        tell "$(line)"
-        # For the journal, without the code: Plymouth keeps what is written
-        # to the console while it runs.
-        echo "<5>nixie-attestation: $kind shown" >/dev/kmsg 2>/dev/null || true
-        ;;
-      watch)
-        window=$(( $(date +%s) / 30 ))
-        until systemctl -q is-active cryptsetup.target; do
-          sleep 1
-          now=$(( $(date +%s) / 30 ))
-          [ "$now" != "$window" ] || continue
-          window=$now
-          state
-          tell "$(line)"
-        done
-        tell ""
-        ;;
-    esac
-  '';
+  );
 in
 {
   options.nixie.security.attestation.enable = mkOption {
@@ -219,27 +151,8 @@ in
         SystemCallFilter = [ "@system-service" ];
         UMask = "0077";
       };
-      script = ''
-        booted=$(readlink -f /run/booted-system)
-        sealed=$(cat /boot/${sealedFile} 2>/dev/null || true)
-        # Never sealed (setup does that), or sealed for this very system: a
-        # code that does not compute then means the chain changed without an
-        # update, which is for a person to look into.
-        [ -n "$sealed" ] && [ "$sealed" != "$booted" ] || exit 0
-        installed=""
-        for g in /nix/var/nix/profiles/system-*-link; do
-          for s in "$g" "$g"/specialisation/*; do
-            [ "$(readlink -f "$s")" != "$booted" ] || installed=1
-          done
-        done
-        if [ -z "$installed" ] || ! bootctl status 2>/dev/null | grep -qE 'Secure Boot: *enabled'; then
-          echo "not sealing: $booted is not a Secure Boot verified system this machine installed; run 'nixie reseal' if you trust it"
-          exit 0
-        fi
-        tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery)" -p 4,7,8,9
-        printf '%s' "$booted" >/boot/${sealedFile}
-        echo "attestation sealed to $booted"
-      '';
+      # The script itself is attestation-reseal.sh, beside this file.
+      script = template.fill ./attestation-reseal.sh { sealed = "/boot/${sealedFile}"; };
     };
     environment.systemPackages = [ pkgs.tpm2-totp ];
   };

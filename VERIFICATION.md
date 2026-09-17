@@ -1306,6 +1306,52 @@ in its text view on every screen (see D32): the prompts, the code and
 "Unlocking…" read as text there, and the code shows twice, once from the
 console line and once as the splash's message.
 
+## Code out of the Nix files, into files of its own (2026-09-17)
+
+Asked for: "move all of the inline code/configuration stuff in the nix files
+to seperate files that are imported instead? so the actual nix stuff is
+slim?"
+
+Every block of shell, Lua, CSS, HTML, JavaScript and test Python that sat in
+a `''` string now sits in a file beside the module that installs it, filled
+by `lib/template.nix` (D38). What stayed inline: the lines that build a
+derivation (a `runCommand`'s own script) and text Nix generates outright,
+such as the firewall's per-guest chains -- about 260 lines in all, against
+roughly 2,000 moved out.
+
+| file | Nix lines before | after |
+|---|---|---|
+| `packages/nixie-cli.nix` | 629 | 47 |
+| `modules/host-ui.nix` | 423 | 204 |
+| `modules/desktop/theme.nix` | 422 | 253 |
+| `modules/desktop/hyprland.nix` | 363 | 261 |
+| `packages/nixie-cockpit.nix` | 108 | 40 |
+| `tests/vm/splash.nix` | 303 | 123 |
+
+Nothing a machine installs changed, and that was checked rather than
+assumed: each extracted piece was built from both trees and compared.
+
+| check | result |
+|---|---|
+| `nixie` (the command), the Nixie Plymouth theme, the desktop's finish directory (gtk.css, kitty-colors.conf, hyprlock.conf, tokens.json), kitty.conf, sysinit.vim, starship.toml, hypridle.conf, the Hyprland Lua, `nixie-shell`, the Cockpit history page | byte for byte identical; the CLI's derivation path is unchanged |
+| the greeter's stylesheet, the ISO's boot menu theme | identical but for a header comment added to the new file |
+| every VM test's script (`config.testScript`), before and after | identical but for the system store paths, which moved because the modules did |
+| the initrd's unlock agent, the attestation scripts | the same steps with the values as variables rather than inlined paths; verified by `vm-splash` and `vm-encryption` below |
+
+Two things the move taught, both now in `lib/template.nix`:
+`builtins.replaceStrings` corrupts the string context when several store
+paths go in at once ("Bad String Context element"), so `fill` splits and
+concatenates instead; and `toString` on a path yields the source path
+without copying it into the store, which quietly dropped test key files as
+build inputs until paths were interpolated instead. A mark with no value
+stops the evaluation -- which is how the Cockpit page's `@shadow@` was
+caught, a token that is not a plain hex colour.
+
+| check | result |
+|---|---|
+| boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security | pass |
+| vm-backup (58s), vm-boot-plain (43s), vm-console (316s), vm-data (55s), vm-desktop (139s), vm-egress (106s), vm-encryption (414s), vm-guests (80s), vm-hardware (63s), vm-host-ui (45s), vm-installer-lan (246s), vm-monitoring (96s), vm-rollback (158s), vm-splash (583s), vm-ui (45s) | pass |
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

@@ -1,0 +1,233 @@
+/* The host page in the site's finish. modules/host-ui.nix puts the
+   finish's colours in front of this as --nixie-* custom properties. */
+@font-face {
+  font-family: "Archivo";
+  src: url("Archivo.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("JetBrainsMono-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("JetBrainsMono-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-display: swap;
+}
+
+:root,
+.pf-v6-theme-dark {
+  --pf-t--color--white: var(--nixie-s1);
+  --pf-t--color--black: var(--nixie-ink);
+  --pf-t--color--gray--10: var(--nixie-bg);
+  --pf-t--color--gray--20: var(--nixie-s2);
+  --pf-t--color--gray--30: var(--nixie-s3);
+  --pf-t--color--gray--40: var(--nixie-line);
+  --pf-t--color--gray--45: var(--nixie-line);
+  --pf-t--color--gray--50: var(--nixie-line2);
+  --pf-t--color--gray--60: var(--nixie-muted);
+  --pf-t--color--gray--70: var(--nixie-muted);
+  --pf-t--color--gray--80: var(--nixie-ink);
+  --pf-t--color--gray--90: var(--nixie-ink);
+  --pf-t--color--gray--95: var(--nixie-ink);
+
+  --pf-t--global--background--color--primary--default: var(--nixie-s1);
+  --pf-t--global--background--color--secondary--default: var(--nixie-bg);
+  --pf-t--global--background--color--tertiary--default: var(--nixie-s2);
+  --pf-t--global--background--color--floating--default: var(--nixie-s2);
+  --pf-t--global--background--color--control--default: var(--nixie-s2);
+  --pf-t--global--background--color--action--plain--hover: var(--nixie-s3);
+  --pf-t--global--background--color--action--plain--clicked: var(--nixie-s3);
+  --pf-t--global--background--color--highlight--default: var(--nixie-s3);
+
+  --pf-t--global--text--color--regular: var(--nixie-ink);
+  --pf-t--global--text--color--subtle: var(--nixie-muted);
+  --pf-t--global--text--color--placeholder: var(--nixie-muted);
+  --pf-t--global--text--color--link--default: var(--nixie-brand2);
+  --pf-t--global--text--color--link--hover: var(--nixie-brand2);
+  --pf-t--global--text--color--link--visited: var(--nixie-brand2);
+  --pf-t--global--text--color--on-brand--default: var(--nixie-bg);
+  --pf-t--global--text--color--brand--default: var(--nixie-brand2);
+  --pf-t--global--text--color--brand--hover: var(--nixie-brand2);
+
+  --pf-t--global--border--color--default: var(--nixie-line);
+  --pf-t--global--border--color--100: var(--nixie-line);
+  --pf-t--global--border--color--200: var(--nixie-line2);
+  --pf-t--global--border--color--300: var(--nixie-line2);
+  --pf-t--global--border--color--hover: var(--nixie-line2);
+  --pf-t--global--border--color--brand--default: var(--nixie-brand);
+  --pf-t--global--border--color--control--default: var(--nixie-line);
+
+  --pf-t--global--color--brand--default: var(--nixie-brand);
+  --pf-t--global--color--brand--hover: var(--nixie-brand2);
+  --pf-t--global--color--brand--clicked: var(--nixie-brand2);
+  --pf-t--global--color--status--success--default: var(--nixie-ok);
+  --pf-t--global--color--status--warning--default: var(--nixie-hot);
+  --pf-t--global--color--status--danger--default: var(--nixie-err);
+  --pf-t--global--color--status--info--default: var(--nixie-brand2);
+  --pf-t--global--text--color--status--success--default: var(--nixie-ok);
+  --pf-t--global--text--color--status--warning--default: var(--nixie-hot);
+  --pf-t--global--text--color--status--danger--default: var(--nixie-err);
+  --pf-t--global--text--color--status--info--default: var(--nixie-brand2);
+  --pf-t--global--icon--color--status--success--default: var(--nixie-ok);
+  --pf-t--global--icon--color--status--warning--default: var(--nixie-hot);
+  --pf-t--global--icon--color--status--danger--default: var(--nixie-err);
+  --pf-t--global--icon--color--status--info--default: var(--nixie-brand2);
+
+  /* The panel's recipes: 6px on controls, 10px on panels and cards. */
+  --pf-t--global--border--radius--100: 3px;
+  --pf-t--global--border--radius--200: 6px;
+  --pf-t--global--border--radius--300: 8px;
+  --pf-t--global--border--radius--400: 10px;
+
+  --pf-t--global--font--family--body: Archivo, system-ui, sans-serif;
+  --pf-t--global--font--family--heading: Archivo, system-ui, sans-serif;
+  --pf-t--global--font--family--mono: "JetBrains Mono", ui-monospace, monospace;
+  --pf-t--global--font--family--100: Archivo, system-ui, sans-serif;
+  --pf-t--global--font--family--200: Archivo, system-ui, sans-serif;
+  --pf-t--global--font--family--300: "JetBrains Mono", ui-monospace, monospace;
+
+  color-scheme: var(--nixie-scheme);
+}
+
+body,
+.pf-v6-c-page,
+.pf-v6-c-page__main {
+  background: var(--nixie-bg);
+  color: var(--nixie-ink);
+}
+
+/* The control panel's header: one surface, one hairline under it. */
+.pf-v6-c-masthead {
+  background: var(--nixie-s1);
+  border-block-end: 1px solid var(--nixie-line);
+  box-shadow: none;
+}
+
+/* Navigation as pills, the way the panel and the installer draw it. */
+.pf-v6-c-page__sidebar,
+.pf-v6-c-page__sidebar-body {
+  background: var(--nixie-bg);
+  border-inline-end: 1px solid var(--nixie-line);
+}
+.pf-v6-c-nav__link {
+  border-radius: 999px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.pf-v6-c-nav__link:hover {
+  background: var(--nixie-s3);
+}
+.pf-v6-c-nav__item .pf-v6-c-nav__link.pf-m-current,
+.pf-v6-c-nav__link[aria-current="page"] {
+  background: var(--nixie-s1);
+  color: var(--nixie-brand2);
+  font-weight: 500;
+}
+
+/* Panels: the same border, radius and shadow as every other surface. */
+.pf-v6-c-card,
+.pf-v6-c-panel {
+  background: var(--nixie-s1);
+  border: 1px solid var(--nixie-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px -14px var(--nixie-shadow);
+}
+.pf-v6-c-card__title,
+.pf-v6-c-title {
+  letter-spacing: -0.01em;
+}
+
+.pf-v6-c-button {
+  border-radius: 6px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.pf-v6-c-button.pf-m-primary {
+  background: var(--nixie-brand);
+  color: var(--nixie-bg);
+}
+.pf-v6-c-button.pf-m-primary:hover {
+  background: var(--nixie-brand2);
+}
+.pf-v6-c-button.pf-m-secondary {
+  border-color: var(--nixie-line2);
+  color: var(--nixie-ink);
+}
+
+.pf-v6-c-form-control,
+.pf-v6-c-form-control > input,
+.pf-v6-c-text-input-group__text-input {
+  background: var(--nixie-s2);
+  border-radius: 6px;
+  color: var(--nixie-ink);
+}
+
+.pf-v6-c-table thead th {
+  color: var(--nixie-muted);
+  font-weight: 500;
+}
+.pf-v6-c-table tbody tr:hover {
+  background: var(--nixie-s3);
+}
+
+/* The login page keeps colours of its own rather than PatternFly's
+   tokens, so it takes the finish through those: without them it stays
+   PatternFly's light page, with this stylesheet's near-white brand line
+   invisible on it. */
+:root,
+.pf-v6-theme-dark {
+  --color-body-background: var(--nixie-bg);
+  --color-background: var(--nixie-s1);
+  --color-secondary-background: var(--nixie-s2);
+  --color-text: var(--nixie-ink);
+  --color-text-light: var(--nixie-muted);
+  --color-text-lighter: var(--nixie-muted);
+  --color-border: var(--nixie-line);
+  --color-border-light: var(--nixie-line2);
+  --color-input: var(--nixie-ink);
+  --color-input-background: var(--nixie-s2);
+  --color-input-hover: var(--nixie-line2);
+  --color-link: var(--nixie-brand2);
+  --color-link-active: var(--nixie-brand2);
+  --color-primary: var(--nixie-brand);
+  --color-primary-active: var(--nixie-brand2);
+  --color-error: var(--nixie-err);
+  --color-danger: var(--nixie-err);
+  --color-warning: var(--nixie-hot);
+  --color-disabled-background: var(--nixie-s3);
+  --color-disabled-text: var(--nixie-muted);
+}
+.login-pf .container {
+  border: 1px solid var(--nixie-line);
+  box-shadow: 0 8px 24px -14px var(--nixie-shadow);
+}
+.login-pf .btn-primary,
+.login-pf #login-button {
+  background: var(--nixie-brand);
+  color: var(--nixie-bg);
+  border-radius: 6px;
+}
+#brand {
+  font-family: Archivo, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-size: 20px;
+  color: var(--nixie-ink);
+}
+#brand::before {
+  content: "nixie";
+  color: var(--nixie-brand2);
+}
+#brand:not(:empty)::before {
+  content: "nixie · ";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

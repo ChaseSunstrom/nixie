@@ -26,6 +26,7 @@ lib/
   mk-site.nix             site.nix -> nixosConfigurations, packages, checks
   guests.nix              pure functions: guest attrset -> tofu, nft, backup, scrape lists
   tokens.nix              design tokens as Nix data (single source, see section 10)
+  template.nix            reads a code file beside a module, fills its @name@ marks (D38)
 modules/                  the `nixie.*` option tree; one concern per file
   default.nix             imports everything below; nothing else
   profile.nix             nixie.profile, disjointness assertions
@@ -39,6 +40,7 @@ modules/                  the `nixie.*` option tree; one concern per file
     attestation.nix       tpm2-totp in initrd, on the splash; reseal after an update
     duress.nix            the duress option (the check is in unlock.nix)
     unlock.nix            the initrd's one password agent: splash, console, SSH, duress
+    unlock.sh             that agent; attestation.sh and attestation-reseal.sh likewise
     remote-unlock.nix     initrd SSH
     lockdown.nix          kernel lockdown parameter
     hardening.nix         ssh, usbguard, memory encryption, remote journal, sysctl
@@ -1195,6 +1197,24 @@ and runs `nixie apply`.
   brief lists is implemented, but ones the design does not draw follow the
   same component recipes rather than a new design. `VERIFICATION.md` for the
   slice lists any feature that shipped in reduced form.
+- **D38 Code lives in files, not in Nix strings.** Asked for after the
+  modules had grown long: shell, Lua, CSS, HTML, JavaScript and the tests'
+  Python sat inside `''` strings, where an editor sees one string, shellcheck
+  sees nothing until the build, and every `$` has to be escaped as `''$`.
+  Each block now sits in a file beside the module that installs it
+  (`modules/security/unlock.sh`, `modules/desktop/conf/hyprland.lua`,
+  `modules/host-ui/branding.css`, `tests/vm/splash.py`, …) and
+  `lib/template.nix`'s `fill` puts the values Nix knows in place of `@name@`
+  marks. A mark with nothing given for it stops the evaluation rather than
+  reaching a machine as literal text, and a path value is interpolated so
+  the file is copied into the store and stays a build input;
+  `builtins.replaceStrings` is not used, because it loses the string context
+  when several store paths go in at once. The finish's colours reach a file
+  as `@name@`, `@rgb_name@` and `@bare_name@` (`lib/tokens.nix`'s `marks`),
+  and the host page's stylesheet takes them as `--nixie-*` custom properties
+  so it is plain CSS. What stays in Nix is the code that builds a
+  derivation (a `runCommand`'s own lines) and text Nix generates outright,
+  such as the firewall's chains.
 - **D37 One password agent in the initrd, and the duress slot opens
   nothing.** systemd starts its console agent only without Plymouth and
   Plymouth brings its own, which answered without the duress check, so the

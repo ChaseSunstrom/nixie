@@ -5,6 +5,7 @@
   ...
 }:
 let
+  template = import ../lib/template.nix lib;
   inherit (import ../lib/option.nix lib) mkOption;
   cfg = config.nixie.backups;
   # The sops path of the password the installer generates when the wizard
@@ -22,25 +23,7 @@ let
       pkgs.zfs
       pkgs.jq
     ];
-    text = ''
-      root=${root}
-      datasets() {
-        for p in "$root/state" $(jq -r '.declared[].backup[]?' /run/current-system/etc/nixie/guests.json 2>/dev/null); do
-          zfs list -H -o name "$p" 2>/dev/null || true
-        done | sort -u
-      }
-      case "''${1:-}" in
-        pre-apply)
-          label=''${2:?label}
-          for ds in $(datasets); do
-            zfs set com.sun:auto-snapshot=true "$ds"
-            zfs snapshot -r "$ds@pre-apply-$label"
-            zfs list -H -t snapshot -o name -s creation "$ds" | grep "@pre-apply-" | head -n -5 | xargs -r -n1 zfs destroy -r
-          done ;;
-        list) for ds in $(datasets); do zfs list -H -t snapshot -o name,creation -s creation "$ds"; done ;;
-        *) echo "usage: nixie-snapshot pre-apply <label> | list" >&2; exit 2 ;;
-      esac
-    '';
+    text = template.fill ./backups/snapshot.sh { inherit root; };
   };
 in
 {
@@ -200,14 +183,9 @@ in
         serviceConfig = {
           Type = "oneshot";
           # exposure: reads the repository credentials as root, like the backup itself.
-          ExecStart = pkgs.writeShellScript "nixie-backup-check" ''
-            set -u
-            mkdir -p /var/lib/nixie
-            out=$(restic-nixie check 2>&1); rc=$?
-            ${pkgs.jq}/bin/jq -n --arg t "$(date -Is)" --arg o "$(printf '%s' "$out" | tail -n 5)" --argjson ok "$([ $rc = 0 ] && echo true || echo false)" \
-              '{ok: $ok, time: $t, output: $o}' >/var/lib/nixie/backup-check.json
-            exit $rc
-          '';
+          ExecStart = pkgs.writeShellScript "nixie-backup-check" (
+            template.fill ./backups/check.sh { inherit (pkgs) jq; }
+          );
         };
       };
       systemd.timers.nixie-backup-check = lib.mkIf (cfg.check != null) {
@@ -223,19 +201,7 @@ in
         # default, beside the live data with --to; other flags go to restic.
         (pkgs.writeShellApplication {
           name = "nixie-restore";
-          text = ''
-            snap=latest; target=/; args=()
-            while [ $# -gt 0 ]; do
-              case "$1" in
-                --path) args+=(--include "$2"); shift 2 ;;
-                --to) target=$2; shift 2 ;;
-                --*) args+=("$1"); shift ;;
-                *) snap=$1; shift ;;
-              esac
-            done
-            mkdir -p "$target"
-            exec restic-nixie restore "$snap" --target "$target" "''${args[@]}"
-          '';
+          text = builtins.readFile ./backups/restore.sh;
         })
         # `nixie backup now | list [--json] | verify | kit <file> [--recipient r]`.
         (pkgs.writeShellApplication {
@@ -246,59 +212,17 @@ in
             pkgs.gnutar
             pkgs.systemd
           ];
-          text = ''
-            case "''${1:-}" in
-              now) systemctl start restic-backups-nixie.service && restic-nixie snapshots --latest 1 ;;
-              list) shift; exec restic-nixie snapshots "$@" ;;
-              verify)
-                systemctl start nixie-backup-check.service || true
-                cat /var/lib/nixie/backup-check.json; echo
-                jq -e .ok /var/lib/nixie/backup-check.json >/dev/null ;;
-              kit)
-                out=''${2:?output file}; shift 2
-                recipient=""
-                while [ $# -gt 0 ]; do case "$1" in --recipient) recipient=$2; shift 2 ;; *) shift ;; esac; done
-                tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-                mkdir -p "$tmp/headers"
-                # The header bundle (headers, TPM lockout auth, TOTP reseal password) is
-                # encrypted to this host's key; the kit carries it in the clear inside
-                # its own passphrase-encrypted envelope.
-                if [ -e /var/lib/nixie/setup/header-backup.tar.age ]; then
-                  age -d -i /var/lib/nixie/age.key /var/lib/nixie/setup/header-backup.tar.age | tar -C "$tmp/headers" -xf -
-                fi
-                if [ -e /var/lib/nixie/age.key ]; then cp /var/lib/nixie/age.key "$tmp/age.key"
-                else echo "no /var/lib/nixie/age.key on this host (not installed by setup); the site's sops secrets need another recipient" >"$tmp/age.key.missing"; fi
-                cp ${toString cfg.passwordFile} "$tmp/restic-password"
-                ${lib.optionalString (
-                  cfg.environmentFile != null
-                ) ''cp ${toString cfg.environmentFile} "$tmp/restic-env"''}
-                ${lib.optionalString (
-                  cfg.rcloneConfigFile != null
-                ) ''cp ${toString cfg.rcloneConfigFile} "$tmp/rclone.conf"''}
-                outer=$(jq -r '.luks[] | select(.name == "rpool-outer") | .device' /run/current-system/etc/nixie/layout.json)
-                if [ "$(jq -r .features.tpm /run/current-system/etc/nixie/layout.json)" = true ] && [ -t 0 ]; then
-                  # A fresh recovery key for the outer layer replaces the old one; the
-                  # TPM unlocks with the PIN asked here.
-                  systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=recovery "$outer" >/dev/null
-                  systemd-cryptenroll --unlock-tpm2-device=auto --recovery-key "$outer" | tail -1 >"$tmp/recovery-key.txt"
-                else
-                  echo "Run 'nixie backup kit' from a terminal on the host to enrol a fresh recovery key for the outer layer; the previous one still opens it." >"$tmp/recovery-key.txt"
-                fi
-                cat >"$tmp/README.txt" <<EOF
-            Nixie disaster kit for $(hostname), $(date -Is). Keep it offline.
-            Rebuild from nothing: install from the ISO with the site repository,
-            give the wizard age.key when it asks for the host key, put
-            restic-password (and restic-env / rclone.conf) back as the site's
-            sops secrets, then on the new machine: nixie apply; nixie restore latest.
-            headers/: cryptsetup luksHeaderRestore <device> --header-backup-file <name>.header
-            recovery-key.txt: opens the TPM layer when the TPM cannot.
-            EOF
-                if [ -n "$recipient" ]; then tar -C "$tmp" -cf - . | age -r "$recipient" >"$out"
-                else tar -C "$tmp" -cf - . | age -p >"$out"; fi
-                chmod 0600 "$out"; echo "kit written to $out" ;;
-              *) echo "usage: nixie backup now | list [--json] | verify | kit <file> [--recipient <age key>]" >&2; exit 2 ;;
-            esac
-          '';
+          text = template.fill ./backups/backup.sh {
+            environmentFile = toString cfg.environmentFile;
+            passwordFile = toString cfg.passwordFile;
+            rcloneConfigFile = toString cfg.rcloneConfigFile;
+            kitEnv = lib.optionalString (
+              cfg.environmentFile != null
+            ) ''cp ${toString cfg.environmentFile} "$tmp/restic-env"'';
+            kitRclone = lib.optionalString (
+              cfg.rcloneConfigFile != null
+            ) ''cp ${toString cfg.rcloneConfigFile} "$tmp/rclone.conf"'';
+          };
         })
       ];
     })
