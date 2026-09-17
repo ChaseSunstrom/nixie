@@ -1,6 +1,6 @@
 // One option as a form field: its plain label, the first sentence of its
 // description with the rest behind "More", and a control for its type.
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Toggle } from "../components/ui";
 import { api, type Device, type Opt } from "./api";
 
@@ -24,17 +24,69 @@ function Help({ o }: { o: Opt }) {
   );
 }
 
-// A text field that also offers what this machine knows: its own time zone
-// list, so nobody has to spell "Europe/Amsterdam" from memory.
-function Combo({ value, onChange, load, placeholder }: { value: string; onChange: (v: string) => void; load: () => Promise<string[]>; placeholder?: string }) {
-  const id = useId();
-  const [items, setItems] = useState<string[]>([]);
-  useEffect(() => { load().then(setItems).catch(() => undefined); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+// The machine's own time zones as a real dropdown, by region. A datalist only
+// suggests what matches the text already in the field, so with the default
+// "UTC" in it the list was empty until the field was cleared.
+function ZoneSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [zones, setZones] = useState<string[]>([]);
+  useEffect(() => { api.timezones().then((r) => setZones(r.zones)).catch(() => undefined); }, []);
+  const current = value || "UTC";
+  const all = zones.includes(current) ? zones : [current, ...zones];
+  const regions = new Map<string, string[]>();
+  for (const z of all) {
+    const r = z.includes("/") ? z.slice(0, z.indexOf("/")) : "";
+    regions.set(r, [...(regions.get(r) ?? []), z]);
+  }
+  const city = (z: string, r: string) => (r ? z.slice(r.length + 1) : z).replaceAll("_", " ");
   return (
-    <>
-      <input className="input mono" list={id} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-      <datalist id={id}>{items.map((i) => <option key={i} value={i} />)}</datalist>
-    </>
+    <select className="input" value={current} onChange={(e) => onChange(e.target.value)}>
+      {[...regions].map(([r, list]) =>
+        r ? (
+          <optgroup key={r} label={r}>{list.map((z) => <option key={z} value={z}>{city(z, r)}</option>)}</optgroup>
+        ) : (
+          list.map((z) => <option key={z} value={z}>{z}</option>)
+        ),
+      )}
+    </select>
+  );
+}
+
+// What each TPM measurement covers, in the order and with the meaning
+// systemd gives them; 7 is the one the option defaults to.
+const PCRS: [number, string][] = [
+  [0, "Firmware code"],
+  [1, "Firmware settings"],
+  [2, "Add-in card firmware"],
+  [3, "Add-in card settings"],
+  [4, "Boot loader and kernel"],
+  [5, "Boot loader settings, partition table"],
+  [6, "Platform state"],
+  [7, "Secure Boot state (recommended)"],
+  [8, "Boot loader commands"],
+  [9, "Kernel and initrd"],
+  [10, "Integrity measurements"],
+  [11, "Unified kernel image"],
+  [12, "Kernel command line"],
+  [13, "System extensions"],
+  [14, "Shim certificates"],
+  [15, "System identity"],
+];
+
+function PcrChecks({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
+  // A value the site set beyond this list is still shown, so saving never drops it.
+  const known = PCRS.map(([n]) => n);
+  const items: [number, string][] = [...PCRS, ...value.filter((n) => !known.includes(n)).map((n): [number, string] => [n, "Set in the site"])];
+  const toggle = (n: number) => onChange((value.includes(n) ? value.filter((x) => x !== n) : [...value, n]).sort((a, b) => a - b));
+  return (
+    <div className="pcrs">
+      {items.map(([n, what]) => (
+        <label key={n} className="pcr" data-on={value.includes(n)}>
+          <input type="checkbox" checked={value.includes(n)} onChange={() => toggle(n)} />
+          <span className="mono">{n}</span>
+          <span>{what}</span>
+        </label>
+      ))}
+    </div>
   );
 }
 
@@ -99,7 +151,8 @@ export function OptionField({ o, value, onChange, locked }: { o: Opt; value: unk
         <Help o={o} />
       </div>
     );
-  if (o.picker === "timezone") return row(<Combo value={value == null ? "" : String(value)} onChange={(v) => onChange(v || null)} placeholder="Region/City" load={() => api.timezones().then((r) => r.zones)} />);
+  if (o.picker === "timezone") return row(<ZoneSelect value={value == null ? "" : String(value)} onChange={onChange} />);
+  if (o.picker === "pcrs") return row(<PcrChecks value={Array.isArray(value) ? value.map(Number) : []} onChange={onChange} />);
   if (o.picker === "path") return row(<PathPicker value={value == null ? "" : String(value)} onChange={(v) => onChange(v || null)} placeholder={o.default ? String(o.default) : undefined} />);
   if (o.values.length) return row(<div className="tray" style={{ alignSelf: "flex-start" }}>{o.values.map((v) => <button key={v} className="seg" aria-pressed={value === v} onClick={() => onChange(v)}>{v}</button>)}</div>);
   if (o.type.startsWith("list of"))

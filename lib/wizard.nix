@@ -24,6 +24,8 @@
   "nixie.security.tpm.pcrs" = {
     label = "TPM measurements";
     advanced = true;
+    # Sixteen registers with fixed meanings: checkboxes, not a list to type.
+    picker = "pcrs";
   };
   "nixie.security.secureBoot.enable" = {
     label = "Secure Boot with your own keys";

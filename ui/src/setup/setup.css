@@ -49,6 +49,14 @@
 .row.tight { gap: 6px; flex-wrap: nowrap; }
 .row.tight .input { flex: 1 1 auto; min-width: 0; }
 .caption.err { color: var(--err); }
+.field-label .chip { margin-left: 8px; vertical-align: 1px; }
+/* TPM measurements: one checkbox per register, two columns where they fit. */
+.pcrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.pcr { display: grid; grid-template-columns: 16px 22px minmax(0, 1fr); gap: 8px; align-items: center; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--s1); cursor: pointer; font-size: 13px; transition: border-color 160ms var(--ease), background-color 160ms var(--ease); }
+.pcr:hover { border-color: var(--line2); }
+.pcr[data-on="true"] { border-color: var(--brand2); background: color-mix(in srgb, var(--brand) 12%, var(--s1)); }
+.pcr .mono { color: var(--muted); text-align: right; }
+.pcr input { width: 15px; height: 15px; margin: 0; accent-color: var(--brand); }
 /* The drives this machine can see, as one card per drive. */
 .picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
 .pick { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--s1); color: var(--ink); cursor: pointer; transition: border-color 160ms var(--ease), transform 160ms var(--ease); }
@@ -108,7 +116,7 @@ ol.steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
 .log summary { cursor: pointer; color: var(--muted); width: fit-content; }
 .log summary:hover { color: var(--ink); }
 .log .term { margin: 8px 0 0; min-height: 0; max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 12px; }
-.qr { font-size: 10px !important; line-height: 1 !important; min-height: 0 !important; width: fit-content; margin: 8px 0 !important; }
+.qr-img { display: block; width: 216px; height: 216px; margin: 8px 0; padding: 6px; background: #fff; border-radius: 8px; image-rendering: pixelated; }
 .panel.keep { border-color: var(--hot); gap: 10px; }
 
 .status { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--s1); transition: border-color 250ms, background-color 250ms; }

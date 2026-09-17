@@ -38,6 +38,13 @@ config errors, and mixing the two glibcs left the compositor unable to start at
 all. The wizard takes an existing machine's age key when a cloned site already
 holds its secrets.
 
+QR codes on the setup pages are images and scan: the attestation code was
+tpm2-totp's ANSI-coloured terminal picture, which a browser prints as escape
+codes. The time zone is a dropdown whatever it is set to, the TPM measurements
+are a checkbox per register, and the "hardened" chips sit beside their labels
+instead of stretching under them (a bare `.brand` rule for the header's logo
+was also styling every brand-coloured chip).
+
 The host page wears the control panel's finish instead of PatternFly's own: its
 branding set PatternFly 5 variables while cockpit 366 ships PatternFly 6, so
 none of it applied. Both of PatternFly 6's token layers now come from the

@@ -85,11 +85,12 @@ let
             await page.fill(".field:has-text(\"Administrator password\") input", "nixie")
             await page.fill(".field:has-text(\"Disk passphrase\") input", "hunter2")
             await page.click("button:has-text(\"Next\")"); await shot(page, "network")
-            # The time zone is picked from this machine's own list, not typed.
-            # A datalist is drawn by the browser itself, so a picture would not
-            # show it: what is checked is that the list arrived at all.
-            await page.wait_for_function("document.querySelector('datalist')?.options.length > 100", timeout=30000)
-            zones = await page.evaluate("document.querySelector('datalist').options.length")
+            # The time zone is a dropdown of this machine's own zones. The open
+            # list is drawn by the browser, not the page, so what is checked is
+            # that it holds them.
+            zone = page.locator(".field:has-text('Time zone') select")
+            await page.wait_for_function("document.querySelectorAll('select option').length > 100", timeout=30000)
+            zones = await zone.locator("option").count()
             assert zones > 100, f"time zone list has {zones} entries"
             await page.click("button:has-text(\"Next\")"); await shot(page, "services")
             # A backup goes to a folder, and the folder can be picked from the

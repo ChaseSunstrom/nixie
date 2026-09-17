@@ -1101,6 +1101,52 @@ callable set, so it cannot tell the two shapes apart.
 | the same host after it: `hyde-ipc` vendors its crates and builds, and the whole system builds (`nixos-system-laptop-26.05…`) | pass |
 | `fmt`, `statix`, `deadnix`, `eval-matrix` | pass |
 
+## Four things the wizard drew wrong (2026-09-17)
+
+Reported: the attestation QR code is squished and will not scan; the TPM
+measurements should be checkboxes rather than free text; the time zone is only
+a list once the default "UTC" is deleted; the "hardened" chips on the Security
+step stretch to the width of the text above them.
+
+Each was reproduced in Chromium against the real setup backend on this
+machine (walked to the Security and Network steps only; nothing past them, so
+no phase ran), and each cause was found before anything changed:
+
+- **QR codes.** `tpm2-totp generate` draws its code with ANSI background
+  colours only: each module is two spaces inside `\e[40m` or `\e[47m`, with
+  no visible glyph. A browser prints those escapes as text, so the page showed
+  a wide block of `[47m` with the URI under it; zbar found nothing in a
+  screenshot of it. The backend now reads the `otpauth://` line tpm2-totp
+  prints under its picture and serves every QR a page shows (the attestation
+  secret, the recovery key, the host page's authenticator) as an SVG from
+  `qrencode -t SVG`, drawn as an image with dark modules on white. The console
+  banner keeps its text QR, where a character cell is what it was drawn for.
+- **Time zone.** A `<datalist>` only suggests entries that match what is
+  already typed, so "UTC" filtered the list down to itself. It is now a
+  `<select>` of the machine's own zones, grouped by region.
+- **TPM measurements.** `lib/wizard.nix` gives `nixie.security.tpm.pcrs` a
+  `pcrs` picker: a checkbox for each of registers 0 to 15 with what systemd
+  says it measures, 7 marked recommended. A register the site set outside that
+  range is still shown, so saving never drops it.
+- **Chips.** The header's logo rule was a bare `.brand`, and `chip brand` is a
+  colour, so every brand-coloured chip also became a block-level flex box with
+  the logo's padding and border: on a line of its own under the label,
+  stretched to the label's width. The rule is now `.header > .brand`. The same
+  leak affected the declared, running and "this machine" chips in the panel.
+
+| check | result |
+|---|---|
+| a screenshot of the attestation QR as the page drew it, before | zbar: no symbol |
+| `setup-qr` (new): tpm2-totp's printed form gives back its URI, and the SVG the page shows decodes to that URI | pass |
+| a screenshot of the authenticator QR as the page now draws it | zbar: `otpauth://totp/nixie%3A…?secret=…&issuer=nixie` |
+| enrolling the authenticator from the secret the page shows, then Verify | enrolled |
+| the time zone control on the Network step with "UTC" selected | a `SELECT` holding 554 zones |
+| TPM measurements: 7 ticked by default; tick 4 and 11, then untick 11 | `[7]` → `[4, 7, 11]` → `[4, 7]` |
+| the chip's computed style on the Security step | `display: inline`, beside its label; the field is 43px tall instead of 64px |
+| the panel in demo mode: the header logo and a brand chip | logo `display: flex` with its padding and border; chip `display: inline`, no border |
+| `fmt`, `statix`, `deadnix`, `option-docs`, `option-reference`, `readme`, `setup-devices`, `setup-qr`, `site-machines`, `eval-matrix`, `boot-and-setup` | pass |
+| `vm-installer-lan` (231 s), `vm-ui` (43 s) | pass |
+
 ## Every check on the final tree (2026-09-17)
 
 All 32 checks in the flake, one build per check (the single-process

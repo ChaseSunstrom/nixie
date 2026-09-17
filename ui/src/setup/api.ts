@@ -1,5 +1,5 @@
 // The setup backend's JSON API, same origin.
-export type Opt = { path: string; type: string; values: string[]; default: unknown; required: boolean; description: string; section: string | null; order: number; secret: string | null; label: string | null; advanced: boolean; picker: "timezone" | "path" | null };
+export type Opt = { path: string; type: string; values: string[]; default: unknown; required: boolean; description: string; section: string | null; order: number; secret: string | null; label: string | null; advanced: boolean; picker: "timezone" | "path" | "pcrs" | null };
 export type Device = { path: string; size: number; label: string; fstype: string; mountpoint: string; removable: boolean; model: string };
 export type SiteFile = { path: string; content: string };
 export type Check = { ok: boolean; message: string; detail?: string; locations: { path: string; line: number; col: number }[] };
@@ -33,7 +33,7 @@ export const api = {
   secrets: (b: Record<string, string>) => j<{ ok: boolean; have: string[] }>("POST", "/api/secrets", b),
   totpNew: () => j<{ secret: string; uri: string; qr: string }>("GET", "/api/totp/new"),
   totpVerify: (code: string) => j<{ ok: boolean }>("POST", "/api/totp/verify", { code }),
-  attestation: () => j<{ text: string; recovery: string; recoveryQr: string }>("GET", "/api/attestation"),
+  attestation: () => j<{ attestUri: string; attestQr: string; recovery: string; recoveryQr: string }>("GET", "/api/attestation"),
   reboot: (firmware = false) => j<{ ok: boolean }>("POST", "/api/reboot", { firmware }),
   finish: () => j<{ ok: boolean; output: string }>("POST", "/api/finish", {}),
   finishStatus: () => j<{ failed: boolean; lines: string[] }>("GET", "/api/finish"),

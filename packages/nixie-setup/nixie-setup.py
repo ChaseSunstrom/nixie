@@ -140,8 +140,25 @@ def totp_code(secret_b32, t=None):
 
 
 def qr_text(data):
+    """For the text console, where a character cell is what it was drawn for."""
     r = sh(["qrencode", "-t", "UTF8", "-m", "1", data])
     return r.stdout if r.returncode == 0 else ""
+
+
+def qr_svg(data):
+    """For a web page, as an image. Text art only scans in the font and line
+    height it was drawn for, and tpm2-totp draws its code in ANSI colours,
+    which a browser prints as escape codes: the setup page showed a squashed
+    block of `[47m` that no phone could read."""
+    r = sh(["qrencode", "-t", "SVG", "-m", "2", "-s", "6", "-o", "-", data])
+    if r.returncode != 0 or not r.stdout:
+        return ""
+    return "data:image/svg+xml;base64," + base64.b64encode(r.stdout.encode()).decode()
+
+
+def otpauth_uri(text):
+    """The otpauth:// line tpm2-totp prints under its picture."""
+    return next((l.strip() for l in text.splitlines() if l.strip().startswith("otpauth://")), "")
 
 
 # ------------------------------------------------------------------- site
@@ -451,12 +468,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             TOTP["secret"] = secret
             label = f"nixie:{read_state().get('host', socket.gethostname())}"
             uri = f"otpauth://totp/{urllib.parse.quote(label)}?secret={secret}&issuer=nixie"
-            return self.send_json({"secret": secret, "uri": uri, "qr": qr_text(uri)})
+            return self.send_json({"secret": secret, "uri": uri, "qr": qr_svg(uri)})
         if path == "/api/attestation":
             p = os.path.join(keys_dir(), "attestation-qr")
             r = os.path.join(keys_dir(), "recovery-key")
             key = open(r).read().strip() if os.path.exists(r) else ""
-            return self.send_json({"text": open(p).read() if os.path.exists(p) else "", "recovery": key, "recoveryQr": qr_text(key) if key else ""})
+            uri = otpauth_uri(open(p).read()) if os.path.exists(p) else ""
+            return self.send_json({"attestUri": uri, "attestQr": qr_svg(uri) if uri else "", "recovery": key, "recoveryQr": qr_svg(key) if key else ""})
         if path == "/api/download/header-backup":
             p = os.path.join(ARGS.state_dir, "header-backup.tar.age")
             if not os.path.exists(p):

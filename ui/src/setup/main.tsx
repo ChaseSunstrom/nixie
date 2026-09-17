@@ -501,7 +501,7 @@ function Wizard() {
                 <div className="field-label">Enrol the authenticator app</div>
                 {!totp ? <button className="btn" style={{ alignSelf: "flex-start", marginTop: 8 }} onClick={() => api.totpNew().then(setTotp)}>Show QR code</button> : (
                   <div>
-                    <pre className="well term qr">{totp.qr}</pre>
+                    {totp.qr && <img className="qr-img" src={totp.qr} alt="The authenticator secret as a QR code" />}
                     <div className="caption mono">{totp.secret}</div>
                     <div className="row"><input className="input mono" placeholder="code from the app" value={totpCode} onChange={(e) => setTotpCode(e.target.value)} /><button className="btn primary" onClick={() => api.totpVerify(totpCode).then(() => setTotpOk(true)).catch(() => setErr("That code is not right; try the next one."))}>Verify</button>{totpOk && <span className="chip ok">enrolled</span>}</div>
                   </div>

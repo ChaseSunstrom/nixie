@@ -62,6 +62,15 @@ export function Log({ lines, open }: { lines: string[]; open: boolean }) {
 
 type Run = (n: number, body?: Record<string, unknown>) => Promise<number>;
 
+// For typing in by hand when a camera is not at hand.
+const secretOf = (uri: string) => {
+  try {
+    return new URL(uri).searchParams.get("secret") ?? "";
+  } catch {
+    return "";
+  }
+};
+
 // Phases 4 to 8 and Finish, on the installed machine's setup generation. It
 // runs by itself: a phase this machine does not use is recorded without being
 // shown, and the page stops only for what a person must do, typing the
@@ -71,7 +80,7 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
   const features = (st.layout?.features ?? {}) as Record<string, boolean>;
   const host = String(st.state.host ?? st.host);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
-  const [recovery, setRecovery] = useState({ key: "", qr: "", attest: "" });
+  const [recovery, setRecovery] = useState({ key: "", qr: "", attestUri: "", attestQr: "" });
   // What phase 5 asked for: 10 a restart that enrols the keys, 11 the firmware settings.
   const [sb, setSb] = useState<number | null>(null);
   // The kiosk browser is on this machine, where a download goes nowhere; the
@@ -94,12 +103,12 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
     if (n === 6) await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "" });
     const rc = await run(n);
     if (n === 5 && (rc === 10 || rc === 11)) setSb(rc);
-    if (n === 6 && rc === 0) api.attestation().then((a) => setRecovery({ key: a.recovery, qr: a.recoveryQr, attest: a.text })).catch(() => undefined);
+    if (n === 6 && rc === 0) api.attestation().then((a) => setRecovery({ key: a.recovery, qr: a.recoveryQr, attestUri: a.attestUri, attestQr: a.attestQr })).catch(() => undefined);
   };
 
   // Until Finish removes them, a reload must not lose what is shown once.
   useEffect(() => {
-    if (done.includes(6) && (features.tpm || features.attestation)) api.attestation().then((a) => setRecovery({ key: a.recovery, qr: a.recoveryQr, attest: a.text })).catch(() => undefined);
+    if (done.includes(6) && (features.tpm || features.attestation)) api.attestation().then((a) => setRecovery({ key: a.recovery, qr: a.recoveryQr, attestUri: a.attestUri, attestQr: a.attestQr })).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -201,11 +210,11 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
     <>
       <h1 className="display">Setting up {host}</h1>
       <p className="caption lead">This runs by itself and picks up where it left off after a restart. It stops only when it needs you.</p>
-      {(recovery.key || recovery.attest) && (
+      {(recovery.key || recovery.attestQr) && (
         <div className="panel keep reveal">
           <div className="check-title">Save these now: they are shown once</div>
-          {recovery.key && <div><div className="caption">The recovery key opens the disk when the TPM cannot. It is never stored on this machine.</div><pre className="well term qr">{recovery.qr}</pre><pre className="well mono">{recovery.key}</pre></div>}
-          {recovery.attest && <div><div className="caption">Scan the attestation code with your authenticator app.</div><pre className="well term qr">{recovery.attest}</pre></div>}
+          {recovery.key && <div><div className="caption">The recovery key opens the disk when the TPM cannot. It is never stored on this machine.</div>{recovery.qr && <img className="qr-img" src={recovery.qr} alt="The recovery key as a QR code" />}<pre className="well mono">{recovery.key}</pre></div>}
+          {recovery.attestQr && <div><div className="caption">Scan the attestation code with your authenticator app, or type the secret under it.</div><img className="qr-img" src={recovery.attestQr} alt="The attestation secret as a QR code" /><div className="caption mono">{secretOf(recovery.attestUri)}</div></div>}
         </div>
       )}
       <Checklist items={items} />

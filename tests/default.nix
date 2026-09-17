@@ -273,6 +273,38 @@ in
     touch $out
   '';
 
+  # The attestation code has to scan. tpm2-totp draws its own in ANSI colour,
+  # which a browser prints as escape codes, so the page shows a QR made from
+  # the URI tpm2-totp prints under it; this decodes that image again.
+  setup-qr =
+    pkgs.runCommand "setup-qr"
+      {
+        nativeBuildInputs = [
+          pkgs.python3
+          pkgs.qrencode
+          pkgs.zbar
+          pkgs.librsvg
+        ];
+      }
+      ''
+        cp ${../packages/nixie-setup/nixie-setup.py} setup.py
+        python3 - <<'PY'
+        import base64, subprocess, setup
+        uri = "otpauth://totp/TPM2-TOTP?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+        printed = "\x1b[47m      \x1b[0m\n\x1b[47m  \x1b[40m  \x1b[47m  \x1b[0m\n\n" + uri + "\n"
+        assert setup.otpauth_uri(printed) == uri, setup.otpauth_uri(printed)
+        assert setup.otpauth_uri("no code here") == ""
+        img = setup.qr_svg(uri)
+        assert img.startswith("data:image/svg+xml;base64,"), img[:40]
+        open("qr.svg", "wb").write(base64.b64decode(img.split(",", 1)[1]))
+        subprocess.run(["rsvg-convert", "-w", "400", "-o", "qr.png", "qr.svg"], check=True)
+        read = subprocess.run(["zbarimg", "-q", "--raw", "qr.png"], capture_output=True, text=True, check=True).stdout.strip()
+        assert read == uri, read
+        print("the attestation QR scans back to", read)
+        PY
+        touch $out
+      '';
+
   # The committed reference must match what the module tree says.
   option-reference = pkgs.runCommand "option-reference" { } ''
     diff -u ${../docs/reference/options.md} ${self.packages.x86_64-linux.docs}/options.md
