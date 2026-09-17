@@ -1018,6 +1018,89 @@ by earlier `nix run .#test-iso` runs had grown to 28 GB. They are gitignored
 but they filled the disk to 97%, which made `nix eval` fail with "No space
 left on device"; they are deleted after a run now.
 
+## The host page in the control panel's finish (2026-09-16)
+
+Asked for: Cockpit that matches the rest of the UI instead of looking
+different.
+
+Found: the host page was PatternFly's own — white cards, blue buttons, sharp
+corners, system fonts — because `modules/host-ui.nix` set PatternFly **v5**
+variables and cockpit 366 ships PatternFly **6**, so none of it applied.
+
+Changes (ARCHITECTURE section 10, host page):
+- Both PatternFly 6 token layers, the palette (`--pf-t--color--gray--NN`) and
+  the semantic one (`--pf-t--global--…`), are written from `lib/tokens.nix`,
+  because several components reach past the semantic token to the palette.
+  Both blocks name `.pf-v6-theme-dark` beside `:root`: cockpit puts its dark
+  values on that class at the same specificity, and `branding.css` is linked
+  after each page's own stylesheet, so the finish wins in either theme.
+- The panel's recipes on top: 10px cards with its border and shadow, 6px
+  buttons and inputs, pill navigation with the current item on the panel
+  surface, a masthead that is one surface with a hairline under it, status
+  colours from the finish, a reduced-motion block.
+- Archivo and JetBrains Mono are served beside `branding.css` with
+  `@font-face`: a browser on another machine has neither installed.
+- Only each cockpit package's `index.html` links `branding.css`; the
+  secondary pages (`systemd/{logs,services,terminal,hwinfo}.html`,
+  `networkmanager/firewall.html`) do not, so Overview was dressed and Terminal
+  was not. The host page's cockpit is a symlink farm over the package that
+  adds the link to those pages; the NixOS module compares the package's
+  version, so the derivation carries it.
+- The login page keeps colour variables of its own (`--color-background`,
+  `--color-text`, …) rather than PatternFly's tokens; they are set from the
+  finish too. The wordmark no longer ends in a separator when cockpit leaves
+  `#brand` empty.
+- The History plugin follows the same recipes.
+
+| check | result |
+|---|---|
+| which cockpit 366 pages link `branding.css`, read from the package: every `index.html` and `static/login.html` do; the five secondary pages above do not | as described |
+| `vm-host-ui` on the patched package: password plus TOTP logs in and a wrong code does not; the History screen is installed and answers | pass |
+| the gallery at 92b784d, `hostui-*.png` from a real browser against the real host: the shell, Overview, Terminal (formerly stock) and the login page (formerly white, with the wordmark invisible on it) all in the finish | seen |
+| `fmt`, `statix`, `deadnix`, `eval-matrix` | pass |
+
+## HyDE's one Rust program and the crates.io 403 (2026-09-16)
+
+Reported: building a HyDE desktop failed with 403 errors on another machine.
+
+Reproduced here with a site carrying the pinned hydenix input. The failure is
+not cache.nixos.org (lines matching "403" there are store hashes); it is:
+
+```
+crate-clap_complete> curl: (22) The requested URL returned error: 403
+crate-clap_complete> error: cannot download crate-clap_complete-4.5.58.tar.gz from any mirror
+```
+
+and it cascades through `cargo-vendor-dir`, `hyde-ipc`, the home-manager
+generation and the system. crates.io refuses any user agent that begins with
+`curl/`, which is what nixpkgs' `fetchurl` builder sends:
+
+| user agent on `crates.io/api/v1/crates/clap_complete/4.5.58/download` | answer |
+|---|---|
+| `curl/8.17.0 Nixpkgs/26.05` (what `fetchurl` sends) | 403 |
+| `curl/8.17.0` | 403 |
+| `Nixpkgs/26.05` | 200 |
+| none of the above, at `static.crates.io/crates/clap_complete/4.5.58/download` | 200 |
+
+The platform's nixpkgs already fetches crates from static.crates.io
+(`pkgs/build-support/rust/import-cargo-lock.nix`, rust-lang/crates.io#13482).
+`hyde-ipc` comes from a flake of its own whose nixpkgs predates that, and no
+binary cache has it. It is HyDE's only Rust program (`hydectl` is Go, `hyq`
+is C++), so it is now built from the same pinned source with the platform's
+`rustPlatform` (ARCHITECTURE D27).
+
+Tried and dropped: overriding `fetchurl` in HyDE's package set. It is an
+`extendMkDerivation` set; replacing its functor fails evaluation ("expected a
+set but found a function"), and extending it across the two nixpkgs ends in
+infinite recursion in `make-derivation`. `lib.isFunction` is also true for a
+callable set, so it cannot tell the two shapes apart.
+
+| check | result |
+|---|---|
+| a desktop host from a site with the pinned hydenix input, before the change | fails as reported |
+| the same host after it: `hyde-ipc` vendors its crates and builds, and the whole system builds (`nixos-system-laptop-26.05…`) | pass |
+| `fmt`, `statix`, `deadnix`, `eval-matrix` | pass |
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

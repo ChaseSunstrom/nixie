@@ -339,9 +339,9 @@ options and `nixie` command.
 ## Host page
 
 `nixie.hostUi.enable` adds Cockpit with the files, terminal, storage and
-podman plugins, branded with the Nixie tokens, behind the administrator
-password and the second factor from `nixie.auth.secondFactor` (TOTP). It is
-off because it widens the attack surface of a hardened host
+podman plugins, in the same finish as the control panel, behind the
+administrator password and the second factor from `nixie.auth.secondFactor`
+(TOTP). It is off because it widens the attack surface of a hardened host
 ([VERIFICATION.md#host-page](VERIFICATION.md#host-page)).
 
 ## Extending

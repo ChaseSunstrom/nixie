@@ -745,6 +745,14 @@ and `jetbrains-mono` packages at build time.
 - `ui/tokens`: the 21 custom properties per finish, extracted from the design
   file (see `docs/design-tokens.md`), as JSON. `lib/tokens.nix` imports the
   same JSON so the desktop theme, greeter and Cockpit branding use one source.
+  Cockpit (PatternFly 6) takes the finish by redefining both of PatternFly's
+  token layers, the palette and the semantic one, in `branding.css`, plus the
+  panel's recipes (10px cards, 6px controls, pill navigation) and the fonts
+  served beside it. Every cockpit page links `branding.css` after its own
+  stylesheet except the secondary pages (logs, services, terminal, hardware,
+  firewall), so the host page uses a symlink farm over the cockpit package
+  that adds the link to those; the login page keeps colour variables of its
+  own, which the same file sets.
 - `ui/components`: panel, well, lane, heat strip, ring gauge, chart (uPlot),
   buttons, chips, command palette, terminal (xterm.js).
 - `ui/nixie-ui`: React. Views in the design's nav order: Overview, Instances,
@@ -1038,7 +1046,13 @@ and runs `nixie apply`.
   written for the Hyprland it pins: on the platform's newer one the session
   drew over a thousand "config error" lines, and mixing the two glibcs left
   the compositor unable to create a backend at all. The system around the
-  session stays on the platform's nixpkgs. Setup masks the display
+  session stays on the platform's nixpkgs. The one exception is `hyde-ipc`,
+  HyDE's only Rust program: its flake's nixpkgs fetches crates from
+  `crates.io/api/v1`, which answers 403 to the `curl/` user agent `fetchurl`
+  sends, and nothing has it cached, so it is built from the same source with
+  the platform's `rustPlatform`, which fetches from static.crates.io.
+  `fetchurl` itself is not overridden: it is an `extendMkDerivation` set, and
+  wrapping it breaks nixpkgs' evaluation. Setup masks the display
   manager until Finish, as it stops greetd. The platform still takes no
   dependency: hydenix pulls home-manager and a large third-party tree, and
   HyDE's theme switcher fetches from the network at use, which the

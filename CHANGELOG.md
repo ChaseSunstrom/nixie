@@ -38,6 +38,13 @@ config errors, and mixing the two glibcs left the compositor unable to start at
 all. The wizard takes an existing machine's age key when a cloned site already
 holds its secrets.
 
+The host page wears the control panel's finish instead of PatternFly's own: its
+branding set PatternFly 5 variables while cockpit 366 ships PatternFly 6, so
+none of it applied. Both of PatternFly 6's token layers now come from the
+design tokens, with the panel's cards, controls and pill navigation, the
+panel's fonts served beside the stylesheet, and the login page and the pages
+behind Logs, Services, Terminal, hardware and the firewall included.
+
 A HyDE desktop builds again: crates.io refuses any user agent that begins
 with "curl/", which is what `fetchurl` sends, and HyDE's `hyde-ipc` comes
 from a flake whose nixpkgs still asks `crates.io/api/v1` for its crates, so
