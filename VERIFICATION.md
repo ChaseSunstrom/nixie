@@ -1101,6 +1101,52 @@ callable set, so it cannot tell the two shapes apart.
 | the same host after it: `hyde-ipc` vendors its crates and builds, and the whole system builds (`nixos-system-laptop-26.05…`) | pass |
 | `fmt`, `statix`, `deadnix`, `eval-matrix` | pass |
 
+## Secure Boot setup that ended in "Access Denied" (2026-09-17)
+
+Reported on real hardware: with Secure Boot off at first, restarting from the
+setup screen that asked for Secure Boot left the machine unable to start the
+installed system or the installer ("Access Denied"); resetting the keys with
+Secure Boot Mode set to Custom worked.
+
+Cause: phase 5's instructions said to keep Secure Boot *enabled* while
+clearing its keys. Enabled while the firmware still holds its vendor's keys,
+the firmware refuses this machine's boot loader (signed with the site's own
+keys) and the installer. Separately, phase 5 knew only "enabled", "Setup Mode"
+and everything else: after systemd-boot enrolled the keys with the switch
+still off, the firmware reports `disabled (disabled)` exactly as it does with
+vendor keys, and phase 5 sent the person to clear the keys again. The
+enrolment itself was not at fault: lanzaboote includes Microsoft's keys
+(`includeMicrosoftKeys = true` on the hardened host), so option ROMs such as
+an NVIDIA card's still load.
+
+Change: phase 5 looks for this machine's PK certificate inside the firmware's
+`PK` variable. Found with the switch off: exit 12, "turn Secure Boot on".
+Not found: exit 11, with the steps as they read on such firmware (Secure
+Boot Mode to Custom, reset the keys, leave Secure Boot off) and what
+"Access Denied" means and how to undo it. The setup page, the terminal
+setup, the option's help and the install guide say the same.
+
+| check | result |
+|---|---|
+| `secure-boot-states` (new): phase 5 with a stub `bootctl` and fake firmware variables — enabled → 0 with its marker; Setup Mode → 10; disabled with this machine's PK → 12 and "turn Secure Boot on"; disabled with a vendor PK → 11 with "Custom" and "Access Denied"; disabled with an empty PK → 11 | pass |
+| `vm-encryption` (1227 s): phase 5 still stages the keys in Setup Mode and exits 10 | pass |
+| `vm-installer-lan` (247 s): the setup page with the new Secure Boot states | pass |
+| `fmt`, `statix`, `deadnix`, `option-docs`, `option-reference` (regenerated for the option's help), `readme`, `boot-and-setup` | pass |
+
+The same batch widens USBGuard's setup-time rule. While setup is pending it
+let HID keyboards through and nothing else, so a mouse, touchpad or
+touchscreen plugged in after usbguard first ran was blocked and the kiosk's
+setup page could not be used. The rule now also admits HID boot mice and HID
+devices without a boot subclass; it still disappears at Finish.
+
+| check | result |
+|---|---|
+| `vm-hardware` (59 s), new subtest on a host still in setup: a USB mouse and then a USB keyboard plugged in after usbguard started are both allowed (the daemon's decision reads `target.old='block' target.new='allow'`); the existing subtests still block a late device on a finished host | pass |
+
+Not verified here: a Secure Boot boot on firmware (OVMF stages the keys but
+does not boot the signed chain, as recorded under Slice (b)); the steps were
+confirmed on the reporter's machine.
+
 ## Four things the wizard drew wrong (2026-09-17)
 
 Reported: the attestation QR code is squished and will not scan; the TPM

@@ -26,7 +26,11 @@ in
     description = ''
       Sign the boot chain with your own keys so the firmware refuses to start
       anything else. Setup walks you through putting the firmware into Setup
-      Mode. The keys live in the site's secrets.
+      Mode (on many machines: Secure Boot Mode set to Custom, then the keys
+      reset) and says when to turn Secure Boot on; turned on earlier, the
+      firmware answers "Access Denied" until it is turned off again. The
+      installer does not start while Secure Boot is on, so turn it off before
+      reinstalling. The keys live in the site's secrets.
     '';
     nixieUi = {
       section = "security";

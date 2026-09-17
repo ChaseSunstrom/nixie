@@ -206,9 +206,12 @@ if [ "$continue" = 1 ]; then
     rc=0; nixie-phase "$next" || rc=$?
     case "$rc" in
       0) ;;
-      10) say "The Secure Boot keys are ready. The firmware enrols them while the machine restarts; setup carries on by itself."
+      10) say "The Secure Boot keys are ready. The firmware enrols them while the machine restarts; leave Secure Boot off until setup says to turn it on."
           menu "Restart now" ;;
-      11) say "Secure Boot needs Setup Mode: in the firmware settings keep Secure Boot enabled, delete its keys, save and exit."
+      # The phase printed the steps (Custom mode, reset the keys, Secure Boot off).
+      11) say "Secure Boot needs Setup Mode first: follow the steps above, and leave Secure Boot off until setup asks. \"Access Denied\" at boot means it was turned on too early; turning it off again loses nothing."
+          menu "Restart into firmware settings" "Check again" ;;
+      12) say "This machine's keys are in the firmware now: turn Secure Boot on in the firmware settings, save and exit."
           menu "Restart into firmware settings" "Check again" ;;
       *) say "${titles[$next]} stopped; the lines above say why."
          menu "Try again" ;;

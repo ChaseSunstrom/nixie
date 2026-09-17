@@ -38,6 +38,18 @@ config errors, and mixing the two glibcs left the compositor unable to start at
 all. The wizard takes an existing machine's age key when a cloned site already
 holds its secrets.
 
+Secure Boot setup no longer leads to "Access Denied". Setup told people to
+keep Secure Boot enabled while clearing its keys, and a firmware still holding
+its vendor's keys then refuses the signed boot loader and the installer alike.
+Phase 5 now says to set Secure Boot Mode to Custom, reset the keys and leave
+Secure Boot off, and it knows a third state: this machine's own key found in
+the firmware's PK variable with the switch still off, when it says to turn
+Secure Boot on. Before, that state was taken for vendor keys and the person
+was sent to clear the keys again.
+
+During setup, USBGuard lets mice, touchpads and touchscreens through as well
+as keyboards, so the setup page can be used with a pointer plugged in late.
+
 QR codes on the setup pages are images and scan: the attestation code was
 tpm2-totp's ANSI-coloured terminal picture, which a browser prints as escape
 codes. The time zone is a dropdown whatever it is set to, the TPM measurements

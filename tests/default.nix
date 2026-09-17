@@ -305,6 +305,60 @@ in
         touch $out
       '';
 
+  # Phase 5 must never tell someone to turn Secure Boot on while the firmware
+  # holds other keys: the machine then refuses to start ("Access Denied").
+  # bootctl reports "disabled" alike for the vendor's keys and for ours, so
+  # the phase looks for this machine's certificate in the PK variable.
+  secure-boot-states =
+    pkgs.runCommand "secure-boot-states"
+      {
+        nativeBuildInputs = [
+          pkgs.bash
+          pkgs.jq
+          pkgs.openssl
+          pkgs.coreutils
+          pkgs.gnugrep
+        ];
+      }
+      ''
+        cp -r ${../installer} installer
+        chmod -R u+w installer
+        mkdir -p top/etc/nixie bin sb/keys/PK efivars
+        echo '{"features":{"secureBoot":true}}' >top/etc/nixie/layout.json
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=ours -keyout /dev/null -out sb/keys/PK/PK.pem 2>/dev/null
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=vendor -keyout /dev/null -out vendor.pem 2>/dev/null
+        pkvar=efivars/PK-8be4df61-93ca-11d2-aa0d-00e098032b8c
+        # An EFI signature list: attributes, the list header, the certificate.
+        pk() { { printf '\x27\x00\x00\x00'; head -c 44 /dev/zero; openssl x509 -in "$1" -outform DER; } >$pkvar; }
+        printf '#!/bin/sh\ncat %s\n' "$PWD/status.txt" >bin/bootctl
+        chmod +x bin/bootctl
+        n=0
+        run() { # expected exit, bootctl's Secure Boot line; a fresh state each time
+          n=$((n + 1))
+          st=state$n
+          mkdir "$st"
+          printf '%s\n' "$2" >status.txt
+          rc=0
+          PATH=$PWD/bin:$PATH NIXIE_SETUP_DIR=$PWD/$st NIXIE_TOPLEVEL=$PWD/top \
+            NIXIE_EFIVARS=$PWD/efivars NIXIE_SBCTL=$PWD/sb \
+            bash installer/phases/05-secure-boot.sh 2>log || rc=$?
+          [ "$rc" = "$1" ] || { cat log; echo "'$2' with $3: expected $1, got $rc"; exit 1; }
+          echo "'$2' with $3 -> $rc"
+        }
+        run 0 "  Secure Boot: enabled (user)" "any keys"
+        test -e state1/5.done
+        run 10 "  Secure Boot: disabled (setup)" "no keys"
+        pk sb/keys/PK/PK.pem
+        run 12 "  Secure Boot: disabled (disabled)" "this machine's PK"
+        grep -q "turn Secure Boot on" log
+        pk vendor.pem
+        run 11 "  Secure Boot: disabled (disabled)" "the vendor's PK"
+        grep -q "Custom" log && grep -q "Access Denied" log
+        : >$pkvar
+        run 11 "  Secure Boot: disabled (disabled)" "an empty PK variable"
+        touch $out
+      '';
+
   # The committed reference must match what the module tree says.
   option-reference = pkgs.runCommand "option-reference" { } ''
     diff -u ${../docs/reference/options.md} ${self.packages.x86_64-linux.docs}/options.md

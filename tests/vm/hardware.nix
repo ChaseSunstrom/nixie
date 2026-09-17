@@ -66,6 +66,13 @@ pkgs.testers.runNixOSTest {
     imports = [ common ];
     system.extraDependencies = [ allowed.config.system.build.toplevel ];
   };
+  # A host still in setup: its kiosk needs a pointer as well as a keyboard.
+  # The terminal front end keeps a browser out of a test about USB rules.
+  nodes.setup = {
+    imports = [ common ];
+    nixie.setup.pending = true;
+    nixie.setup.frontEnd = "terminal";
+  };
 
   testScript = ''
     import json
@@ -76,6 +83,20 @@ pkgs.testers.runNixOSTest {
     host.wait_for_unit("incus.service")
     host.succeed("nix-env --profile /nix/var/nix/profiles/system --set \"$(readlink -f /run/current-system)\"")
     host.succeed("cp -r /etc/nixie/site /tmp/site && chmod -R u+w /tmp/site && cd /tmp/site && git init -q && git config user.name t && git config user.email t@t && git add -A && git commit -qm init")
+
+    with subtest("during setup a mouse and a touchscreen plugged in later are allowed"):
+        setup.wait_for_unit("usbguard.service")
+        # The root hub has two ports and the tablet, QEMU's absolute pointer,
+        # holds the first; each device is plugged into the second in turn.
+        setup.send_monitor_command("device_add usb-mouse,id=mouse1,bus=usb-bus.0,port=2")
+        setup.wait_until_succeeds("usbguard list-devices -a | grep -q 'QEMU USB Mouse'", timeout=60)
+        setup.send_monitor_command("device_del mouse1")
+        setup.wait_until_succeeds("! usbguard list-devices | grep -q 'QEMU USB Mouse'", timeout=60)
+        setup.send_monitor_command("device_add usb-kbd,id=kbd0,bus=usb-bus.0,port=2")
+        setup.wait_until_succeeds("usbguard list-devices -a | grep -q 'QEMU USB Keyboard'", timeout=60)
+        out = setup.succeed("usbguard list-devices")
+        print(out)
+        assert "block" not in out, out
 
     with subtest("devices present at the first start are allowed; one plugged in later is blocked"):
         host.succeed("test -s /var/lib/usbguard/setup-rules.conf")

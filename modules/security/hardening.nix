@@ -18,9 +18,13 @@ let
     "allow id ${id}" + lib.optionalString (serial != "") " serial \"${serial}\"";
   declaredRules = pkgs.writeText "nixie-usbguard-declared.conf" (
     lib.concatMapStrings (r: r + "\n") (map allowRule cfg.usbguard.allow)
-    # A keyboard must work on the console while setup runs; after Finish
-    # this rule is gone and only the setup list and the allow list remain.
-    + lib.optionalString config.nixie.setup.pending "allow with-interface one-of { 03:00:01 03:01:01 }\n"
+    # Setup is finished at the machine itself, in a kiosk that needs a pointer
+    # as well as a keyboard: a mouse, touchpad or touchscreen plugged in
+    # after usbguard first ran would otherwise be blocked and the setup page
+    # could not be used. HID boot keyboards and mice, and HID devices without
+    # a boot subclass (touchscreens, most touchpads). After Finish this rule
+    # is gone and only the setup list and the allow list remain.
+    + lib.optionalString config.nixie.setup.pending "allow with-interface one-of { 03:00:00 03:00:01 03:00:02 03:01:01 03:01:02 }\n"
     + cfg.usbguard.rules
   );
 in

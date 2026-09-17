@@ -81,7 +81,8 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
   const host = String(st.state.host ?? st.host);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [recovery, setRecovery] = useState({ key: "", qr: "", attestUri: "", attestQr: "" });
-  // What phase 5 asked for: 10 a restart that enrols the keys, 11 the firmware settings.
+  // What phase 5 asked for: 10 a restart that enrols the keys, 11 clearing
+  // the firmware's own keys, 12 turning Secure Boot on once ours are in.
   const [sb, setSb] = useState<number | null>(null);
   // The kiosk browser is on this machine, where a download goes nowhere; the
   // headers can be written to a drive instead.
@@ -102,7 +103,7 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
     setSb(null);
     if (n === 6) await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "" });
     const rc = await run(n);
-    if (n === 5 && (rc === 10 || rc === 11)) setSb(rc);
+    if (n === 5 && (rc === 10 || rc === 11 || rc === 12)) setSb(rc);
     if (n === 6 && rc === 0) api.attestation().then((a) => setRecovery({ key: a.recovery, qr: a.recoveryQr, attestUri: a.attestUri, attestQr: a.attestQr })).catch(() => undefined);
   };
 
@@ -140,20 +141,32 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
     if (n === 5 && sb === 10)
       return (
         <>
-          <p className="caption">The keys are ready. The firmware enrols them while the machine restarts, and setup carries on by itself afterwards.</p>
+          <p className="caption">The keys are ready. The firmware enrols them while the machine restarts, and setup then says when to turn Secure Boot on. Leave it off until then.</p>
           <div className="row"><button className="btn primary pulse" onClick={() => api.reboot()}>Restart</button></div>
         </>
       );
     if (n === 5 && sb === 11)
       return (
         <>
+          <p className="caption">The firmware holds other Secure Boot keys. In the firmware settings, under Secure Boot:</p>
           <ol className="caption steps">
-            <li>In the firmware settings, find Secure Boot and keep it enabled.</li>
-            <li>Delete or clear its keys; that is Setup Mode.</li>
-            <li>Save and exit. Setup carries on by itself.</li>
+            <li>If there is a <b>Secure Boot Mode</b>, set it to <b>Custom</b> (some firmware says User).</li>
+            <li>Delete or reset the keys: <b>Delete all keys</b>, <b>Reset to Setup Mode</b> or <b>Clear Secure Boot keys</b>. That is Setup Mode.</li>
+            <li>Leave Secure Boot itself <b>off</b> for now, then save and exit. This machine enrols its own keys, and setup says when to turn it on.</li>
           </ol>
+          <p className="notice">Turned on while the old keys are still there, the firmware refuses to start anything and shows <b>Access Denied</b>. If you see that, turn Secure Boot off again: nothing is lost.</p>
           <div className="row">
             <button className="btn primary" onClick={() => api.reboot(true)}>Restart into firmware settings</button>
+            <button className="btn" onClick={() => go(5)}>Check again</button>
+          </div>
+        </>
+      );
+    if (n === 5 && sb === 12)
+      return (
+        <>
+          <p className="caption">This machine's keys are in the firmware now. In the firmware settings, turn <b>Secure Boot</b> on, then save and exit. Setup carries on by itself.</p>
+          <div className="row">
+            <button className="btn primary pulse" onClick={() => api.reboot(true)}>Restart into firmware settings</button>
             <button className="btn" onClick={() => go(5)}>Check again</button>
           </div>
         </>

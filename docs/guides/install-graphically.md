@@ -48,9 +48,15 @@
    on the Nixie splash. Setup continues in the front end chosen at the
    image's boot menu, on a desktop as on a server, and runs by itself as a
    checklist: steps this machine does not use are skipped without being
-   shown. It stops only for what needs a person: one restart for Secure Boot
-   enrolment (or a restart into the firmware settings when Setup Mode is not
-   on yet), and the disk passphrase and a PIN to bind the TPM. Binding tests
+   shown. It stops only for what needs a person: Secure Boot enrolment, and
+   the disk passphrase and a PIN to bind the TPM. For Secure Boot the
+   firmware first needs Setup Mode — on many machines, set **Secure Boot
+   Mode** to **Custom** and reset (delete) the keys — with Secure Boot itself
+   left **off**; a restart then enrols this machine's keys, and setup says
+   when to turn Secure Boot on. Turned on any earlier, the firmware refuses
+   to start anything and shows "Access Denied": turn it off again and
+   nothing is lost. The installer never starts while Secure Boot is on.
+   Binding tests
    right away that the TPM and PIN open the disk, so no restart is needed to
    verify it; the recovery key and the attestation QR stay on the page until
    Finish, which also writes the disk's header backup to a drive you pick
