@@ -103,10 +103,11 @@ pkgs.writeShellApplication {
       words=0; pins=0; wait_first=''${1:-2}
       for _ in $(seq 450); do
         fresh | grep -q 'Pairing code:' && return 0
-        n=$(fresh | grep -c 'Please enter passphrase' || true)
-        p=$(fresh | grep -c 'Please enter.*PIN' || true)
-        # The first prompt's screen: the splash, or the text console with
-        # duress or attestation.
+        # systemd's own wording on a text console, or the splash's labels in
+        # Plymouth's text view, which a serial console gets.
+        n=$(fresh | grep -cE 'Please enter passphrase|(Passphrase or recovery key|Disk passphrase):' || true)
+        p=$(fresh | grep -cE 'Please enter.*PIN|PIN:' || true)
+        # The first prompt's screen.
         [ $((n + p)) -gt 0 ] && [ ! -e "$out/unlock-prompt.png" ] && shot unlock-prompt
         if [ "$p" -gt "$pins" ]; then sleep "$wait_first"; console 1234; pins=$p; wait_first=2
         elif [ "$n" -gt "$words" ]; then sleep "$wait_first"; console hunter2; words=$n; wait_first=2; fi
@@ -170,7 +171,7 @@ pkgs.writeShellApplication {
       mark; pid=$(boot)
       waitfor 'Attestation code' 300
       unlock
-      fresh | grep -q 'Please enter.*PIN'
+      fresh | grep -qE 'Please enter.*PIN|PIN:'
       pair
     fi
     phase 7 && phase 8

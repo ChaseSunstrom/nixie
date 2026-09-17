@@ -100,6 +100,7 @@ let
     features = {
       encryption = sec.encryption.enable;
       tpm = sec.tpm.enable;
+      fido2 = sec.fido2.enable;
       inherit (sec.tpm) pcrs;
       secureBoot = sec.secureBoot.enable;
       attestation = sec.attestation.enable;

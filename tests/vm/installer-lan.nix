@@ -172,7 +172,9 @@ pkgs.testers.runNixOSTest {
 
     with subtest("first boot lands in the setup generation and continues over the same URL"):
         target.start()
-        target.wait_for_console_text("Please enter passphrase")
+        # The splash's label, which Plymouth's text view puts on the serial
+        # console this VM has.
+        target.wait_for_console_text("Disk passphrase")
         target.send_console("hunter2\n")
         target.wait_for_unit("nixie-setup.service")
         target.succeed("test -e /var/lib/nixie/setup/3.done && test -e /var/lib/nixie/age.key")

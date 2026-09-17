@@ -564,7 +564,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/secrets":
             with LOCK:
                 for k, v in b.items():
-                    if v:
+                    # The name becomes a file name in the keys directory.
+                    if v and re.fullmatch(r"[a-z0-9.-]+", k) and not k.startswith("."):
                         SECRETS[k] = v.encode()
             return self.send_json({"ok": True, "have": sorted(SECRETS)})
         if u.path == "/api/totp/verify":

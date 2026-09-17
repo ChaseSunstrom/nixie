@@ -1224,6 +1224,88 @@ Outside the checks: the gallery is 124 files and 21 MB from one run at
 92b784d (the only commits since change no pixels), every video is under the
 8 MB budget, and every `docs/media/` path in the README exists.
 
+## The splash on every machine, security keys, and a disk opened elsewhere (2026-09-17)
+
+Reported: after the code is typed the machine "goes to startup but stays
+there for a little bit with no indication"; the prompts and the attestation
+code should be on the Plymouth screen, with a better-looking start than
+Linux's text, and still secure; the duress passphrase should work on the
+outer layer too; `nixie reseal` should run by itself after an update; custom
+Plymouth themes from any repository; security keys for the disk and SSH,
+with passwords as well; a way to open a disk elsewhere with its keys.
+
+Causes, found before changing anything:
+
+- **The pause.** The duress check replaced the command of systemd's console
+  password unit, which is `Type=notify`; the loop never reports ready, so
+  after the passphrase the boot waited out that unit's start timeout and then
+  printed "Failed to start Dispatch Password Requests to Console" (it is in
+  `tests/artifacts/test-iso-hardened/serial.log`). The check also tried the
+  entry against every key slot, one key derivation each.
+- **No splash on hardened machines.** systemd does not start its console
+  agent while Plymouth runs, and the Plymouth package brings its own agent
+  into the initrd, which answers without the duress check; so the splash was
+  off whenever duress or attestation was on.
+- **Duress at the PIN prompt.** systemd's token PIN request carries no `Id=`,
+  so the check never ran there, and the inner layer's slot 7 cannot be read
+  before the outer layer is open.
+- **Plymouth** (from its source): it cannot withdraw a question; its text
+  view prints every message; it writes status updates to
+  `/var/lib/plymouth/boot-duration`; it captures what userspace writes to
+  the console; a serial console on the command line puts every screen in the
+  text view; and it takes the firmware framebuffer only after eight seconds
+  without a graphics driver unless `plymouth.use-simpledrm` is given.
+- **systemd-cryptsetup** (from its source): it tries every token, asking for
+  its PIN, whenever no key file is given, whatever the crypttab options; the
+  TPM and a security key both ask "Please enter LUKS2 token PIN:"; it reuses
+  the passphrase just typed for the next layer; and with token modules off,
+  `fido2-device=auto` on a layer without a FIDO2 token fails instead of
+  asking for the passphrase.
+- **The first real start after Finish** would have said the attestation
+  failed: the ESP recorded the sealed generation's label, which the setup
+  generation and the one after Finish share, though their boot chains
+  differ. And a first start before setup said "ATTESTATION FAILED" too.
+
+What changed is in ARCHITECTURE (D32, D37) and the CHANGELOG.
+
+| check | result |
+|---|---|
+| cryptsetup 2.8.6 on image files: an unbound slot 7 verifies with `--test-passphrase --key-slot 7` (so does an old bound one), opens nothing with `--test-passphrase` alone, and survives `erase` until `luksKillSlot 7` | as described |
+| `vm-splash` (new, 574 s), five subtests: (1) phases 1–3 give both layers an unbound slot 7 that verifies and opens nothing; (2) the first start shows the graphical splash with "Passphrase or recovery key" (screenshot), the passphrase typed on the keyboard opens both layers, no other password agent ran in the initrd, and nothing about passwords, cryptsetup, nixie or plymouth failed; phases 4 and 6 enrol the TPM, the attestation secret and a CanoKey whose PIN `fido2-token` set; (3) the next start shows "Attestation code" and the code, and "PIN" (both read off the screen by OCR); a wrong PIN brings "That did not open the disk. Try again." (read off the screen); the right one brings "Security key PIN", whose PIN reaches the real root 5.0 s after the question by the kernel's clock (the typing waits 2 s of it); the reseal unit leaves a secret sealed for this system alone, refuses an unverified new system, and, in its own sandbox with a test-only stand-in `bootctl` reporting Secure Boot on, reseals it and records the booted system; (4) the installer VM, with another TPM and no key, opens the disk with `nixie disk open` (the recovery key, then after 5 s without a key the passphrase), finds the system read-only at `/mnt/nixie`, and `nixie disk close` locks it; (5) the duress passphrase typed at the TPM PIN prompt powers off and leaves no key slot | pass |
+| `vm-encryption` (413 s, on the tree before the last label and CLI changes; the final run is below): remote unlock over SSH with the splash on, TPM + PIN, attestation, reenroll, duress at the inner prompt | pass |
+| `boot-and-setup` (the splash with duress and attestation, one agent, the masked units, a quiet boot, a Plymouth theme by name), `splash-theme` (new: a theme two directories deep in its source, installed into the initrd with its paths rewritten), `hardware-keys` (new: FIDO2 on the passphrase layer, `AuthenticationMethods publickey,password`, a pasted private key refused with its reason) | pass |
+| `systemd-security`, now over the every-feature server too: `nixie-attestation-reseal` scores 1.1 ("OK" to systemd), documented above the platform's 0.3 | pass |
+| shellcheck of the agent, the initrd attestation script (Nixie theme and another) and the reseal unit | clean |
+
+Not verified here: the automatic reseal with Secure Boot actually enforced
+(this OVMF stages keys but does not boot the signed chain; the unit's own
+path ran with a stand-in that reports it on), a physical security key
+(QEMU's CanoKey confirms presence by itself), and a theme from a real
+theme repository (the fixture has the same layout).
+
+The whole suite ran again on this tree, one build per check (the
+single-process `nix flake check` does not fit in this host's memory; see
+"Final run"), and every one passed:
+
+| check | result |
+|---|---|
+| boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security | pass |
+| vm-backup (53s), vm-boot-plain (42s), vm-console (246s), vm-data (53s), vm-desktop (131s), vm-egress (96s), vm-encryption (410s), vm-guests (90s), vm-hardware (54s), vm-host-ui (42s), vm-installer-lan (232s), vm-monitoring (61s), vm-rollback (156s), vm-splash (567s), vm-ui (46s) | pass |
+
+Beyond the checks:
+
+| run | result |
+|---|---|
+| `nix run .#test-iso -- --security hardened` (588 s, `tests/artifacts/test-iso-hardened-splash/`): the image installs itself through the wizard's API, the first start says "No attestation code yet" and asks "Passphrase or recovery key" with "Unlocking…" after it, the restart shows the code and asks for the PIN, setup reaches Finish and the control panel answers; its serial log has no "Failed to start Dispatch Password Requests", which the earlier run's (`test-iso-hardened/serial.log`) has twice | pass |
+| `nix run .#media` (1326 s): the gallery from real runs again, 124 files and 21 MB; `boot-pin-prompt.png`, `boot-attestation-code.png`, `boot-passphrase-prompt.png` and `boot-splash.png` are now the splash with the code under the field | pass |
+
+The checks ran with the code exactly as committed; `docs/media`, this
+section and the changelog are the only things that changed afterwards. That
+ISO run keeps a serial console on the installed machine, which puts Plymouth
+in its text view on every screen (see D32): the prompts, the code and
+"Unlocking…" read as text there, and the code shows twice, once from the
+console line and once as the splash's message.
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

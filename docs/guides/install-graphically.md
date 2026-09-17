@@ -70,9 +70,22 @@ Finish again.
 
 After setup:
 
-- **Unlocking.** The passphrase prompt is on the machine's screen; with
-  remote unlock on, `ssh -t -p 2222 root@<address>` with the administrator's
-  key asks the same.
+- **Unlocking.** The PIN and passphrase are asked on the machine's splash,
+  with the attestation code under them; with remote unlock on,
+  `ssh -t -p 2222 root@<address>` with the administrator's key asks the same.
+  The duress passphrase works at any of these prompts. After an update the
+  first start has no code to show (the TPM measures a new system); once it is
+  unlocked the code is sealed to it by itself with Secure Boot on, and with
+  `sudo nixie reseal` otherwise. A start without a code that you did not
+  update for is one not to unlock.
+- **Security keys.** With "Open the disk with a security key" on, setup
+  enrols the key plugged in when it binds the disk (it asks for the key's
+  PIN, and the key blinks for a touch); from then on the splash asks for the
+  key's PIN instead of the passphrase whenever the key is plugged in, and for
+  the passphrase when it is not. `sudo nixie security add-key` enrols a
+  spare. For SSH, give a security key's public key (`ssh-keygen -t
+  ed25519-sk`); "SSH asks for the password after the key", on in the
+  hardened setup, makes the password a second step.
 - **Control panel.** `https://<address>:8443/ui/`. The first visit explains
   how to trust the browser: a client certificate made with `openssl` on the
   host and `incus config trust add-certificate`. The gear opens Settings.

@@ -26,6 +26,14 @@ six-digit code from an authenticator app, enrolled during setup.
 Passkeys are not offered because the host page checks logins on the
 server itself, where a browser passkey cannot reach.
 
+## `nixie.auth.ssh.keyAndPassword`
+
+*boolean*, default: `false`. Wizard section: auth.
+
+Ask for the administrator's password after the SSH key, so a copied
+or stolen key is not enough on its own. A password alone never logs
+in while this is on, and without any key nobody can log in over SSH.
+
 ## `nixie.auth.ssh.passwordLogin`
 
 *boolean*, default: `false`. Wizard section: auth.
@@ -38,10 +46,12 @@ unless you have no way to use a key.
 
 *list of (optionally newline-terminated) single-line string*, default: `[]`. Wizard section: auth.
 
-SSH public keys allowed to log in as the administrator. Any key type
-works. A hardware-backed key is a good choice but is not required.
-With no keys and password login off, SSH cannot be used, which is fine
-for a desktop.
+SSH public keys allowed to log in as the administrator, one per line,
+as in a `.pub` file. Any key type works, including security keys
+(`sk-ssh-ed25519@openssh.com`, made with `ssh-keygen -t ed25519-sk`),
+which also ask for a touch on the key at every login. With no keys
+and password login off, SSH cannot be used, which is fine for a
+desktop.
 
 ## `nixie.auth.totpSecretFile`
 
@@ -582,10 +592,13 @@ need one.
 
 *boolean*, default: `true`.
 
-Show the Nixie logo while the machine starts and ask for the disk
-passphrase on the same screen, in the installer's look. A machine with
-the duress passphrase or boot attestation keeps the plain text console
-either way, because both need it.
+Show a splash screen while the machine starts, from the first moment
+to the login or the setup wizard, and ask for the disk passphrase and
+PIN and show the attestation code on it, in the installer's look.
+Off, the machine prints the usual start-up text instead. A serial
+console on the kernel command line turns the splash into text on
+every screen, so the prompts reach that console too; the kernel
+parameter `plymouth.ignore-serial-consoles` keeps the picture.
 
 ## `nixie.host.keepGenerations`
 
@@ -608,6 +621,27 @@ The machine's name on the network and in the site repo. Lowercase letters, digit
 *null or string*, default: `null`.
 
 Internal: the site repository commit this system was built from; it labels generations and snapshots.
+
+## `nixie.host.splashTheme.name`
+
+*string*, default: `"nixie"`.
+
+The splash theme, by the name of its `.plymouth` file. "nixie" is the
+platform's own, in the host's finish. Plymouth's own themes
+("spinner", "bgrt", "fade-in", "glow", "solar", "spinfinity",
+"tribar") need nothing more; any other comes from the theme source.
+Every theme asks for the passphrase and shows the attestation code;
+only the Nixie one also says when a passphrase was wrong and while
+the disk is being opened.
+
+## `nixie.host.splashTheme.source`
+
+*null or absolute path*, default: `null`.
+
+Where a theme that Plymouth does not ship comes from: a package such
+as `pkgs.adi1090x-plymouth-themes`, a directory in the site, or a
+flake input pointing at any theme repository. The theme's
+`<name>.plymouth` file may be at any depth in it.
 
 ## `nixie.host.timezone`
 
@@ -886,16 +920,20 @@ checkout on the host at activation, never copied into the Nix store.
 
 Before asking for the passphrase, show a six-digit code computed by the
 TPM from the boot measurements. Compare it with your authenticator app:
-a wrong code means the boot chain was changed. Needs a TPM; run
-`nixie reseal` after kernel updates.
+a wrong code means the boot chain was changed. Needs a TPM. After an
+update the first start shows no code; once you unlock it, the code is
+sealed to the new system by itself when Secure Boot is on, and by
+`nixie reseal` otherwise.
 
 ## `nixie.security.duress.enable`
 
 *boolean*, default: `false`. Wizard section: security.
 
-A second, "duress" passphrase. Typing it at the unlock prompt destroys
-every key slot on every encryption layer, making the data permanently
-unreadable, then powers off. There is no undo.
+A second, "duress" passphrase. Typing it at any unlock prompt (the PIN
+and the recovery key's included) destroys every key slot on every
+encryption layer, making the data permanently unreadable, then powers
+off. There is no undo. It opens nothing itself, so knowing it does not
+help anyone read the disk elsewhere.
 
 ## `nixie.security.encryption.enable`
 
@@ -904,6 +942,16 @@ unreadable, then powers off. There is no undo.
 Encrypt the whole system so a stolen disk is unreadable. You type a
 passphrase every time the machine starts. This is the only setting that
 needs a reinstall to change; `nixie apply` refuses to flip it.
+
+## `nixie.security.fido2.enable`
+
+*boolean*, default: `false`. Wizard section: security.
+
+Open the disk with a FIDO2 security key (a YubiKey, Nitrokey, SoloKey or
+similar) plugged in at start: the key's PIN and a touch take the place
+of the passphrase, which keeps working for a start without the key.
+Setup enrols the key plugged in at the time; `nixie security add-key`
+enrols a spare. The TPM PIN, when there is one, is still asked first.
 
 ## `nixie.security.hardening.memoryEncryption.enable`
 

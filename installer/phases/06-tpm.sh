@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Phase 6: bind the outer layer to the TPM with a PIN, enrol the recovery
-# key, start attestation, set the TPM lockout password, and produce the
-# encrypted header backup bundle.
+# key and a security key, start attestation, set the TPM lockout password,
+# and produce the encrypted header backup bundle.
 # Options: --backup-dest DIR copies the bundle there as well; --force redoes
 # the TPM binding, the recovery key and the attestation secret (reenroll).
 set -euo pipefail
@@ -15,6 +15,7 @@ feature encryption || { phase_finish; exit 0; }
 # host has them, so the bar counts what will actually run.
 STEPS=1
 if feature tpm; then STEPS=$((STEPS + 1)); fi
+if feature fido2; then STEPS=$((STEPS + 1)); fi
 if feature attestation; then STEPS=$((STEPS + 1)); fi
 need cryptsetup age tar openssl systemd-cryptenroll
 recovery=""
@@ -81,6 +82,28 @@ if feature tpm; then
   fi
 fi
 
+if feature fido2; then
+  step "enrolling the security key"
+  inner=$(layout '.luks[] | select(.name == "rpool") | .device')
+  # A key survives a board change, so a reenroll keeps it (and the spares).
+  if cryptsetup luksDump "$inner" | grep -q 'systemd-fido2'; then
+    log "a security key is already enrolled on $inner"
+  else
+    have_secret passphrase || die "the disk passphrase is needed to enrol the security key"
+    # The key's own PIN, when it has one, reaches systemd-cryptenroll as a
+    # credential; the touch is asked by the key itself.
+    creds=$(mktemp -d)
+    if have_secret fido2-pin; then (umask 077; cp "$(secret_file fido2-pin)" "$creds/cryptenroll.fido2-pin"); fi
+    log "touch the security key when it blinks"
+    if ! CREDENTIALS_DIRECTORY=$creds systemd-cryptenroll --unlock-key-file="$(secret_file passphrase)" --fido2-device=auto "$inner"; then
+      rm -rf "$creds"
+      die "the security key was not enrolled: plug it in, check its PIN, and touch it when it blinks"
+    fi
+    rm -rf "$creds"
+    log "security key enrolled on $inner; the passphrase still opens it"
+  fi
+fi
+
 if feature attestation; then
   step "the attestation code"
   need tpm2-totp
@@ -93,9 +116,11 @@ if feature attestation; then
     tpm2-totp generate -P "$(cat /var/lib/nixie/totp-recovery)" -p 4,7,8,9 >"$(secret_file attestation-qr)" 2>&1
     log "attestation secret created; show $(secret_file attestation-qr) to the person once"
   fi
-  # The initrd compares its own generation label with this to refuse showing
-  # a code that cannot match on another generation.
-  mkdir -p /boot/nixie && cat /run/current-system/nixos-version >/boot/nixie/attestation-generation
+  # The initrd compares the system it boots with this to refuse showing a
+  # code that cannot match, and after an update the secret is sealed again
+  # (security/attestation.nix). The TPM measured the booted system, which
+  # is not the current one after a switch.
+  mkdir -p /boot/nixie && readlink -f /run/booted-system | tr -d '\n' >/boot/nixie/attestation-generation
 fi
 
 step "the header backup"

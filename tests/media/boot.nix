@@ -1,5 +1,5 @@
-# Media: the boot chain on screen. Passphrase prompt, attestation code and
-# PIN prompt on the VGA console of an installed, fully enabled system, plus
+# Media: the boot chain on screen. The splash with the attestation code, the
+# PIN and the passphrase of an installed, fully enabled system, plus
 # screendump frames at 10 fps of one boot for a short video.
 {
   pkgs,
@@ -29,8 +29,8 @@ let
             attestation.enable = true;
             duress.enable = true;
             # The prompts are answered over the initrd's SSH, the way
-            # vm-encryption does it: they are drawn on tty0 for the pictures
-            # (console=tty0 below) and nothing types on that console.
+            # vm-encryption does it, while the splash shows them for the
+            # pictures (vm-splash types into the splash itself).
             remoteUnlock.enable = true;
           };
           nixie.auth.sshKeys = [ clientPub ];
@@ -45,8 +45,14 @@ let
           # on and the passphrase can never be answered.
           boot.initrd.availableKernelModules = lib.mkAfter [ "virtio_net" ];
           nixie.disks.system = lib.mkForce "/dev/vda";
-          # Prompts on the screen for the camera; the serial console stays for the driver.
-          boot.kernelParams = lib.mkAfter [ "console=tty0" ];
+          # The serial console, last so it is /dev/console, carries the
+          # agent's notes the pictures are timed by; the splash is on the screen.
+          boot.kernelParams = lib.mkAfter [
+            "console=ttyS0"
+            "loglevel=7"
+            # Or Plymouth shows its text view everywhere, the screen included.
+            "plymouth.ignore-serial-consoles"
+          ];
           environment.systemPackages = [
             nixieInstaller
             nixieCli
@@ -137,27 +143,30 @@ pkgs.testers.runNixOSTest {
 
     def remote_unlock(answers, gap=25):
         # Same relay as vm-encryption: each answer is fed to the prompt that
-        # is pending, in order. The prompts themselves are drawn on tty0 for
-        # the pictures, and nothing in the driver can type on that console.
+        # is pending, in order, while the splash shows it for the pictures.
         client.succeed("ip neigh flush all")
         client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=300)
         feed = "; ".join(f"sleep {2 if i == 0 else gap}; printf '%s\\n' '{a}'" for i, a in enumerate(answers))
         client.succeed("timeout 180 sh -c \"(" + feed + "; sleep 5) | " + ssh + "\" || true")
 
+    import re, time
+
+    def on_console(pattern, timeout=420):
+        # The driver's own clock and the whole serial log: the guest is in the
+        # initrd, where machine.sleep() would wait for a shell that only
+        # stage 2 starts.
+        deadline = time.time() + timeout
+        while not re.search(pattern, target.get_console_log()):
+            assert time.time() < deadline, f"not on the console: {pattern}"
+            time.sleep(0.5)
+
     target.start()
-    # The prompt is drawn on tty0, so the serial console the driver reads does
-    # not carry it: waiting for its text there never returns. The initrd's SSH
-    # port opening is the signal that the prompt is up, the same one
-    # vm-encryption uses.
     client.succeed("ip neigh flush all")
+    on_console("asking for Passphrase or recovery key on the splash")
+    time.sleep(2); target.screenshot("boot-passphrase-first")
     # Two VMs and a recording share the host; the initrd needs longer here
     # than the encryption check does.
     client.wait_until_succeeds("nc -z 192.168.1.3 2222", timeout=420)
-    # The driver's own clock: the guest is in the initrd at the passphrase
-    # prompt, where machine.sleep() would wait for a shell that only stage 2
-    # starts.
-    import time
-    time.sleep(3); target.screenshot("boot-passphrase-first")
     remote_unlock(["hunter2", "hunter2"])
     target.wait_for_unit("multi-user.target")
     target.succeed(keys)
@@ -181,15 +190,23 @@ pkgs.testers.runNixOSTest {
     )
     import os
     os.makedirs("frames", exist_ok=True)
+    # Each still is taken once the splash shows what it is of, from the
+    # agent's notes on the serial console.
+    stills = [
+        ("nixie-attestation: code shown", "boot-attestation-code"),
+        (r"asking for PIN on the splash", "boot-pin-prompt"),
+        (r"asking for Disk passphrase on the splash", "boot-passphrase-prompt"),
+    ]
     i = 0
     t0 = time.time()
     while time.time() - t0 < 45:
         target.screenshot(f"frames/frame-{i:05d}")
         i += 1
         time.sleep(0.1)
-        if i == 60: target.screenshot("boot-attestation-code")
-        if i == 120: target.screenshot("boot-pin-prompt")
-        if i == 220: target.screenshot("boot-passphrase-prompt")
+        if stills and re.search(stills[0][0], target.get_console_log()):
+            time.sleep(0.5)
+            target.screenshot(stills.pop(0)[1])
+    assert not stills, f"never shown: {stills}"
     target.wait_for_unit("multi-user.target")
     target.screenshot("boot-front-panel")
   '';

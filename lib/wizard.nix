@@ -31,6 +31,10 @@
     label = "Secure Boot with your own keys";
     advanced = true;
   };
+  "nixie.security.fido2.enable" = {
+    label = "Open the disk with a security key";
+    advanced = true;
+  };
   "nixie.security.attestation.enable" = {
     label = "Show an attestation code at boot";
     advanced = true;
@@ -73,6 +77,10 @@
   "nixie.auth.sshKeys".label = "SSH public keys";
   "nixie.auth.secondFactor" = {
     label = "Second factor for the host page";
+    advanced = true;
+  };
+  "nixie.auth.ssh.keyAndPassword" = {
+    label = "SSH asks for the password after the key";
     advanced = true;
   };
   "nixie.auth.ssh.passwordLogin" = {

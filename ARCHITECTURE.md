@@ -36,8 +36,9 @@ modules/                  the `nixie.*` option tree; one concern per file
     encryption.nix        LUKS2 root, panic=10, header backups
     tpm.nix               outer LUKS layer, PIN, lockout auth
     secure-boot.nix       lanzaboote wiring
-    attestation.nix       tpm2-totp in initrd
-    duress.nix            duress password handling in initrd
+    attestation.nix       tpm2-totp in initrd, on the splash; reseal after an update
+    duress.nix            the duress option (the check is in unlock.nix)
+    unlock.nix            the initrd's one password agent: splash, console, SSH, duress
     remote-unlock.nix     initrd SSH
     lockdown.nix          kernel lockdown parameter
     hardening.nix         ssh, usbguard, memory encryption, remote journal, sysctl
@@ -136,6 +137,13 @@ nixie.host.keepGenerations  int, default 10                       (change reques
 nixie.host.siteRevision  nullOr str, default null                 (change request)
   Internal: the site repository commit this system was built from, passed by
   the site flake; it becomes the generation's label.
+nixie.host.bootSplash    bool, default true                       (change request)
+  The splash from the loader to the login or the wizard, with the passphrase,
+  PIN and attestation code on it (D32, D37).
+nixie.host.splashTheme.name    str, default "nixie"               (change request)
+nixie.host.splashTheme.source  nullOr path, default null
+  Any Plymouth theme instead of the Nixie one: one Plymouth ships by name, or
+  from a package or a directory of any repository.
 ```
 
 ### 4.2 auth
@@ -161,6 +169,10 @@ nixie.auth.ssh.passwordLogin    bool, default false
   Allow SSH login with the password instead of a key. Turning this on lets
   anyone who can reach port 22 guess passwords; leave it off unless you have
   no way to use a key.
+nixie.auth.ssh.keyAndPassword   bool, default false               (change request)
+  Ask for the administrator's password after the SSH key
+  (`AuthenticationMethods publickey,password`); security keys (`sk-` key
+  types) add a touch. The hardened setup turns it on.
 ```
 
 ### 4.3 disks
@@ -197,12 +209,17 @@ nixie.security.secureBoot.enable      bool, default false
 nixie.security.attestation.enable     bool, default false
   Before asking for the passphrase, show a six-digit code computed by the TPM
   from the boot measurements. Compare it to your authenticator app: a wrong
-  code means the boot chain was tampered with. Needs a TPM; run `nixie reseal`
-  after kernel updates.
+  code means the boot chain was tampered with. Needs a TPM. After an update
+  the code is sealed to the new system once it has been unlocked, by itself
+  with Secure Boot on and with `nixie reseal` otherwise (D37).
 nixie.security.duress.enable          bool, default false
-  A second "duress" passphrase. Entering it at the unlock prompt destroys every
-  key slot on both encryption layers, making the data permanently unreadable,
-  then powers off. There is no undo.
+  A second "duress" passphrase. Entering it at any unlock prompt, the PIN's
+  included, destroys every key slot on every encryption layer, making the data
+  permanently unreadable, then powers off. There is no undo. It opens nothing.
+nixie.security.fido2.enable           bool, default false            (change request)
+  Open the passphrase layer with a FIDO2 security key, its PIN and a touch
+  (`fido2-device=auto`); the passphrase still opens it. Phase 6 enrols the
+  key plugged in then, `nixie security add-key` a spare.
 nixie.security.remoteUnlock.enable    bool, default false
   Let you type the boot passphrase over SSH from another machine, using the
   keys in nixie.auth.sshKeys. Needed for servers without a keyboard.
@@ -492,11 +509,14 @@ Rollback (section 11):
   confirms) cancels it. The wrapper turns it on for remote applies with
   `10m`. `--auto` reverts the host to the previous generation and every
   guest touched by that apply to its `pre-apply-<label>` snapshot.
-- Attestation on another generation: phase 6 and `nixie reseal` write the
-  label they sealed for to `/boot/nixie/attestation-generation` (the ESP,
-  not a secret); the initrd unit compares it with its own label and prints
-  "attestation unavailable for this generation (sealed for <label>)"
-  instead of a code that could not match.
+- Attestation on another system: phase 6 and `nixie reseal` write the
+  store path of the booted system they sealed for to
+  `/boot/nixie/attestation-generation` (the ESP, not a secret); the initrd
+  unit compares it with the `init=` of its own command line and says there
+  is no code this time instead of showing one that could not match. After
+  that start is unlocked, `nixie-attestation-reseal` seals the secret to it
+  when Secure Boot verified it and it is one of this machine's generations
+  (D37).
 
 Recovery (section 7):
 
@@ -639,12 +659,14 @@ expression is what phase 3 runs.
 
 Initrd is `boot.initrd.systemd`. Unlock order in crypttab: outer, root, data.
 Attestation runs as an initrd unit ordered before `systemd-cryptsetup@outer`
-(or `@root` without TPM) and prints the TOTP code on the console. Duress is a
-password agent wrapper: the passphrase prompt goes through a small initrd
-script that compares the entry against the sops-provided duress hash before
-handing it to cryptsetup; on match it runs `cryptsetup erase` on every layer
-and powers off. Remote unlock uses `boot.initrd.network.ssh` with the admin
-keys; prompts are relayed with `systemd-tty-ask-password-agent`.
+(or `@root` without TPM); it prints the TOTP code on the console and shows it
+on the splash, refreshed every 30 seconds until the disks are open. Every
+prompt is answered by one password agent, `nixie-unlock` (D37): on the splash
+through `plymouth ask-for-password`, on the console without one, and as the
+shell of the remote-unlock SSH session (`boot.initrd.network.ssh` with the
+admin keys). With duress on, it first tests the entry against key slot 7 of
+the layer that asked, an unbound slot holding the duress passphrase that
+opens nothing; on a match it erases every layer's slots and powers off.
 
 Always on with encryption: `panic=10`, TPM lockout auth set from a sops secret
 by phase 6, and LUKS header backups GPG-encrypted to a sops-held key written
@@ -996,10 +1018,13 @@ and runs `nixie apply`.
   and the template does that; the plain-path form still works and yields
   generations labelled "unknown". The generation date is the profile link's
   time, not baked into the build.
-- **D20 The attestation "unavailable for this generation" message is
-  decided in the initrd from a file on the ESP** (`/boot/nixie/attestation-generation`,
-  written by phase 6 and `nixie reseal`), because the code is shown before
-  the root file system is unlocked and the label itself is not secret.
+- **D20 The attestation "no code this time" message is decided in the
+  initrd from a file on the ESP** (`/boot/nixie/attestation-generation`,
+  written by phase 6, `nixie reseal` and the automatic reseal), because the
+  code is shown before the root file system is unlocked and the system's
+  store path is not secret. It was the generation label until the setup
+  generation and the one after Finish turned out to share a label but not
+  a boot chain.
 - **D21 The recovery key is not in the on-host header bundle.** The brief's
   addition says never stored on the host; phase 6 shows it once, and
   `nixie backup kit` enrols a fresh one for the passphrase-encrypted kit.
@@ -1105,11 +1130,18 @@ and runs `nixie apply`.
   GRUB would have meant a second boot path without Secure Boot. The chosen
   resolution: `boot.loader.timeout = 0` (holding Space shows the text menu
   for recovery; the front panel and `nixie rollback` choose generations), and
-  `nixie.host.bootSplash`, a Plymouth script theme in the Graphite finish
-  that also asks for the disk passphrase. It stays off with duress (the
-  duress check replaces the console password agent, which systemd does not
-  start under Plymouth) and with attestation (the code is printed on the
-  text console).
+  `nixie.host.bootSplash`, a Plymouth script theme in the host's finish
+  that asks for the PIN and passphrase and shows the attestation code, over
+  a quiet boot (`quiet`, log levels 3, `boot.initrd.verbose = false`) and
+  `plymouth.use-simpledrm`, without which Plymouth takes the firmware's
+  framebuffer only after eight seconds without a graphics driver, which the
+  initrd does not load. A serial console on the command line makes Plymouth
+  show its text view on every screen (`plymouth.ignore-serial-consoles`
+  keeps the picture; the VM tests set it). It
+  used to stay off with duress and attestation, which printed on the text
+  console; D37 moved both onto the splash. `nixie.host.splashTheme` swaps
+  in any Plymouth theme: one Plymouth ships, a package, or a directory from
+  any repository, whose `<name>.plymouth` is found at any depth.
 - **D33 Setup keeps the installer's front end.** The installer's boot menu
   chooses graphical, web or terminal; `nixie-setup --front-end` records it
   as `nixie.setup.frontEnd` in `hosts/<name>/setup-pending.nix`, and the
@@ -1163,6 +1195,30 @@ and runs `nixie apply`.
   brief lists is implemented, but ones the design does not draw follow the
   same component recipes rather than a new design. `VERIFICATION.md` for the
   slice lists any feature that shipped in reduced form.
+- **D37 One password agent in the initrd, and the duress slot opens
+  nothing.** systemd starts its console agent only without Plymouth and
+  Plymouth brings its own, which answered without the duress check, so the
+  splash was off on hardened machines; systemd's console unit is also
+  `Type=notify`, which the duress loop never satisfied, so it was killed at
+  its start timeout while the boot looked stuck after the passphrase.
+  `modules/security/unlock.nix` masks both agents and runs its own from a
+  path unit as `Type=simple`, for every encrypted host: on the splash
+  (Plymouth cannot withdraw a question, so one answered over SSH is kept and
+  the next request takes it over), on the console, and as the remote-unlock
+  shell. The TPM PIN request carries no device name, so the layer comes from
+  the asking `systemd-cryptsetup attach` command line. The duress passphrase
+  is an unbound LUKS2 slot 7 on every layer a person types at (phase 3): it
+  verifies with `cryptsetup open --test-passphrase --key-slot 7`, one key
+  derivation, and opens nothing, so it is no way in on another machine, which
+  a bound slot on the outer layer would have been. `cryptsetup erase` keeps
+  unbound slots, so the wipe also kills slot 7. The Nixie theme reads
+  `nixie-prompt:`, `nixie-note:`, `nixie-code:`, `nixie-warn:` and
+  `nixie-idle` messages; other themes get plain messages. After an update
+  the attestation secret is sealed to the new system once it is unlocked,
+  but only when Secure Boot is on and the booted system is one of this
+  machine's generations: without Secure Boot a changed chain could be
+  anyone's, and resealing it would make a tampered chain show good codes
+  from then on, so that stays `nixie reseal`, a person's decision.
 
 ## 14. Questions and the defaults taken
 

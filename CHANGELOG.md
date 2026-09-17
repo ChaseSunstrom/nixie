@@ -71,6 +71,37 @@ the whole home-manager generation failed on a 403. That one program is built
 from the same source with the platform's toolchain, which fetches crates from
 static.crates.io.
 
+Hardened machines start on the splash like the rest. The duress check was a
+replacement for systemd's console password agent, which does not run under
+Plymouth, so the splash was off with duress or attestation; and that agent's
+unit waits for a readiness signal the check never sent, so after the
+passphrase the boot sat still until systemd gave up on it. One agent now
+answers every prompt on every encrypted host: on the splash, on the console,
+and over remote-unlock SSH, with Plymouth's own agent masked. The attestation
+code is on the splash, refreshed every 30 seconds, and the Nixie theme says
+when a PIN or passphrase was wrong and while the disk is opening. The boot is
+quiet from the loader on. The duress passphrase works at the PIN prompt too:
+it is now an unbound key slot on every layer a person types at, which only
+verifies it and opens nothing, where before it was a real key to the inner
+layer. After an update the attestation secret is sealed to the new system
+once that is unlocked, when Secure Boot verified it; the sealed system is
+recorded by store path, since the setup generation and the one after Finish
+share a label but not a boot chain, which showed a failed code on the first
+real start. `nixie.host.splashTheme` picks any Plymouth theme, from Plymouth,
+a package or any repository.
+
+Security keys: `nixie.security.fido2.enable` opens the disk with a FIDO2 key,
+its PIN and a touch, enrolled by setup (the continuation page asks for the
+key's PIN) or later with `nixie security add-key`, with the passphrase still
+working without the key. `nixie.auth.ssh.keyAndPassword` asks for the
+password after the SSH key, and the hardened setup turns it on; security
+keys (`sk-` key types) already worked as SSH keys and the option says so. A
+private key pasted where the public one belongs is refused with the reason.
+`nixie disk open` opens another Nixie disk, on the installer image or
+another machine, with a security key, the recovery key or the passphrase, and mounts its pools read-only under temporary names; `nixie
+disk close` locks it again. Secret names sent to the setup backend are now
+checked before they become file names.
+
 Fields the machine can answer are lists, not blank lines: the time zone comes
 from the machine's own tzdata, and a backup folder — or where the disk's
 header backup is written at the end of setup — is picked from the drives it

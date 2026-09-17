@@ -243,8 +243,8 @@ pkgs.testers.runNixOSTest {
         print(doc)
         assert "RESEAL NEEDED" not in doc, doc
         target.succeed("nixie reseal")
-        # The sealed generation label on the ESP matches the running system.
-        target.succeed("diff <(cat /boot/nixie/attestation-generation) /run/current-system/nixos-version")
+        # The ESP names the system the secret is sealed for: the running one.
+        target.succeed("test \"$(cat /boot/nixie/attestation-generation)\" = \"$(readlink -f /run/booted-system)\"")
         doc = target.succeed("nixie doctor || true")
         assert "unlock" in doc and "RECOVERY KEY" not in doc, doc
         target.shutdown()

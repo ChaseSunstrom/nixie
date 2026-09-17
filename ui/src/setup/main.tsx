@@ -51,6 +51,7 @@ const HARDENED: Record<string, unknown> = {
   "nixie.security.hardening.memoryEncryption.enable": true,
   "nixie.auth.secondFactor": "totp",
   "nixie.auth.ssh.passwordLogin": false,
+  "nixie.auth.ssh.keyAndPassword": true,
 };
 const HYDE = "nixie.desktop.hyde.enable";
 // HyDE brings its own look and keyboard settings; these apply to the Nixie desktop only.
@@ -282,13 +283,14 @@ function Wizard() {
     const out: string[] = [];
     if (s.id === "security") {
       if (!on("nixie.security.encryption.enable")) {
-        const needs = ["tpm", "attestation", "duress", "remoteUnlock"].filter((f) => on(`nixie.security.${f}.enable`));
+        const needs = ["tpm", "fido2", "attestation", "duress", "remoteUnlock"].filter((f) => on(`nixie.security.${f}.enable`));
         if (needs.length) out.push(`These need disk encryption: ${needs.join(", ")}. Turn encryption on, or these off.`);
       }
       if (["root", "nobody"].includes(String(values["nixie.auth.admin.name"]))) out.push("The administrator cannot be root or nobody: it is a normal account of its own that uses sudo.");
       // Remote unlock is an SSH login, so it needs a key to log in with.
       const keys = values["nixie.auth.sshKeys"];
       if (on("nixie.security.remoteUnlock.enable") && !(Array.isArray(keys) && keys.length > 0)) out.push("Unlock over SSH is on: add the SSH public key you will unlock with.");
+      if (Array.isArray(keys) && keys.some((k) => String(k).includes("PRIVATE KEY"))) out.push("That is a private SSH key: paste the public one instead, the one-line .pub file. Keep the private key to yourself.");
     }
     // Fields restricted to a pattern say so in their type; a value that does
     // not match would only fail when phase 3 evaluates the site.
@@ -439,7 +441,7 @@ function Wizard() {
                 </button>
                 <button className="card" aria-pressed={hardened} onClick={() => setHardening(true)}>
                   <div className="card-title">Hardened</div>
-                  <p className="caption">{`Every feature on: ${hw?.tpm ? "TPM and PIN, an attestation code, " : ""}Secure Boot with your own keys, a duress passphrase, USB device blocking, memory encryption, key-only SSH and a second factor for the host page. The Security step walks through each one and asks for what it needs.`}</p>
+                  <p className="caption">{`Every feature on: ${hw?.tpm ? "TPM and PIN, an attestation code, " : ""}Secure Boot with your own keys, a duress passphrase, USB device blocking, memory encryption, SSH that asks for the password after the key, and a second factor for the host page. A security key for the disk is offered too. The Security step walks through each one and asks for what it needs.`}</p>
                 </button>
               </div>
               {hardened && !hw?.tpm && <p className="notice err">This machine has no TPM, so binding the disk to it and the attestation code are not part of this setup; everything else is.</p>}

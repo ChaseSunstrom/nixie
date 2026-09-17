@@ -195,7 +195,7 @@ pkgs.testers.runNixOSTest {
     installer.screenshot("installer-kiosk-after-install")
     installer.shutdown()
     target.start()
-    target.wait_for_console_text("Please enter passphrase"); target.screenshot("installer-target-passphrase")
+    target.wait_for_console_text("Disk passphrase"); target.screenshot("installer-target-passphrase")
     target.send_console("hunter2\n")
     target.wait_for_unit("nixie-setup.service"); target.wait_for_open_port(9443)
     target.wait_for_unit("cage-tty1.service"); target.wait_for_text("(First boot|Finished|nixie)", timeout=300)

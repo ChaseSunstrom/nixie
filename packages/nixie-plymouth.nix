@@ -1,6 +1,6 @@
 # The boot splash in the host's finish: the mark and wordmark centred with a
-# progress bar under them, messages below, and the disk passphrase asked in a
-# field drawn like the installer's. A Plymouth script theme, so nothing beyond
+# progress bar under them, messages below, the disk passphrase asked in a
+# field drawn like the installer's, and the attestation code under that. A Plymouth script theme, so nothing beyond
 # the plugins NixOS ships.
 {
   pkgs,
@@ -11,13 +11,11 @@
 let
   mark = import ../lib/mark.nix t;
   # Plymouth scripts take colours as three numbers from 0 to 1.
-  rgb =
-    hex:
-    let
-      h = lib.removePrefix "#" hex;
-      c = i: toString (lib.fromHexString (builtins.substring i 2 h) / 255.0);
-    in
-    "${c 0}, ${c 2}, ${c 4}";
+  part =
+    hex: i: toString (lib.fromHexString (builtins.substring i 2 (lib.removePrefix "#" hex)) / 255.0);
+  rgb = hex: "${part hex 0}, ${part hex 2}, ${part hex 4}";
+  colour =
+    name: hex: "${name}.r = ${part hex 0}; ${name}.g = ${part hex 2}; ${name}.b = ${part hex 4};";
   script = ''
     Window.SetBackgroundTopColor(${rgb t.bg});
     Window.SetBackgroundBottomColor(${rgb t.bg});
@@ -71,9 +69,14 @@ let
       fill.sprite.SetOpacity(shown);
     }
 
+    # The unlock agent (modules/security/unlock.nix) and the attestation
+    # service talk to the theme through status updates starting "nixie-";
+    # messages, systemd's included, are shown as they come.
+    label = "";
     fun password(text, bullets) {
       # Nothing is progressing while a person types: the bar would be a lie.
       bar(0);
+      if (label != "") text = label;
       centred(prompt.sprite, Image.Text(text, ${rgb t.muted}, 1, "Archivo 13"), cy + 136);
       field.sprite.SetOpacity(1);
       shown = " ";
@@ -91,10 +94,63 @@ let
     }
     Plymouth.SetDisplayNormalFunction(normal);
 
+    fun line(sprite, text, colour, font, y) {
+      if (text == "") {
+        sprite.SetOpacity(0);
+      } else {
+        centred(sprite, Image.Text(text, colour.r, colour.g, colour.b, 1, font), y);
+      }
+    }
+    ${colour "muted" t.muted}
+    ${colour "ink" t.ink}
+    ${colour "err" t.err}
+
+    # The attestation code, large, under everything else, so it stays in
+    # view while the PIN and passphrase are typed; or why there is none.
+    caption.sprite = Sprite();
+    digits.sprite = Sprite();
+    shownCode = "";
+    fun code(message, number) {
+      shownCode = message;
+      line(caption.sprite, "Attestation code", muted, "Archivo 12", cy + 280);
+      line(digits.sprite, number.SubString(0, 3) + " " + number.SubString(3, 6), ink, "Archivo 34", cy + 300);
+    }
+    fun warn(message) {
+      shownCode = message;
+      line(caption.sprite, "", muted, "Archivo 12", 0);
+      line(digits.sprite, message, err, "Archivo 13", cy + 290);
+    }
+    fun noCode() {
+      shownCode = "";
+      line(caption.sprite, "", muted, "Archivo 12", 0);
+      line(digits.sprite, "", ink, "Archivo 34", 0);
+    }
+
+    shownNote = "";
+    fun setNote(text) {
+      shownNote = text;
+      line(note.sprite, text, muted, "Archivo 13", cy + 240);
+    }
+
+    fun status(text) {
+      if (text.SubString(0, 13) == "nixie-prompt:") label = text.SubString(13, 400);
+      else if (text == "nixie-idle") normal();
+    }
+    Plymouth.SetUpdateStatusFunction(status);
+
     fun message(text) {
-      centred(note.sprite, Image.Text(text, ${rgb t.muted}, 1, "Archivo 12"), cy + 240);
+      if (text.SubString(0, 17) == "Attestation code ") code(text, text.SubString(17, 23));
+      else if (text.SubString(0, 18) == "ATTESTATION FAILED") warn(text);
+      else if (text.SubString(0, 19) == "No attestation code") warn(text);
+      else setNote(text);
     }
     Plymouth.SetMessageFunction(message);
+
+    fun hide(text) {
+      if (text == shownCode) noCode();
+      else if (text == shownNote) setNote("");
+    }
+    Plymouth.SetHideMessageFunction(hide);
   '';
 in
 pkgs.runCommand "nixie-plymouth" { nativeBuildInputs = [ pkgs.imagemagick ]; } ''

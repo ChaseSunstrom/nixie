@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Demo
+Description=A theme kept below the top of its repository, as theme packs keep them
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/demo
+ScriptFile=/usr/share/plymouth/themes/demo/demo.script

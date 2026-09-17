@@ -45,10 +45,12 @@ in
       type = lib.types.listOf lib.types.singleLineStr;
       default = [ ];
       description = ''
-        SSH public keys allowed to log in as the administrator. Any key type
-        works. A hardware-backed key is a good choice but is not required.
-        With no keys and password login off, SSH cannot be used, which is fine
-        for a desktop.
+        SSH public keys allowed to log in as the administrator, one per line,
+        as in a `.pub` file. Any key type works, including security keys
+        (`sk-ssh-ed25519@openssh.com`, made with `ssh-keygen -t ed25519-sk`),
+        which also ask for a touch on the key at every login. With no keys
+        and password login off, SSH cannot be used, which is fine for a
+        desktop.
       '';
       nixieUi = {
         section = "auth";
@@ -90,9 +92,28 @@ in
         order = 4;
       };
     };
+    ssh.keyAndPassword = mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Ask for the administrator's password after the SSH key, so a copied
+        or stolen key is not enough on its own. A password alone never logs
+        in while this is on, and without any key nobody can log in over SSH.
+      '';
+      nixieUi = {
+        section = "auth";
+        order = 5;
+      };
+    };
   };
 
   config = {
+    assertions = [
+      {
+        assertion = !lib.any (k: lib.hasInfix "PRIVATE KEY" k) cfg.sshKeys;
+        message = "nixie.auth.sshKeys holds a private key; give the public one instead (the .pub file, one line starting with ssh- or sk-)";
+      }
+    ];
     users.mutableUsers = false;
     users.users.${
       if lib.elem cfg.admin.name reserved then
@@ -113,8 +134,11 @@ in
         config.nixie.profile == "server" || cfg.sshKeys != [ ] || cfg.ssh.passwordLogin
       );
       settings = {
-        PasswordAuthentication = cfg.ssh.passwordLogin;
-        KbdInteractiveAuthentication = cfg.ssh.passwordLogin;
+        # The password method is on for the second step too; the list of
+        # methods keeps it from being enough by itself.
+        PasswordAuthentication = cfg.ssh.passwordLogin || cfg.ssh.keyAndPassword;
+        KbdInteractiveAuthentication = cfg.ssh.passwordLogin && !cfg.ssh.keyAndPassword;
+        AuthenticationMethods = lib.mkIf cfg.ssh.keyAndPassword "publickey,password";
         PermitRootLogin = "no";
       };
     };

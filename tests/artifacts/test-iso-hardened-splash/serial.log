@@ -1,0 +1,621 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+
+Loading graphical boot menu...
+
+Press 't' to use the text boot menu on this console...
+
+[    0.035838] RDSEED32 is broken. Disabling the corresponding CPUID bit.
+[    0.214276] tpm tpm0: A TPM error (256) occurred attempting the self test
+
+  Nixie setup
+
+  Open https://10.0.2.15:9443/ in a browser on this network
+  Pairing code: 329473
+  Certificate fingerprint: 39:65:15:28:B8:A8:5D:04:05:29:81:FA:26:5A:4F:E5:17:07:0C:FB:86:76:90:A3:97:45:05:BC:1E:8C:66:ED
+
+█ ▄▄▄▄▄ █ ▀▀▄ ▄▄ ▀█ ▄▄▄▄▄ █
+█ █   █ ███ ▄▄▀▄▄██ █   █ █
+█ █▄▄▄█ █ ▄▄ █ █▄▀█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█ █ ▀ █▄█▄█▄▄▄▄▄▄▄█
+█▄ ▄▀▀ ▄▀   ██ ▄ ▀▄▄▄▄▀█  █
+█ ▄ ▀▄█▄▀▀▀█▄█▀██▀▄▄▄█ ▄█▄█
+███▀▀▀▀▄▄▄▄█▄ ▄█  ▄▀▀▀██▀ █
+█▄▄▀█▄ ▄▀▀▀ ▀ ▄ ▄▄▄█▀█ ▄█▄█
+█▄▄██▄▄▄▄▀▀▄██  ▄ ▄▄▄ ██▄▀█
+█ ▄▄▄▄▄ █▀██▄█▀█  █▄█ ██▀▄█
+█ █   █ ██▀ ▄ ▄█▄▄▄▄▄ ▄██▄█
+█ █▄▄▄█ █  █▀ ▄ ▄█▀▄▀▀▄ ▄▄█
+█▄▄▄▄▄▄▄█▄▄▄██▄▄▄▄█▄█▄█▄█▄█
+
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=d9bc1a0df64f4f11805235ca2fd619db;user=root;hostname=nixie-installer;machineid=c8d5d34fb96746c2a1e22a3d885329f5;bootid=ca22cd87550a4268ab7dacf24c074968;pid=856;pidfdid=857;comm=(agetty);servicename=serial-getty@ttyS0.service;invocationid=58ab3a413f1e4576b253ce0893ef90b8;type=service\P+q6E616D65\
+
+[1;32m<<< Welcome to Nixie 0.1.0 (x86_64) - ttyS0 >>>[0m
+Nixie installer. Terminal install: nixie-deploy --local
+To install from another machine over SSH, set a root password with passwd
+and run the deploy app of the Nixie flake there.
+
+
+nixie-installer login: [!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;end=d9bc1a0df64f4f11805235ca2fd619db\[  240.472161] watchdog: watchdog0: watchdog did not stop!
+[  240.496290] watchdog: watchdog0: watchdog did not stop!
+[  240.917201] watchdog: watchdog0: watchdog did not stop!
+[  240.925572] reboot: Restarting system
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001HBdsDxe: loading Boot0006 "Linux Boot Manager" from HD(1,GPT,7B4823C0-13B0-4DA9-A240-1588A880F9B8,0x800,0x200000)/\EFI\systemd\systemd-bootx64.efi
+BdsDxe: starting Boot0006 "Linux Boot Manager" from HD(1,GPT,7B4823C0-13B0-4DA9-A240-1588A880F9B8,0x800,0x200000)/\EFI\systemd\systemd-bootx64.efi
+[    0.036239] RDSEED32 is broken. Disabling the corresponding CPUID bit.
+P+q6E616D65\[18t[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J]3008;start=848d0a58d72d43e8978721826dbe9b6e;user=root;hostname=iso-test;machineid=44af90276042492c9cbc67305a412852;bootid=f73adc00ef3a4338a7d072e7ca0f7bc0;pid=1;pidfdid=2;comm=systemd;type=boot\[[0;32m  OK  [0m] Started [0;1;39mShow Plymouth Boot Screen[0m.
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/tpmrm0[0m.
+         Expecting device [0;1;39m/dev/tpm0[0m...
+         Starting [0;1;39mShow the boot attestation code[0m...
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/tpm0[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mTrusted Platform Module[0m.
+
+  No attestation code yet: setup seals one. If this machine was set up before, do not unlock it.
+
+No attestation code yet: setup seals one. If this machine was set up before, do not unlock it.
+[[0;32m  OK  [0m] Stopped [0;1;39mVirtual Console Setup[0m.
+         Stopping [0;1;39mVirtual Console Setup[0m...
+         Starting [0;1;39mVirtual Console Setup[0m...
+[[0;32m  OK  [0m] Started [0;1;39mShow the boot attestation code[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mVirtual Console Setup[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal Encrypted Volumes (Pre)[0m.
+         Starting [0;1;39mVirtual Console Setup[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mVirtual Console Setup[0m.
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/disk/by-partlabel/disk-system-system[0m.
+         Starting [0;1;39mCryptography Setup for rpool-outer[0m...
+
+Passphrase or recovery key:[2KPassphrase or recovery key:*[2KPassphrase or recovery key:**[2KPassphrase or recovery key:***[2KPassphrase or recovery key:****[2KPassphrase or recovery key:*****[2KPassphrase or recovery key:******[2KPassphrase or recovery key:*******
+Unlocking…
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/mapper/rpool-outer[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCryptography Setup for rpool-outer[0m.
+         Starting [0;1;39mCryptography Setup for rpool[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mCryptography Setup for rpool[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal Encrypted Volumes[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mBasic System[0m.
+         Starting [0;1;39mImport ZFS pool "rpool"[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mImport ZFS pool "rpool"[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mZFS pool import target[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mZFS startup target[0m.
+         Mounting [0;1;39m/sysroot[0m...
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mInitrd Root File System[0m.
+         Mounting [0;1;39m/sysroot/nix[0m...
+         Mounting [0;1;39m/sysroot/run[0m...
+         Mounting [0;1;39m/sysroot/var[0m...
+         Starting [0;1;39mMountpoints Configured in the Real Root[0m...
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot/run[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot/nix[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot/var[0m.
+         Starting [0;1;39mFind NixOS closure[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mMountpoints Configured in the Real Root[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mInitrd File Systems[0m.
+         Starting [0;1;39mCreate Volatile Files and Directories in the Real Root[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mFind NixOS closure[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Volatile Files and Directories in the Real Root[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mInitrd Default Target[0m.
+         Starting [0;1;39mCleaning Up and Shutting Down Daemons[0m...
+[[0;32m  OK  [0m] Stopped target [0;1;39mInitrd Default Target[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mBasic System[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mInitrd Root Device[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPath Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSlice Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSocket Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal Encrypted Volumes[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal Encrypted Volumes (Pre)[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSwaps[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mTimer Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mTrusted Platform Module[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mZFS startup target[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mZFS pool import target[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mD-Bus System Message Bus Socket[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mFind NixOS closure[0m.
+         Stopping [0;1;39mShow the boot attestation code[0m...
+         Stopping [0;1;39mAsk for the disk passphrase[0m...
+         Starting [0;1;39mPlymo[[0;32m  OK  [0m] Finished [0;1;39mCleaning Up and Shutting Down Daemons[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mAsk for the disk passphrase[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mWatch for passphrase requests[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mRule-based Manager for Device Events and Files[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mPlymouth switch root service[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mudev Control Socket[0m.
+         Starting [0;1;39mCleanup udev Database[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev gracefully[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate List of Static Device Nodes[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCleanup udev Database[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSwitch Root[0m.
+         Starting [0;1;39mNixOS Activation[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mNixOS Activation[0m.
+         Starting [0;1;39mSwitch Root[0m...
+P+q6E616D65\[18t[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J]3008;start=edc78e735aaa4a47af24e2a1090a3864;user=root;hostname=iso-test;machineid=85ab941c257142f79a65207a881d5096;bootid=f73adc00ef3a4338a7d072e7ca0f7bc0;pid=1;pidfdid=2;comm=systemd;type=boot\[[0;32m  OK  [0m] Stopped [0;1;39minitrd-switch-root.service[0m.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/serial-getty[0m.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/systemd-fsck[0m.
+[[0;32m  OK  [0m] Created slice [0;1;39mUser and Session Slice[0m.
+[[0;32m  OK  [0m] Started [0;1;39mForward Password Requests to Plymouth Directory Watch[0m.
+[[0;32m  OK  [0m] Started [0;1;39mForward Password Requests to Wall Directory Watch[0m.
+         Expecting device [0;1;39m/dev/disk/by-partlabel/disk-system-esp[0m...
+         Expecting device [0;1;39m/dev/ttyS0[0m...
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal Encrypted Volumes[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd-fs.target[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd-root-fs.target[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39minitrd-switch-root.target[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mVirtual Machines and Containers[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mPath Units[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mRemote File Systems[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSlice Units[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSwaps[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mZFS pool import target[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mProcess Core Dump Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mCredential Encryption/Decryption[0m.
+         Starting [0;1;39mJournal Log Access Socket[0m...
+[[0;32m  OK  [0m] Listening on [0;1;39mJournal Audit Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mNetwork Management Metrics Varlink Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mNetwork Management Netlink Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mUserspace Out-Of-Memory (OOM) Killer Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mudev Control Socket[0m.
+         Mounting [0;1;39mHuge Pages File System[0m...
+         Mounting [0;1;39mPOSIX Message Queue File System[0m...
+         Mounting [0;1;39mKernel Debug File System[0m...
+         Mounting [0;1;39mKernel Trace File System[0m...
+         Starting [0;1;39mCreate List of Static Device Nodes[0m...
+         Starting [0;1;39mLoad Kernel Module configfs[0m...
+         Mounting [0;1;39mFUSE Control File System[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mPlymouth switch root service[0m.
+[[0;32m  OK  [0m] Started [0;1;39mForward Password Requests to Plymouth[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-cryptsetup@rpool.service[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-cryptsetup@rpool\x2douter.service[0m.
+         Starting [0;1;39mJournal Service[0m...
+         Starting [0;1;39mLoad Kernel Modules[0m...
+         Starting [0;1;39mUserspace Out-Of-Memory (OOM) Killer[0m...
+         Starting [0;1;39mRemount Root and Kernel File Systems[0m...
+         Starting [0;1;39mColdplug All udev Devices[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mVirtual Console Setup[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mzfs-import-rpool.service[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mJournal Log Access Socket[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39mHuge Pages File System[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39mPOSIX Message Queue File System[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Debug File System[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Trace File System[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate List of Static Device Nodes[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Module configfs[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39mFUSE Control File System[0m.
+         Mounting [0;1;39mKernel Configuration File System[0m...
+         Starting [0;1;39mCreate Static Device Nodes in /dev gracefully[0m...
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Configuration File System[0m.
+[[0;32m  OK  [0m] Started [0;1;39mJournal Service[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Static Device Nodes in /dev gracefully[0m.
+[[0;32m  OK  [0m] Started [0;1;39mUserspace Out-Of-Memory (OOM) Killer[0m.
+         Starting [0;1;39mCreate Static Device Nodes in /dev[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Static Device Nodes in /dev[0m.
+         Starting [0;1;39mRule-based Manager for Device Events and Files[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mRemount Root and Kernel File Systems[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mPreparation for Local File Systems[0m.
+         Starting [0;1;39mFlush Journal to Persistent Storage[0m...
+         Starting [0;1;39mLoad/Save OS Random Seed[0m...
+         Starting [0;1;39mNetwork Time Synchronization[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Modules[0m.
+         Starting [0;1;39mApply Kernel Variables[0m...
+         Starting [0;1;39mMount ZFS filesystems[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mColdplug All udev Devices[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mApply Kernel Variables[0m.
+         Starting [0;1;39mNetwork Name Resolution[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mLoad/Save OS Random Seed[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mFirst Boot Complete[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mFlush Journal to Persistent Storage[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Time Synchronization[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Time Set[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mMount ZFS filesystems[0m.
+[[0;32m  OK  [0m] Started [0;1;39mRule-based Manager for Device Events and Files[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Name Resolution[0m.
+         Starting [0;1;39mFile System Check on /dev…isk/by-partlabel/disk-system-esp[0m...
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/tpmrm0[0m.
+         Expecting device [0;1;39m/dev/tpm0[0m...
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/tpm0[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mTrusted Platform Module[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mFile System Check on /dev/disk/by-partlabel/disk-system-esp[0m.
+         Starting [0;1;39mVirtual Console Setup[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mVirtual Console Setup[0m.
+         Starting [0;1;39mVirtual Console Setup[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mVirtual Console Setup[0m.
+         Mounting [0;1;39m/boot[0m...
+         Mounting [0;1;39m/run/wrappers[0m...
+[[0;32m  OK  [0m] Mounted [0;1;39m/run/wrappers[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39m/boot[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal File Systems[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mBoot Loader Control Service Socket[0m.
+         Starting [0;1;39mTell Plymouth To Write Out Runtime Data[0m...
+         Starting [0;1;39mCreate SUID/SGID Wrappers[0m...
+         Starting [0;1;39mUpdate Boot Loader Random Seed[0m...
+         Starting [0;1;39mSave Transient machine-id to Disk[0m...
+         Starting [0;1;39mCreate System Files and Directories[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mTell Plymouth To Write Out Runtime Data[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate System Files and Directories[0m.
+         Starting [0;1;39mRebuild Journal Catalog[0m...
+         Starting [0;1;39mRecord System Boot/Shutdown in UTMP[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mRecord System Boot/Shutdown in UTMP[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mUpdate Boot Loader Random Seed[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mRebuild Journal Catalog[0m.
+         Starting [0;1;39mUpdate is Completed[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mSave Transient machine-id to Disk[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mUpdate is Completed[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate SUID/SGID Wrappers[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Started [0;1;39mDiscard unused filesystem blocks once a week[0m.
+[[0;32m  OK  [0m] Started [0;1;39mlogrotate.timer[0m.
+[[0;32m  OK  [0m] Started [0;1;39mnixie-gc.timer[0m.
+[[0;32m  OK  [0m] Started [0;1;39mDaily Cleanup of Temporary Directories[0m.
+[[0;32m  OK  [0m] Started [0;1;39mzfs-snapshot-daily.timer[0m.
+[[0;32m  OK  [0m] Started [0;1;39mzfs-snapshot-frequent.timer[0m.
+[[0;32m  OK  [0m] Started [0;1;39mzfs-snapshot-hourly.timer[0m.
+[[0;32m  OK  [0m] Started [0;1;39mzfs-snapshot-monthly.timer[0m.
+[[0;32m  OK  [0m] Started [0;1;39mzfs-snapshot-weekly.timer[0m.
+[[0;32m  OK  [0m] Started [0;1;39mzpool-trim.timer[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mTimer Units[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mD-Bus System Message Bus Socket[0m.
+         Starting [0;1;39mIncus user UNIX socket[0m...
+         Starting [0;1;39mIncus UNIX socket[0m...
+[[0;32m  OK  [0m] Listening on [0;1;39mNix Daemon Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mAuthorization Manager Agent Helper[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mOpenSSH Server Socket…temd-ssh-generator, AF_UNIX Local)[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mHostname Service Socket[0m.
+         Starting [0;1;39mnftables firewall[0m...
+[[0;32m  OK  [0m] Listening on [0;1;39mIncus user UNIX socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mIncus UNIX socket[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSocket Units[0m.
+         Starting [0;1;39mD-Bus System Message Bus[0m...
+[[0;32m  OK  [0m] Started [0;1;39mD-Bus System Message Bus[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mBasic System[0m.
+         Starting [0;1;39mImport lastlog data into lastlog2 database[0m...
+         Starting [0;1;39mLogrotate configuration check[0m...
+         Starting [0;1;39mFUSE filesystem for LXC[0m...
+         Starting [0;1;39mName Service Cache Daemon (nsncd)[0m...
+         Starting [0;1;39mPost-Boot Actions[0m...
+[[0;32m  OK  [0m] Started [0;1;39mReset console on configuration changes[0m.
+         Starting [0;1;39mSSH Host Keys Generation[0m...
+         Starting [0;1;39mTrigger udev change for TPM devices[0m...
+         Starting [0;1;39mUSBGuard daemon[0m...
+         Starting [0;1;39mZFS file system shares[0m...
+[[0;32m  OK  [0m] Started [0;1;39mZFS Event Daemon (zed)[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mLogrotate configuration check[0m.
+[[0;32m  OK  [0m] Started [0;1;39mFUSE filesystem for LXC[0m.
+[[0;32m  OK  [0m] Started [0;1;39mName Service Cache Daemon (nsncd)[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mHost and Network Name Lookups[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mUser and Group Name Lookups[0m.
+         Starting [0;1;39mUser Login Management[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mImport lastlog data into lastlog2 database[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mPost-Boot Actions[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mZFS file system shares[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mZFS startup target[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mTrigger udev change for TPM devices[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mnftables firewall[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mPreparation for Network[0m.
+         Starting [0;1;39mNetwork Management[0m...
+[[0;32m  OK  [0m] Started [0;1;39mUser Login Management[0m.
+         Starting [0;1;39mlinger-users.service[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mlinger-users.service[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mLoad/Save RF Kill Switch Status /dev/rfkill Watch[0m.
+[[0;32m  OK  [0m] Started [0;1;39mUSBGuard daemon[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Management[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mNetwork[0m.
+         Starting [0;1;39mEnable Persistent Storage in systemd-networkd[0m...
+         Starting [0;1;39mWait for Network to be Online[0m...
+         Starting [0;1;39mPermit User Sessions[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mPermit User Sessions[0m.
+         Starting [0;1;39mHold until boot process finishes up[0m...
+         Starting [0;1;39mTerminate Plymouth Boot Screen[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mEnable Persistent Storage in systemd-networkd[0m.
+
+  Nixie setup
+
+  Open https://10.0.2.15:9443/ in a browser on this network
+  Pairing code: 839512
+  Certificate fingerprint: B6:B6:4D:8B:AC:DA:38:D5:78:9F:6E:57:72:A4:D0:D7:39:B3:D8:0D:15:0D:89:6C:E6:CC:46:D5:1D:79:70:77
+
+█ ▄▄▄▄▄ █ ▀▀▄ ▄▄ ▀█ ▄▄▄▄▄ █
+█ █   █ ███ ▄▄▀▄▄██ █   █ █
+█ █▄▄▄█ █ ▄▄ █ █▄▀█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█ █ ▀ █▄█▄█▄▄▄▄▄▄▄█
+█▄ ▄▀▀ ▄▀   ██ ▄ ▀▄▄▄▄▀█  █
+█ ▄ ▀▄█▄▀▀▀█▄█▀██▀▄▄▄█ ▄█▄█
+███▀▀▀▀▄▄▄▄█▄ ▄█  ▄▀▀▀██▀ █
+█▄▄▀█▄ ▄▀▀▀ ▀ ▄ ▄▄▄█▀█ ▄█▄█
+█▄▄██▄▄▄▄▀▀▄██  ▄ ▄▄▄ ██▄▀█
+█ ▄▄▄▄▄ █▀██▄█▀█  █▄█ ██▀▄█
+█ █   █ ██▀ ▄ ▄█▄▄▄▄▄ ▄██▄█
+█ █▄▄▄█ █  █▀ ▄ ▄█▀▄▀▀▄ ▄▄█
+█▄▄▄▄▄▄▄█▄▄▄██▄▄▄▄█▄█▄█▄█▄█
+
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=069f7dd3241a48869d8eb7258d61f48e;user=root;hostname=iso-test;machineid=85ab941c257142f79a65207a881d5096;bootid=f73adc00ef3a4338a7d072e7ca0f7bc0;pid=1759;pidfdid=1760;comm=(agetty);servicename=serial-getty@ttyS0.service;invocationid=7bf260ff55e6423fad153fd76eaf93fc;type=service\P+q6E616D65\
+
+[1;32m<<< Nixie setup >>>[0m
+
+
+iso-test login: [!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;end=069f7dd3241a48869d8eb7258d61f48e\[[0;32m  OK  [0m] Stopped [0;1;39mSession c1 of User nixie-kiosk[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/serial-getty[0m.
+         Starting [0;1;39mGenerate shutdown ramfs[0m...
+         Stopping [0;1;39mNixie setup service (continuation)[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mHold until boot process finishes up[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mTerminate Plymouth Boot Screen[0m.
+         Stopping [0;1;39mPermit User Sessions[0m...
+         Stopping [0;1;39mUser Runtime Directory /run/user/995[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mNixie setup service (continuation)[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mEnable Persistent Storage in systemd-networkd[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/run/user/995[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mPermit User Sessions[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mRemote File Systems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mUser Runtime Directory /run/user/995[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /user/995[0m.
+         Stopping [0;1;39mUser Login Management[0m...
+[[0;32m  OK  [0m] Started [0;1;39mShow Plymouth Reboot Screen[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mUser Login Management[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mUser and Group Name Lookups[0m.
+         Stopping [0;1;39mName Service Cache Daemon (nsncd)[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mName Service Cache Daemon (nsncd)[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var/lib/incus/devices[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var/lib/incus/guestapi[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var/lib/incus/shmounts[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mIncus Container and Virtual Machine Management Daemon[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mIncus Instances Startup/Shutdown[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mNetwork is Online[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mNetwork[0m.
+         Stopping [0;1;39mFUSE filesystem for LXC[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mWait for Network to be Online[0m.
+         Stopping [0;1;39mNetwork Management[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Management[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPreparation for Network[0m.
+         Stopping [0;1;39mnftables firewall[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mFUSE filesystem for LXC[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mBasic System[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mForward Password Requests to Plymouth Directory Watch[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPath Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSlice Units[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mUser and Session Slice[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSocket Units[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mIncus user UNIX socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mIncus UNIX socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mNix Daemon Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mAuthorization Manager Agent Helper[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mOpenSSH Server Socket (systemd-ssh-generator, AF_UNIX Local)[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mHostname Service Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mNetwork Management Metrics Varlink Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mNetwork Management Netlink Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mUserspace Out-Of-Memory (OOM) Killer Socket[0m.
+         Stopping [0;1;39mD-Bus System Message Bus[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mD-Bus System Message Bus[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mD-Bus System Message Bus Socket[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mGenerate shutdown ramfs[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mnftables firewall[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal Encrypted Volumes[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mForward Password Requests to Wall Directory Watch[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mUpdate Boot Loader Random Seed[0m.
+         Stopping [0;1;39mLoad/Save OS Random Seed[0m...
+         Stopping [0;1;39mNetwork Name Resolution[0m...
+         Stopping [0;1;39mNetwork Time Synchronization[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mUpdate is Completed[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mRebuild Journal Catalog[0m.
+         Stopping [0;1;39mRecord System Boot/Shutdown in UTMP[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Time Synchronization[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Name Resolution[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mRecord System Boot/Shutdown in UTMP[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mApply Kernel Variables[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mProcess Core Dump Socket[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate System Files and Directories[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal File Systems[0m.
+         Unmounting [0;1;39m/boot[0m...
+         Unmounting [0;1;39m/data/cache[0m...
+         Unmounting [0;1;39m/data/media[0m...
+         Unmounting [0;1;39m/data/state[0m...
+         Unmounting [0;1;39m/home[0m...
+         Unmounting [0;1;39m/run/keys[0m...
+         Unmounting [0;1;39m/run/secrets-for-users.d[0m...
+         Unmounting [0;1;39m/run/wrappers[0m...
+         Unmounting [0;1;39m/var/lib/lxcfs[0m...
+         Stopping [0;1;39mFlush Journal to Persistent Storage[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mMount ZFS filesystems[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mZFS pool import target[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mLoad Kernel Modules[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/run/keys[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/boot[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/run/secrets-for-users.d[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/run/wrappers[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var/lib/lxcfs[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSwaps[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mFile System Check on /dev/disk/by-partlabel/disk-system-esp[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/systemd-fsck[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mLoad/Save OS Random Seed[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mFlush Journal to Persistent Storage[0m.
+         Unmounting [0;1;39m/var[0m...
+[[0;32m  OK  [0m] Unmounted [0;1;39m/data/media[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/data/cache[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/data/state[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/home[0m.
+         Unmounting [0;1;39m/data[0m...
+[[0;32m  OK  [0m] Unmounted [0;1;39m/data[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPreparation for Local File Systems[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mUnmount All Filesystems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mRemount Root and Kernel File Systems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev gracefully[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Shutdown[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLate Shutdown Services[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mSystem Reboot[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Reboot[0m.
+]3008;end=edc78e735aaa4a47af24e2a1090a3864\[0;31mwatchdog: watchdog0: watchdog did not stop![0m
+[  124.778215] watchdog: watchdog0: watchdog did not stop!
+[18t[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[  125.486532] shutdown[1]: Could not detach DM /dev/dm-1: Device or resource busy
+[  125.488253] shutdown[1]: Could not detach DM /dev/dm-0: Device or resource busy
+[  125.489747] watchdog: watchdog0: watchdog did not stop!
+[  125.495452] shutdown[1]: Unable to finalize remaining DM devices, ignoring.
+[  125.500987] reboot: Restarting system
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001HBdsDxe: loading Boot0006 "Linux Boot Manager" from HD(1,GPT,7B4823C0-13B0-4DA9-A240-1588A880F9B8,0x800,0x200000)/\EFI\systemd\systemd-bootx64.efi
+BdsDxe: starting Boot0006 "Linux Boot Manager" from HD(1,GPT,7B4823C0-13B0-4DA9-A240-1588A880F9B8,0x800,0x200000)/\EFI\systemd\systemd-bootx64.efi
+[    0.037326] RDSEED32 is broken. Disabling the corresponding CPUID bit.
+P+q6E616D65\[18t[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J]3008;start=99532d6395af49c0a6d29da51990a1b5;user=root;hostname=iso-test;machineid=1bb8fce07b55488da4d97d23c5dbc2af;bootid=fc6a9866a051496daa1d677a739cefe2;pid=1;pidfdid=2;comm=systemd;type=boot\[[0;32m  OK  [0m] Started [0;1;39mShow Plymouth Boot Screen[0m.
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/tpmrm0[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mTrusted Platform Module[0m.
+         Starting [0;1;39mShow the boot attestation code[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mVirtual Console Setup[0m.
+         Stopping [0;1;39mVirtual Console Setup[0m...
+         Starting [0;1;39mVirtual Console Setup[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mVirtual Console Setup[0m.
+         Starting [0;1;39mVirtual Console Setup[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mVirtual Console Setup[0m.
+
+  Attestation code: 774213
+
+Attestation code 774213
+[[0;32m  OK  [0m] Started [0;1;39mShow the boot attestation code[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal Encrypted Volumes (Pre)[0m.
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/disk/by-partlabel/disk-system-system[0m.
+         Starting [0;1;39mCryptography Setup for rpool-outer[0m...
+
+PIN:[2KPIN:*[2KPIN:**[2KPIN:***[2KPIN:****
+Unlocking…
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/mapper/rpool-outer[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCryptography Setup for rpool-outer[0m.
+         Starting [0;1;39mCryptography Setup for rpool[0m...
+
+Disk passphrase:[2KDisk passphrase:*[2KDisk passphrase:**[2KDisk passphrase:***[2KDisk passphrase:****[2KDisk passphrase:*****[2KDisk passphrase:******[2KDisk passphrase:*******
+Unlocking…
+Attestation code 465979
+[[0;32m  OK  [0m] Finished [0;1;39mCryptography Setup for rpool[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal Encrypted Volumes[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mBasic System[0m.
+         Starting [0;1;39mImport ZFS pool "rpool"[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mImport ZFS pool "rpool"[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mZFS pool import target[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mZFS startup target[0m.
+         Mounting [0;1;39m/sysroot[0m...
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mInitrd Root File System[0m.
+         Mounting [0;1;39m/sysroot/nix[0m...
+         Mounting [0;1;39m/sysroot/run[0m...
+         Mounting [0;1;39m/sysroot/var[0m...
+         Starting [0;1;39mMountpoints Configured in the Real Root[0m...
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot/run[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot/nix[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39m/sysroot/var[0m.
+         Starting [0;1;39mFind NixOS closure[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mMountpoints Configured in the Real Root[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mInitrd File Systems[0m.
+         Starting [0;1;39mCreate Volatile Files and Directories in the Real Root[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Volatile Files and Directories in the Real Root[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mFind NixOS closure[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mInitrd Default Target[0m.
+         Starting [0;1;39mCleaning Up and Shutting Down Daemons[0m...
+[[0;32m  OK  [0m] Stopped target [0;1;39mInitrd Default Target[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mBasic System[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mInitrd Root Device[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPath Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSlice Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSocket Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal Encrypted Volumes[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal Encrypted Volumes (Pre)[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSwaps[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mTimer Units[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mTrusted Platform Module[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mZFS startup target[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mZFS pool import target[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mD-Bus System Message Bus Socket[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mFind NixOS closure[0m.
+         Stopping [0;1;39mShow the boot attestation code[0m...
+         Stopping [0;1;39mAsk for the disk passphrase[0m...
+         Starting [0;1;39mPlymouth switch root service[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mApply Kernel Variables[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mLoad Kernel Modules[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Volatile Files and Directories in the Real Root[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate System Files and Directories[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal File Systems[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPreparation for Local File Systems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mColdplug All udev Devices[0m.
+         Stopping [0;1;39mRule-based Manager for Device Events and Files[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mCleaning Up and Shutting Down Daemons[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mHold until boot process finishes up[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mTerminate Plymouth Boot Screen[0m.
+
+  Nixie setup
+
+  Open https://10.0.2.15:9443/ in a browser on this network
+  Pairing code: 339217
+  Certificate fingerprint: B6:B6:4D:8B:AC:DA:38:D5:78:9F:6E:57:72:A4:D0:D7:39:B3:D8:0D:15:0D:89:6C:E6:CC:46:D5:1D:79:70:77
+
+█ ▄▄▄▄▄ █ ▀▀▄ ▄▄ ▀█ ▄▄▄▄▄ █
+█ █   █ ███ ▄▄▀▄▄██ █   █ █
+█ █▄▄▄█ █ ▄▄ █ █▄▀█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█ █ ▀ █▄█▄█▄▄▄▄▄▄▄█
+█▄ ▄▀▀ ▄▀   ██ ▄ ▀▄▄▄▄▀█  █
+█ ▄ ▀▄█▄▀▀▀█▄█▀██▀▄▄▄█ ▄█▄█
+███▀▀▀▀▄▄▄▄█▄ ▄█  ▄▀▀▀██▀ █
+█▄▄▀█▄ ▄▀▀▀ ▀ ▄ ▄▄▄█▀█ ▄█▄█
+█▄▄██▄▄▄▄▀▀▄██  ▄ ▄▄▄ ██▄▀█
+█ ▄▄▄▄▄ █▀██▄█▀█  █▄█ ██▀▄█
+█ █   █ ██▀ ▄ ▄█▄▄▄▄▄ ▄██▄█
+█ █▄▄▄█ █  █▀ ▄ ▄█▀▄▀▀▄ ▄▄█
+█▄▄▄▄▄▄▄█▄▄▄██▄▄▄▄█▄█▄█▄█▄█
+
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=53da21e5b0c6428093d9783d61d8facb;user=root;hostname=iso-test;machineid=85ab941c257142f79a65207a881d5096;bootid=fc6a9866a051496daa1d677a739cefe2;pid=1405;pidfdid=1406;comm=(agetty);servicename=serial-getty@ttyS0.service;invocationid=0ca48f1c7e9a4a6e94f0f5abd699f928;type=service\P+q6E616D65\
+
+[1;32m<<< Nixie setup >>>[0m
+
+
+iso-test login: [   31.330750] nixie-finish[1910]: building the system configuration...
+[   35.677439] nixie-finish[1922]: these 14 derivations will be built:
+[   35.678864] nixie-finish[1922]:   /nix/store/9pk91l49cjq4kr795i3bbp6rz3vmal5y-etc-nixie-ui.json.drv
+[   35.680696] nixie-finish[1922]:   /nix/store/9zwa8xavlc3zv7s4d81smd8h65pnvdwg-issue.drv
+[   35.682328] nixie-finish[1922]:   /nix/store/y1qfghd48s7s39ndzs3rn9z9q4sji3gr-nixie-usbguard-declared.conf.drv
+[   35.684394] nixie-finish[1922]:   /nix/store/6znw5sv00186qaldia2j3zhhdfrnqgsn-X-Restart-Triggers-usbguard.drv
+[   35.686596] nixie-finish[1922]:   /nix/store/b6g6z0v0nzd7by7zd7a3zpvn3kp3f1kj-unit-script-usbguard-pre-start.drv
+[   35.688872] nixie-finish[1922]:   /nix/store/ganblprsind7sr3x6azibpfrjms9rl3v-unit-usbguard.service.drv
+[   35.690797] nixie-finish[1922]:   /nix/store/6lzsmmkq3c8kbq3p8nxwcacxk7kng80x-nixie-panel.drv
+[   35.692366] nixie-finish[1922]:   /nix/store/ylwdm1xabg68whpsxbrbq5vy7c67fkh0-unit-nixie-panel.service.drv
+[   35.694264] nixie-finish[1922]:   /nix/store/kzzslq65x3kdj6h2clxr4jpfg3dir4zj-system-units.drv
+[   35.695905] nixie-finish[1922]:   /nix/store/4b334xlwi5ll1b81rwhg78madfgbynmp-etc.drv
+[   35.697442] nixie-finish[1922]:   /nix/store/9rfsiwhi6v2bix2vsdyf7ak6kpq6ms4v-activate.drv
+[   35.699182] nixie-finish[1922]:   /nix/store/b2yqvxfcyamn9wl9v9cqy8hapjg6mpsc-boot.json.drv
+[   35.700873] nixie-finish[1922]:   /nix/store/gsvs6dxgk7dhdb7m8znclyq4hkd96lhc-install-systemd-boot.sh.drv
+[   35.702692] nixie-finish[1922]:   /nix/store/6qkkrcd3aqb273bhn3gpm8vw3w91jq6s-nixos-system-iso-test-site-601bef2-26.05.20260910.d58a46e.drv
+[   35.792394] nixie-finish[1922]: building '/nix/store/b2yqvxfcyamn9wl9v9cqy8hapjg6mpsc-boot.json.drv'...
+[   35.814993] nixie-finish[1922]: building '/nix/store/gsvs6dxgk7dhdb7m8znclyq4hkd96lhc-install-systemd-boot.sh.drv'...
+[   35.837973] nixie-finish[1922]: building '/nix/store/9pk91l49cjq4kr795i3bbp6rz3vmal5y-etc-nixie-ui.json.drv'...
+[   35.854681] nixie-finish[1922]: building '/nix/store/9zwa8xavlc3zv7s4d81smd8h65pnvdwg-issue.drv'...
+[   35.944563] nixie-finish[1922]: building '/nix/store/6lzsmmkq3c8kbq3p8nxwcacxk7kng80x-nixie-panel.drv'...
+[   35.962884] nixie-finish[1922]: building '/nix/store/y1qfghd48s7s39ndzs3rn9z9q4sji3gr-nixie-usbguard-declared.conf.drv'...
+[   36.010813] nixie-finish[1922]: building '/nix/store/6znw5sv00186qaldia2j3zhhdfrnqgsn-X-Restart-Triggers-usbguard.drv'...
+[   36.029987] nixie-finish[1922]: building '/nix/store/b6g6z0v0nzd7by7zd7a3zpvn3kp3f1kj-unit-script-usbguard-pre-start.drv'...
+[   36.081285] nixie-finish[1922]: building '/nix/store/ganblprsind7sr3x6azibpfrjms9rl3v-unit-usbguard.service.drv'...
+[   36.116891] nixie-finish[1922]: building '/nix/store/ylwdm1xabg68whpsxbrbq5vy7c67fkh0-unit-nixie-panel.service.drv'...
+[   36.235954] nixie-finish[1922]: building '/nix/store/kzzslq65x3kdj6h2clxr4jpfg3dir4zj-system-units.drv'...
+[   36.868219] nixie-finish[1922]: building '/nix/store/4b334xlwi5ll1b81rwhg78madfgbynmp-etc.drv'...
+[   37.197536] nixie-finish[1922]: building '/nix/store/9rfsiwhi6v2bix2vsdyf7ak6kpq6ms4v-activate.drv'...
+[   37.322093] nixie-finish[1922]: building '/nix/store/6qkkrcd3aqb273bhn3gpm8vw3w91jq6s-nixos-system-iso-test-site-601bef2-26.05.20260910.d58a46e.drv'...
+[   37.478033] nixie-finish[3532]: Checking switch inhibitors... done
+[   37.640393] nixie-finish[3529]: stopping the following units: nixie-setup.service, nixie-terminal.service, polkit-agent-helper.socket, usbguard.service
+[   37.647168] nixie-finish[3529]: activating the configuration...
+[   37.717393] nixie-finish[3579]: removing group ‘polkituser’
+[   37.718069] nixie-finish[3579]: removing group ‘nixie-kiosk’
+[   37.720037] nixie-finish[3579]: removing user ‘nixie-kiosk’
+[   37.720563] nixie-finish[3579]: removing user ‘polkituser’
+[   37.725691] nixie-finish[3550]: setting up /etc...
+[   37.746941] nixie-finish[3582]: removing obsolete symlink ‘/etc/tmpfiles.d/graphics-driver.conf’...
+[   37.747505] nixie-finish[3582]: removing obsolete symlink ‘/etc/polkit-1/rules.d/10-nixos.rules’...
+[   37.748171] nixie-finish[3582]: removing obsolete symlink ‘/etc/pam.d/systemd-run0’...
+[   37.748340] nixie-finish[3582]: removing obsolete symlink ‘/etc/pam.d/polkit-1’...
+[   37.748627] nixie-finish[3582]: removing obsolete symlink ‘/etc/pam.d/cage’...
+[   37.861650] nixie-finish[3529]: restarting sysinit-reactivation.target
+[   37.897478] nixie-finish[3529]: reloading the following units: dbus-broker.service, nftables.service
+[   37.943703] nixie-finish[3529]: starting the following units: usbguard.service
+[   38.271411] nixie-finish[3529]: the following new units were started: nixie-panel.service, sysinit-reactivation.target, systemd-ask-password-console.path, systemd-tmpfiles-resetup.service
+[   38.276755] nixie-finish[1910]: Done. The new configuration is /nix/store/j1kj9sq0z6rg5pap7pmrbj8dbb0zl296-nixos-system-iso-test-site-601bef2-26.05.20260910.d58a46e
+[   38.349449] nixie-finish[3817]: [0m[1m[32mNo changes.[0m[1m Your infrastructure matches the configuration.[0m
+[   38.351350] nixie-finish[3817]: [0mOpenTofu has compared your real infrastructure against your configuration and
+[   38.353257] nixie-finish[3817]: found no differences, so no changes are needed.
+[   38.394067] nixie-finish[3836]: [0m[1m[32m
+[   38.394887] nixie-finish[3836]: Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+[   38.411824] nixie-finish[3836]: [0m
+[   38.412461] nixie-finish[3858]: removing profile version 1
+[   39.996738] nixie-finish[1808]: [nixie finish] setup finished; the kiosk and the wizard are gone from this system

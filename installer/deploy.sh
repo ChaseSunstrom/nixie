@@ -61,7 +61,7 @@ if [ "$local" = 1 ]; then
         hard=false
         [ "$(gum choose --header "How much security" "Standard" "Hardened")" = Hardened ] && hard=true
         enc=$(if [ "$hard" = true ]; then echo true; else gum confirm "Encrypt the disk (passphrase every boot)?" && echo true || echo false; fi)
-        tpm=false; att=false; sb=false; dur=false; ru=false; usb=false; memenc=false
+        tpm=false; att=false; sb=false; dur=false; ru=false; usb=false; memenc=false; fido=false
         if [ "$enc" = true ]; then
           secret "Disk passphrase" >/run/nixie/keys/passphrase
           if [ "$hard" = true ]; then
@@ -69,7 +69,7 @@ if [ "$local" = 1 ]; then
             [ "$(jq -r .tpm <<<"$hw")" = true ] && { tpm=true; att=true; }
             [ "$tpm" = true ] && secret "TPM PIN" >/run/nixie/keys/pin
             secret "Duress passphrase (typed at boot, it destroys the disk)" >/run/nixie/keys/duress
-            say "Hardened: Secure Boot, a duress passphrase, USB device blocking and memory encryption are on${tpm:+, with the TPM and an attestation code}."
+            say "Hardened: Secure Boot, a duress passphrase, USB device blocking, memory encryption and SSH asking for the password after the key are on${tpm:+, with the TPM and an attestation code}."
           else
             if [ "$(jq -r .tpm <<<"$hw")" = true ]; then
               tpm=$(gum confirm "Bind to the TPM with a PIN?" && echo true || echo false)
@@ -81,6 +81,8 @@ if [ "$local" = 1 ]; then
             [ "$dur" = true ] && secret "Duress passphrase" >/run/nixie/keys/duress
             ru=$(gum confirm "Remote unlock over SSH at boot?" && echo true || echo false)
           fi
+          # It needs the key at hand, so even the hardened setup asks.
+          fido=$(gum confirm "Open the disk with a security key (FIDO2) too? It is enrolled after the first restart." && echo true || echo false)
         fi
         admin=$(ask "administrator user name" --value admin)
         # The system's own accounts cannot be the administrator (modules/auth.nix).
@@ -96,16 +98,18 @@ if [ "$local" = 1 ]; then
         # The same JSON the web wizard posts to /api/config, written by the same code.
         settings=$(jq -n --arg admin "$admin" --arg key "$keys" --arg mode "$mode" --argjson hyde "$hyde" \
           --argjson enc "$enc" --argjson tpm "$tpm" --argjson att "$att" --argjson sb "$sb" --argjson dur "$dur" --argjson ru "$ru" \
-          --argjson usb "$usb" --argjson memenc "$memenc" \
+          --argjson usb "$usb" --argjson memenc "$memenc" --argjson fido "$fido" --argjson hard "$hard" \
           '{"nixie.auth.admin.name": $admin, "nixie.auth.sshKeys": ([$key] | map(select(. != ""))),
             "nixie.security.encryption.enable": $enc, "nixie.security.tpm.enable": $tpm,
             "nixie.security.attestation.enable": $att, "nixie.security.secureBoot.enable": $sb,
             "nixie.security.duress.enable": $dur, "nixie.security.remoteUnlock.enable": $ru,
+            "nixie.security.fido2.enable": $fido,
             "nixie.network.bridge.mode": $mode}
            + (if $hyde then {"nixie.desktop.hyde.enable": true} else {} end)
            + (if $usb then {"nixie.security.hardening.usbguard.enable": true} else {} end)
            + (if $memenc then {"nixie.security.hardening.memoryEncryption.enable": true,
-                               "nixie.auth.ssh.passwordLogin": false} else {} end)')
+                               "nixie.auth.ssh.passwordLogin": false} else {} end)
+           + (if $hard then {"nixie.auth.ssh.keyAndPassword": true} else {} end)')
         jq -n --arg h "$host" --arg p "$profile" --arg d "$disk" --arg dd "$data" --argjson u "$uplinks" --arg g "$(jq -r .gpu <<<"$hw")" --argjson t "$(jq .tpm <<<"$hw")" --argjson s "$settings" \
           '{host:$h, profile:$p, systemDisk:$d, dataDisk:(if $dd=="" then null else $dd end), uplinks:$u, gpu:$g, tpm:$t, settings:$s}' \
           | nixie-setup --configure --front-end terminal --site "$NIXIE_SITE" --state-dir "$NIXIE_SETUP_DIR"
@@ -198,10 +202,14 @@ if [ "$continue" = 1 ]; then
       menu "Try again"
       continue
     fi
-    if [ "$next" = 6 ] && feature tpm; then
-      say "Bind the disk to this machine's TPM with a PIN."
+    if [ "$next" = 6 ] && { feature tpm || feature fido2; }; then
+      feature tpm && say "Bind the disk to this machine's TPM with a PIN."
       secret "Disk passphrase" >"$NIXIE_KEYS/passphrase"
-      secret "TPM PIN, asked at every start" >"$NIXIE_KEYS/pin"
+      if feature tpm; then secret "TPM PIN, asked at every start" >"$NIXIE_KEYS/pin"; fi
+      if feature fido2; then
+        say "Plug in your security key, and touch it when it blinks."
+        secret "The security key's PIN (empty if it has none)" >"$NIXIE_KEYS/fido2-pin"
+      fi
     fi
     rc=0; nixie-phase "$next" || rc=$?
     case "$rc" in

@@ -1,0 +1,9 @@
+== medium -cdrom, security hardened, profile server
+== boot the ISO (graphical entry)
+== phases 1 to 3: the site flake is evaluated and built on the ISO
+install took 188 s
+== first boot: unlock, then the setup generation
+== reboot: the TPM and PIN open the outer layer, the code is shown
+== finish: the setup service goes, the control panel stays
+hardened: USB blocking started, the attestation code and PIN prompt appeared
+test-iso: PASS (artifacts in /home/chase/.cache/nixie-iso-hardened)

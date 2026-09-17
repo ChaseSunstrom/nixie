@@ -49,6 +49,15 @@ for the recovery key and a PIN, walks Secure Boot enrolment (one reboot
 when the firmware is in Setup Mode), rebinds the TPM, regenerates the
 attestation secret and shows the new recovery key and QR once.
 
+Reading a disk elsewhere, for a clone or a rescue: boot the installer image
+(or any Nixie machine) with the disk attached and run `sudo nixie disk open`
+(the system partition by default, or name one, such as the data disk's
+`/dev/disk/by-partlabel/disk-data-data`). Each layer takes a security key,
+the recovery key or the passphrase (the TPM layer's recovery key is the one
+setup showed; the TPM itself never opens a disk outside its own boot). The pools come in read-only under
+temporary names, mounted at `/mnt/nixie` (`--mount` for elsewhere,
+`--write` to change things); `sudo nixie disk close` locks it all again.
+
 Disk headers: setup wrote `header-backup.tar.age` (all LUKS headers, the TPM
 lockout password and the attestation reseal password), encrypted to the
 host's age key and every recipient in `.sops.yaml`. Decrypt with

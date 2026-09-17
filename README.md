@@ -47,9 +47,13 @@ for the disk passphrase and PIN.
 
 ### Booting
 
-The splash in the machine's finish: the mark and an indeterminate bar while it
-starts, the attestation code before anything is typed, the TPM PIN and the
-passphrase on the same screen.
+The splash in the machine's finish, over a quiet boot from the loader on: the
+mark and an indeterminate bar while it starts, the attestation code under
+everything while anything is asked, and the TPM PIN and the passphrase on the
+same screen, with a note when one was wrong and while the disk opens. Hardened
+machines get it too, and the duress passphrase works at every prompt.
+`nixie.host.splashTheme` swaps in any Plymouth theme: one Plymouth ships, a
+package, or a directory from any repository.
 
 | | |
 |---|---|
@@ -247,6 +251,8 @@ grep -q 'gpu = true' guests.nix
 | `nixie rollback data <name> [--snapshot s] [--in-place]` | a state directory from a ZFS snapshot, beside the live one or in place |
 | `nixie reseal` | reseals attestation to the running boot chain |
 | `nixie security reenroll` | after a board, TPM or firmware change: Secure Boot enrolment, TPM + PIN binding with a new recovery key, attestation, lockout password, header backups; resumable, also from the front panel (`e`) ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
+| `nixie security add-key` | enrol another FIDO2 security key for the disk (a spare); asks for the passphrase, the key's PIN and a touch |
+| `nixie disk open [<partition>] [--mount <dir>] [--write]`, `nixie disk close` | open another Nixie disk, on the installer image or another machine, with a security key, the recovery key or the passphrase, its pools under temporary names at `/mnt/nixie`, read-only unless `--write` |
 | `nixie rollback --json` | every generation, guest and data snapshot and backup as JSON; the History screens read this |
 | `nixie hardware scan \| refresh` | compare the machine with `hosts/<name>/hardware.nix`, then rewrite it, commit and apply |
 | `nixie hardware add-disk <by-id> [name]` | format and mount a disk the site does not declare; it refuses any that it does |

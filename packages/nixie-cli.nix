@@ -85,6 +85,9 @@ pkgs.writeShellApplication {
       h "Security and hardware"
       c "reseal" "reseal attestation to this boot chain"
       c "security reenroll" "Secure Boot, TPM, recovery key again, after a board or firmware change"
+      c "security add-key" "enrol another security key (FIDO2) for the disk"
+      c "disk open [<partition>] [--mount dir] [--write]" "open another Nixie disk with its keys, read-only unless --write"
+      c "disk close" "unmount and lock what disk open opened"
       c "usb [--json] | usb allow <vendor:product>" "blocked USB devices, or allow one"
       c "hardware scan | refresh | add-disk <by-id>" "compare with hardware.nix, rewrite it, add a disk"
       h "Site"
@@ -296,7 +299,7 @@ pkgs.writeShellApplication {
       reseal)
         feature attestation || { echo "attestation is off; nothing to reseal"; exit 0; }
         tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery 2>/dev/null)" -p 4,7,8,9 </dev/null \
-          && { mkdir -p /boot/nixie; cat /run/current-system/nixos-version >/boot/nixie/attestation-generation; echo "attestation resealed to the current boot chain"; } ;;
+          && { mkdir -p /boot/nixie; readlink -f /run/booted-system | tr -d '\n' >/boot/nixie/attestation-generation; echo "attestation resealed to the running boot chain"; } ;;
       menu)
         command -v nixie-menu >/dev/null || { echo "the menu is part of the desktop profile" >&2; exit 2; }
         exec nixie-menu "$@" ;;
@@ -310,7 +313,23 @@ pkgs.writeShellApplication {
         command -v nixie-backup >/dev/null || { echo "backups are off on this host" >&2; exit 2; }
         exec nixie-backup "$@" ;;
       security)
-        [ "''${1:-}" = reenroll ] || { echo "usage: nixie security reenroll [--backup-dest <dir>]" >&2; exit 2; }
+        # A key already plugged in may be blocked; FIDO2 keys are HID devices
+        # without a boot protocol.
+        if [ "''${1:-}" = add-key ]; then
+          dev=$(layout '.luks[]? | select(.name == "rpool") | .device')
+          [ -n "$dev" ] || { echo "this machine's disk is not encrypted" >&2; exit 2; }
+          rule=""
+          if systemctl is-active -q usbguard 2>/dev/null; then
+            for id in $(usbguard list-devices -b | grep -E 'with-interface (\{[^}]*)?03:00:00' | cut -d: -f1); do usbguard allow-device "$id"; done
+            rule=$(usbguard append-rule -t 'allow with-interface one-of { 03:00:00 }' || true)
+          fi
+          echo "Plug in the security key. You are asked for the disk passphrase, then the key's PIN, then a touch."
+          rc=0
+          systemd-cryptenroll --fido2-device=auto "$dev" || rc=$?
+          [ -z "$rule" ] || usbguard remove-rule "$rule" >/dev/null 2>&1 || true
+          exit "$rc"
+        fi
+        [ "''${1:-}" = reenroll ] || { echo "usage: nixie security reenroll [--backup-dest <dir>] | add-key" >&2; exit 2; }
         shift
         d=/var/lib/nixie/reenroll
         mkdir -p "$d" /run/nixie/keys; chmod 700 /run/nixie/keys
@@ -319,7 +338,7 @@ pkgs.writeShellApplication {
         # until the end.
         rule=""
         if systemctl is-active -q usbguard 2>/dev/null; then
-          for id in $(usbguard list-devices -b | grep -E 'with-interface [^ ]*03:0[01]:01' | cut -d: -f1); do usbguard allow-device "$id"; done
+          for id in $(usbguard list-devices -b | grep -E 'with-interface (\{[^}]*)?03:0[01]:01' | cut -d: -f1); do usbguard allow-device "$id"; done
           rule=$(usbguard append-rule -t 'allow with-interface one-of { 03:00:01 03:01:01 }' || true)
         fi
         if feature tpm && [ -t 0 ]; then
@@ -349,6 +368,61 @@ pkgs.writeShellApplication {
         fi
         [ -z "$rule" ] || usbguard remove-rule "$rule" >/dev/null 2>&1 || true
         exit "$rc" ;;
+      disk)
+        # Another Nixie disk, opened by hand for a clone or a rescue: on the
+        # installer image or another machine. Each layer takes a security key,
+        # the recovery key or the passphrase; not the TPM, whose seal never
+        # opens anywhere but in the boot it was made for, and which would only
+        # ask for a PIN first. The pools come in under temporary names, so
+        # they cannot clash with this machine's own.
+        case "''${1:-}" in
+          open)
+            shift
+            dev=""; at=/mnt/nixie; rw=0
+            while [ $# -gt 0 ]; do
+              case "$1" in --mount) at=$2; shift ;; --write) rw=1 ;; *) dev=$1 ;; esac
+              shift
+            done
+            [ -n "$dev" ] || dev=/dev/disk/by-partlabel/disk-system-system
+            dev=$(readlink -f "$dev")
+            [ -b "$dev" ] || { echo "usage: nixie disk open [<partition>] [--mount <dir>] [--write]" >&2; exit 2; }
+            cur=$dev; i=0
+            while cryptsetup isLuks "$cur"; do
+              name="nixie-$(basename "$dev")-$i"
+              opts=""
+              [ "$rw" = 1 ] || opts="readonly"
+              # A security key only where one is enrolled: asked for one
+              # elsewhere, systemd-cryptsetup gives up instead of asking.
+              if cryptsetup luksDump "$cur" | grep -q systemd-fido2; then
+                opts="''${opts:+$opts,}fido2-device=auto,token-timeout=5s"
+              fi
+              if [ ! -e "/dev/mapper/$name" ]; then
+                echo "Opening $cur: a security key, the recovery key or the passphrase."
+                # Without token modules systemd-cryptsetup tries only what
+                # opts names; with them it first asks for the PIN of every
+                # token, the TPM's included.
+                SYSTEMD_CRYPTSETUP_USE_TOKEN_MODULE=0 ${pkgs.systemd}/lib/systemd/systemd-cryptsetup attach "$name" "$cur" none "''${opts:-luks}"
+              fi
+              cur=/dev/mapper/$name; i=$((i + 1))
+            done
+            pool=$(zpool import -d "$cur" 2>/dev/null | awk '$1 == "pool:" { print $2; exit }')
+            if [ -z "$pool" ]; then
+              echo "no storage pool to import inside $dev (is it this machine's own, already in use?)" >&2
+              exit 1
+            fi
+            ro=(-o readonly=on); [ "$rw" = 0 ] || ro=()
+            # Forced: the pool was last used by the machine it came from.
+            zpool import -N -f "''${ro[@]}" -R "$at" -d "$cur" -t "$pool" "nixie-$pool"
+            zfs list -H -o name,mountpoint -r "nixie-$pool" | sort -k2 | while read -r ds mp; do
+              [ "$mp" = none ] || [ "$mp" = legacy ] || zfs mount "$ds"
+            done
+            echo "$dev is open at $at$([ "$rw" = 1 ] || echo ", read-only"); 'nixie disk close' locks it again." ;;
+          close)
+            zpool list -H -o name | grep '^nixie-' | while read -r p; do zpool export "$p"; done
+            find /dev/mapper -name 'nixie-*-[0-9]*' -printf '%f\n' | sort -r | while read -r m; do cryptsetup close "$m"; done
+            echo "closed" ;;
+          *) echo "usage: nixie disk open [<partition>] [--mount <dir>] [--write] | close" >&2; exit 2 ;;
+        esac ;;
       hardware)
         facts=/etc/nixie/hardware.json
         hw="$site/hosts/$host/hardware.nix"

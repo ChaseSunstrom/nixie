@@ -74,6 +74,7 @@ let
       n: u: lib.hasPrefix "nixie-" n && lib.hasSuffix ".service" n && (u.enable or true)
     ) sys.config.systemd.units;
   documentedExposure = [
+    "nixie-attestation-reseal"
     "nixie-backup-check"
     "nixie-gc"
     "nixie-fetch"
@@ -102,7 +103,12 @@ let
       };
     };
   } "server";
-  unitsToCheck = platformUnits kioskServer // platformUnits laptop;
+  # The wizard's every-feature server adds the security units (attestation
+  # among them) that the kiosk server does not turn on.
+  unitsToCheck =
+    platformUnits kioskServer
+    // platformUnits laptop
+    // platformUnits (testHost ./sites (import ./sites/wizard-server.nix) "host");
 
   nixieOptions = lib.filterAttrs (n: _: n != "_module") server.options.nixie;
   undocumented = lib.filter (o: (o.description or "") == "") (lib.collect lib.isOption nixieOptions);
@@ -409,7 +415,7 @@ in
     pkgs.writeText "iso-config" (lib.concatStringsSep "\n" (lib.attrNames facts));
 
   # What an installed machine shows from power-on to Finish: no loader menu,
-  # the splash unless a feature needs the text console, and during setup the
+  # the splash with every prompt on it, and during setup the
   # front end chosen at the image's boot menu, on a desktop as on a server.
   boot-and-setup =
     let
@@ -431,7 +437,29 @@ in
         "no loader menu" = laptop.config.boot.loader.timeout == 0 && server.config.boot.loader.timeout == 0;
         "the Nixie splash" =
           laptop.config.boot.plymouth.enable && laptop.config.boot.plymouth.theme == "nixie";
-        "no splash with duress or attestation" = !duressHost.boot.plymouth.enable;
+        "the splash with duress and attestation, asked by one agent" =
+          let
+            initrd = duressHost.boot.initrd.systemd;
+          in
+          duressHost.boot.plymouth.enable
+          && initrd.services ? nixie-unlock
+          && initrd.paths ? nixie-unlock
+          && !initrd.services.systemd-ask-password-plymouth.enable
+          && !initrd.paths.systemd-ask-password-plymouth.enable
+          && lib.elem "systemd-ask-password-console.service" initrd.suppressedUnits
+          && initrd.services.nixie-attestation.serviceConfig.Type == "simple"
+          && lib.hasSuffix "/nixie-unlock" initrd.users.root.shell;
+        "no text under the splash" =
+          lib.elem "quiet" laptop.config.boot.kernelParams && !laptop.config.boot.initrd.verbose;
+        "a theme Plymouth ships, by name" =
+          (testHost ../examples/desktop-site {
+            hosts.laptop = desktopSite.hosts.laptop // {
+              settings = {
+                imports = [ desktopSite.hosts.laptop.settings ];
+                nixie.host.splashTheme.name = "spinner";
+              };
+            };
+          } "laptop").config.boot.plymouth.theme == "spinner";
         "the splash and the greeter follow the finish" =
           let
             paper =
@@ -468,6 +496,64 @@ in
     in
     assert lib.assertMsg (failed == [ ]) "boot-and-setup: ${lib.concatStringsSep "; " failed}";
     pkgs.writeText "boot-and-setup" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
+  # Security keys: FIDO2 on the passphrase layer, which the passphrase still
+  # opens, and SSH asking for the password after the key.
+  hardware-keys =
+    let
+      withSettings =
+        extra:
+        (testHost ../examples/site {
+          hosts.server = exampleSite.hosts.server // {
+            settings = {
+              imports = [
+                exampleSite.hosts.server.settings
+                extra
+              ];
+            };
+          };
+        } "server").config;
+      host = withSettings {
+        nixie.security.encryption.enable = true;
+        nixie.security.fido2.enable = true;
+        nixie.auth.ssh.keyAndPassword = true;
+        nixie.auth.sshKeys = [ "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t test" ];
+      };
+      pasted = withSettings { nixie.auth.sshKeys = [ "-----BEGIN OPENSSH PRIVATE KEY-----" ]; };
+      sshd = host.services.openssh.settings;
+      facts = {
+        "the security key opens the passphrase layer" =
+          lib.elem "fido2-device=auto" host.boot.initrd.luks.devices.rpool.crypttabExtraOpts
+          && host.boot.initrd.systemd.fido2.enable;
+        "phase 6 is told to enrol it" =
+          (builtins.fromJSON host.environment.etc."nixie/layout.json".text).features.fido2;
+        "SSH asks for the password after the key" =
+          sshd.AuthenticationMethods == "publickey,password" && sshd.PasswordAuthentication;
+        "a pasted private key is refused with the reason" = lib.any (
+          a: !a.assertion && lib.hasInfix "private key" a.message
+        ) pasted.assertions;
+      };
+      failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
+    in
+    assert lib.assertMsg (failed == [ ]) "hardware-keys: ${lib.concatStringsSep "; " failed}";
+    pkgs.writeText "hardware-keys" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
+  # A theme found at any depth of its source and installed into the initrd
+  # with its paths pointed at the copy.
+  splash-theme =
+    let
+      host = (testHost ./sites (import ./sites/splash-theme.nix) "host").config;
+    in
+    assert host.boot.plymouth.theme == "demo";
+    pkgs.runCommand "splash-theme"
+      {
+        themes = host.boot.initrd.systemd.contents."/etc/plymouth/themes".source;
+      }
+      ''
+        grep -qx "ScriptFile=$themes/demo/demo.script" "$themes/demo/demo.plymouth"
+        test -s "$themes/demo/demo.script"
+        touch "$out"
+      '';
 
   # GRUB reads PNGs with 8 or 16 bits per channel only and otherwise stops at
   # "Press any key to continue", which shows on UEFI boots and nowhere else.
@@ -650,6 +736,17 @@ in
   };
 
   vm-encryption = import ./vm/encryption.nix {
+    inherit
+      pkgs
+      inputs
+      nixieLib
+      exampleSite
+      ;
+    nixieInstaller = self.packages.x86_64-linux.nixie-installer;
+    nixieCli = self.packages.x86_64-linux.nixie-cli;
+  };
+
+  vm-splash = import ./vm/splash.nix {
     inherit
       pkgs
       inputs

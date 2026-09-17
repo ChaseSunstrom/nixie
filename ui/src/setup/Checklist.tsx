@@ -92,16 +92,18 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
   const phases = [
     { n: 4, title: "First start", blurb: "The identity and the site are in place.", used: true },
     { n: 5, title: "Secure Boot", blurb: "Turn Secure Boot on with this machine's own keys.", used: Boolean(features.secureBoot) },
-    { n: 6, title: features.tpm ? "Disk unlock" : "Header backup", blurb: features.tpm ? "Bind the disk to this machine's TPM with a PIN, and test that they open it." : "Save a backup of the disk's encryption headers.", used: Boolean(features.encryption) },
+    { n: 6, title: features.tpm || features.fido2 ? "Disk unlock" : "Header backup", blurb: features.tpm ? `Bind the disk to this machine's TPM with a PIN, and test that they open it${features.fido2 ? "; enrol your security key" : ""}.` : features.fido2 ? "Enrol your security key, so it opens the disk at start." : "Save a backup of the disk's encryption headers.", used: Boolean(features.encryption) },
     { n: 7, title: "Checks", blurb: "Confirm each security feature works on this start.", used: true },
     { n: 8, title: "Apply the site", blurb: "Create the guests, data and services the site declares.", used: true },
   ];
   const next = phases.find((p) => !done.includes(p.n));
-  const waiting = next?.n === 5 ? sb !== null : next?.n === 6 && Boolean(features.tpm);
+  // Phase 6 needs the passphrase, and a PIN, from the person.
+  const asks = Boolean(features.tpm || features.fido2);
+  const waiting = next?.n === 5 ? sb !== null : next?.n === 6 && asks;
 
   const go = async (n: number) => {
     setSb(null);
-    if (n === 6) await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "" });
+    if (n === 6) await api.secrets({ passphrase: secrets.passphrase ?? "", pin: secrets.pin ?? "", "fido2-pin": secrets.fido2 ?? "" });
     const rc = await run(n);
     if (n === 5 && (rc === 10 || rc === 11 || rc === 12)) setSb(rc);
     if (n === 6 && rc === 0) api.attestation().then((a) => setRecovery({ key: a.recovery, qr: a.recoveryQr, attestUri: a.attestUri, attestQr: a.attestQr })).catch(() => undefined);
@@ -137,7 +139,7 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
   };
 
   const bodyFor = (n: number): ReactNode => {
-    if (failed === n && !(n === 6 && features.tpm)) return <div className="row"><button className="btn primary" disabled={busy} onClick={() => go(n)}>Try again</button></div>;
+    if (failed === n && !(n === 6 && asks)) return <div className="row"><button className="btn primary" disabled={busy} onClick={() => go(n)}>Try again</button></div>;
     if (n === 5 && sb === 10)
       return (
         <>
@@ -171,12 +173,18 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
           </div>
         </>
       );
-    if (n === 6 && features.tpm)
+    if (n === 6 && asks)
       return (
         <form className="fields" onSubmit={(e) => { e.preventDefault(); void go(6); }}>
           <Field label="Disk passphrase"><input className="input" type="password" autoFocus value={secrets.passphrase ?? ""} onChange={(e) => setSecrets({ ...secrets, passphrase: e.target.value })} /></Field>
-          <Field label="TPM PIN, asked at every start"><input className="input" type="password" value={secrets.pin ?? ""} onChange={(e) => setSecrets({ ...secrets, pin: e.target.value })} /></Field>
-          <div className="row"><button className="btn primary" disabled={busy || !secrets.passphrase || !secrets.pin}>Continue</button></div>
+          {features.tpm && <Field label="TPM PIN, asked at every start"><input className="input" type="password" value={secrets.pin ?? ""} onChange={(e) => setSecrets({ ...secrets, pin: e.target.value })} /></Field>}
+          {features.fido2 && (
+            <>
+              <p className="caption">Plug in your security key, and touch it when it blinks after Continue.</p>
+              <Field label="The security key's PIN (empty if it has none)"><input className="input" type="password" value={secrets.fido2 ?? ""} onChange={(e) => setSecrets({ ...secrets, fido2: e.target.value })} /></Field>
+            </>
+          )}
+          <div className="row"><button className="btn primary" disabled={busy || !secrets.passphrase || (Boolean(features.tpm) && !secrets.pin)}>Continue</button></div>
         </form>
       );
     return null;

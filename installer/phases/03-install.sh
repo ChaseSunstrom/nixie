@@ -42,9 +42,15 @@ step "partitioning and formatting"
 
 if feature duress; then
   have_secret duress || die "no duress passphrase given"
-  dev=$(layout '.luks[] | select(.name == "rpool") | .device')
-  cryptsetup luksAddKey --key-slot 7 --key-file "$(secret_file passphrase)" "$dev" "$(secret_file duress)"
-  log "duress passphrase enrolled in slot 7 of $dev"
+  # On every layer a person types at, so it works at the PIN prompt too. An
+  # unbound slot only verifies: the duress passphrase opens nothing, here or
+  # on any other machine. The unlock agent tests this one slot at every
+  # prompt, so its key derivation is kept to a second.
+  for dev in $(layout '.luks[] | select(.name != "dpool") | .device'); do
+    cryptsetup luksAddKey --unbound --key-size 512 --iter-time 1000 --key-slot 7 \
+      --key-file "$(secret_file passphrase)" "$dev" "$(secret_file duress)"
+    log "duress passphrase enrolled in slot 7 of $dev"
+  done
 fi
 
 step "writing this machine's keys"
