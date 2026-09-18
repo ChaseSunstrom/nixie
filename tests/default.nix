@@ -493,6 +493,16 @@ in
         "no loader menu" = laptop.config.boot.loader.timeout == 0 && server.config.boot.loader.timeout == 0;
         "the Nixie splash" =
           laptop.config.boot.plymouth.enable && laptop.config.boot.plymouth.theme == "nixie";
+        # The code comes from the TPM, but this unit runs in front of every
+        # disk prompt: ordered after a device unit for a TPM that never
+        # appears, it would hold the prompt for the device timeout.
+        "the attestation code never waits for a TPM in front of the prompt" =
+          let
+            unit = duressHost.boot.initrd.systemd.services.nixie-attestation;
+          in
+          !(lib.elem "dev-tpmrm0.device" (unit.after or [ ]))
+          && !(lib.elem "dev-tpmrm0.device" (unit.wants or [ ]))
+          && lib.elem "cryptsetup-pre.target" unit.before;
         "the splash with duress and attestation, asked by one agent" =
           let
             initrd = duressHost.boot.initrd.systemd;

@@ -49,6 +49,10 @@ line() { if [ "$kind" = code ]; then echo "Attestation code $text"; else echo "$
 
 case ${1:-once} in
   once)
+    # The TPM's device node, for a few seconds only: this runs in front of
+    # every disk prompt, so waiting here is waiting the person does. A
+    # machine without one says there is no code and gets out of the way.
+    for _ in $(seq 20); do [ -e /dev/tpmrm0 ] && break; sleep 0.25; done
     if [ -n "$esp" ] && [ -e "$esp" ]; then
       mkdir -p /run/nixie-esp
       if mount -o ro "$esp" /run/nixie-esp 2>/dev/null; then

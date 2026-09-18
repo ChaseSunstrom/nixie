@@ -141,6 +141,13 @@ offers the previous system, to the screen and to the kernel log at error
 level so a quiet console still shows it. It runs before the panic that
 `boot.panic_on_fail` triggers on that same target.
 
+The attestation code can no longer hold up the passphrase prompt. Its initrd
+service runs in front of every prompt so the code is shown first, and it
+waited on the TPM's device unit to do so: on a machine where that device
+never appears the prompt waited out the device timeout with it, ninety
+seconds of a machine that looks hung. It waits five seconds for the device
+itself now and says there is no code if it never comes.
+
 `nix run .#test-iso` takes `--disk virtio|sata` as well as `--tpm tis|crb`: machines and hypervisors differ
 in which interface their TPM speaks, and each is a different kernel module.
 

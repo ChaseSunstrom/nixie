@@ -1290,7 +1290,7 @@ single-process `nix flake check` does not fit in this host's memory; see
 | check | result |
 |---|---|
 | boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, registry, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (55s), vm-boot-plain (41s), vm-console (261s), vm-data (56s), vm-desktop (146s), vm-egress (104s), vm-encryption (409s), vm-guests (81s), vm-hardware (63s), vm-host-ui (21s), vm-installer-lan (241s), vm-monitoring (69s), vm-rollback (157s), vm-splash (551s), vm-ui (19s), vm-updates (45s) | pass |
+| vm-backup (54s), vm-boot-plain (66s), vm-console (263s), vm-data (56s), vm-desktop (131s), vm-egress (96s), vm-encryption (378s), vm-guests (98s), vm-hardware (54s), vm-host-ui (46s), vm-installer-lan (236s), vm-monitoring (104s), vm-rollback (151s), vm-splash (1s), vm-ui (42s), vm-updates (41s) | pass |
 
 Beyond the checks:
 
@@ -1825,6 +1825,26 @@ the hardened install with Secure Boot passes on both.
 |---|---|
 | `nix run .#test-iso --security hardened --tpm crb` | pass; keys staged, the same as with TIS |
 | `nix run .#test-iso --security hardened --disk sata` | pass; keys staged, the same as on virtio |
+
+None of that reproduced the report, but reading for it found something worth
+fixing on its own. The initrd's attestation service is ordered in front of
+every disk prompt, so the code is on the screen before anyone types; it also
+declared `After=dev-tpmrm0.device`. On a machine where that device never
+appears -- no TPM, a driver that does not load, a hypervisor that presents
+it differently -- systemd waits the device job out before starting it, and
+the prompt waits with it: ninety seconds of a machine that looks hung, while
+`initrd-root-device.target` runs its own ninety-second clock. The unit no
+longer orders itself after the device; the script waits five seconds for it
+and says there is no code if it never comes.
+
+What that is verified by, and what it is not: `boot-and-setup` pins the
+ordering so it cannot creep back, and `vm-splash` -- which boots a machine
+that does have a TPM and reads the code off the screen by OCR before the PIN
+prompt -- shows the code still arrives first. No test here boots a machine
+with attestation on and no TPM at all: that wants an installed encrypted
+disk, which is a full installer run. The ninety seconds is what systemd's
+device timeout is, not something measured on such a machine.
+
 | `vm-boot-plain` (extended) | pass; a node told to go straight to the initrd's emergency target shows the report on its console, before the panic that a failed start triggers there |
 | `nix run .#test-iso --security hardened` (now the wizard's preset) | pass, keys staged |
 

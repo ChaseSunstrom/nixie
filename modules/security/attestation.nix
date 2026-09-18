@@ -65,19 +65,20 @@ in
       wantedBy = [ "initrd.target" ];
       # cryptsetup units are ordered after this passive target, so pulling it
       # in and starting before it puts the code ahead of every prompt.
-      wants = [
-        "cryptsetup-pre.target"
-        "dev-tpmrm0.device"
-      ];
+      wants = [ "cryptsetup-pre.target" ];
       before = [
         "cryptsetup-pre.target"
         "initrd-switch-root.target"
         "shutdown.target"
       ];
-      after = [
-        "dev-tpmrm0.device"
-        "plymouth-start.service"
-      ];
+      # Not after dev-tpmrm0.device, though the code comes from the TPM:
+      # this unit is ordered in front of every disk prompt, so anything it
+      # waits for the prompt waits for too, and a device unit for a TPM that
+      # never appears is not waited out until the device timeout -- ninety
+      # seconds of a machine looking hung before it asks for the passphrase.
+      # The script waits a few seconds for the device itself instead, and
+      # says there is no code if it never comes.
+      after = [ "plymouth-start.service" ];
       conflicts = [
         "initrd-switch-root.target"
         "shutdown.target"
