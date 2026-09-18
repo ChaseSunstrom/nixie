@@ -253,7 +253,7 @@ grep -q 'gpu = true' guests.nix
 | `nixie security reenroll` | after a board, TPM or firmware change: Secure Boot enrolment, TPM + PIN binding with a new recovery key, attestation, lockout password, header backups; resumable, also from the front panel (`e`) ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
 | `nixie update [--check \| --now]` | whether the site repository is ahead of this machine, and apply it; the timer does this by itself (`nixie.updates.mode`) |
 | `nixie update --inputs [name…]` | update what the site pins, the platform itself among them, then apply; the other machines follow it as they do any change |
-| `nixie notices` | what this machine wants you to know, as the front panel, the host page and the desktop show it |
+| `nixie notices` | what this machine wants you to know, as the front panel, the control panel, the host page and the desktop show it |
 | `nixie secure-boot [--sign]` | what the firmware holds, what is staged and what is signed, when a start says "Access Denied" |
 | `nixie security add-key` | enrol another FIDO2 security key for the disk (a spare); asks for the passphrase, the key's PIN and a touch |
 | `nixie disk open [<partition>] [--mount <dir>] [--write]`, `nixie disk close` | open another Nixie disk, on the installer image or another machine, with a security key, the recovery key or the passphrase, its pools under temporary names at `/mnt/nixie`, read-only unless `--write` |
@@ -274,7 +274,7 @@ or catch up:
 
 | mode | what a machine does when the repository moves ahead |
 |---|---|
-| `notify` (the default) | says so on the front panel, the host page, a desktop notification and at login, and waits for `nixie update --now` |
+| `notify` (the default) | says so on the front panel, the control panel, the host page, a desktop notification and at login, and waits for `nixie update --now` |
 | `auto` | applies it by itself, then confirms only if `nixie doctor` comes out no worse than before; otherwise the machine puts itself back (`nixie.updates.confirmWithin`) |
 | `off` | does not look |
 

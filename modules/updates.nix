@@ -32,7 +32,7 @@ in
       description = ''
         What this machine does when the site repository holds a newer commit
         than the one it is running. "notify" says so on the front panel, the
-        host page, the desktop and at login, and waits for
+        control panel, the host page, the desktop and at login, and waits for
         `nixie update --now`. "auto" applies it by itself, undoing it if the
         new system comes out less healthy than the one it replaced. "off"
         does not look.

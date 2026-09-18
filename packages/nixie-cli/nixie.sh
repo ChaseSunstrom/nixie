@@ -280,6 +280,16 @@ case "$cmd" in
       mkdir -p /run/nixie
       printf '%s\n' "$out" >/run/nixie/notices.json
       chmod 644 /run/nixie/notices.json
+      # The control panel reads them from the daemon's own configuration,
+      # which takes a client certificate: a file served beside the bundle
+      # would tell anyone who opens the page that a backup failed. The
+      # notices themselves go there, without the time they were collected,
+      # so an unchanged machine writes nothing every quarter of an hour --
+      # each write is an event that wakes every open panel.
+      if [ "$guests" = 1 ] && systemctl is-active -q incus 2>/dev/null; then
+        [ "$(incus config get user.nixie.notices 2>/dev/null)" = "$items" ] ||
+          incus config set user.nixie.notices "$items" >/dev/null 2>&1 || true
+      fi
     fi
     if [ "$json" = 1 ]; then printf '%s\n' "$out"; exit 0; fi
     if [ "$write" = 1 ]; then exit 0; fi

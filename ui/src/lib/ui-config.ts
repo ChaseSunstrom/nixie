@@ -6,6 +6,17 @@ import type { Finish } from "../tokens";
 
 export const UI_KEY = "user.nixie.ui";
 
+// What the host wants a person to know, written by `nixie notices` into the
+// same free-form server configuration: the notices themselves, without the
+// time they were collected, so an unchanged machine does not rewrite the
+// value (and wake every panel) every quarter of an hour. They go there
+// rather than into a file beside the bundle because reading the daemon's
+// configuration needs a client certificate, and a backup that failed is
+// nobody else's business.
+export const NOTICES_KEY = "user.nixie.notices";
+
+export type Notice = { id: string; level: string; title: string; detail: string; action: string };
+
 export type UiConfig = {
   theme?: Finish;
   range?: string;

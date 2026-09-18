@@ -40,6 +40,28 @@ incus config trust add-certificate client.crt`}</pre>
   );
 }
 
+// What the host wants a person to know, on every page. The panel says it
+// and names the command; acting on it is the machine's own business, which
+// is why nothing here reaches past the daemon (D39).
+function Notices() {
+  const { notices } = useStore();
+  const [hidden, setHidden] = useState<string[]>([]);
+  const shown = notices.filter((n) => !hidden.includes(n.id));
+  if (!shown.length) return null;
+  return (
+    <div className="notices">
+      {shown.map((n) => (
+        <div key={n.id} className={"notice" + (n.level === "warn" ? " warn" : "")}>
+          <span className="notice-title">{n.title}</span>
+          <span className="muted">{n.detail}</span>
+          <code className="notice-action">{n.action}</code>
+          <button className="btn icon" aria-label={`Hide: ${n.title}`} onClick={() => setHidden((h) => [...h, n.id])}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function App() {
   const route = useHashRoute();
   const { instances, history, range, setRange, site, ui, demo, auth, operations } = useStore();
@@ -133,6 +155,7 @@ export function App() {
           <a key={l.url} href={l.url}>{l.label}</a>
         ))}
       </nav>
+      <Notices />
       <main className="page">
         <div className="route" key={page}>
         {page === "overview" && <Overview />}

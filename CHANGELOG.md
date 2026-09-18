@@ -85,7 +85,10 @@ say -- an update waiting, an apply to confirm, an attestation to reseal, a
 failed backup check, a service that failed, a blocked USB device -- is
 collected by `nixie notices`
 into one file that each of those surfaces reads, and the front panel gained
-`u` for applying what is waiting.
+`u` for applying what is waiting. The control panel shows them under its
+navigation, read from the daemon's own configuration, so they take the
+client certificate the rest of the panel does rather than being served
+beside the bundle to anyone who opens the page.
 
 `nixie secure-boot` answers what "Access Denied" means on a machine: whether
 the firmware holds this machine's keys, whether they are staged on the boot

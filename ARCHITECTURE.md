@@ -1225,8 +1225,12 @@ and runs `nixie apply`.
   that one file: the front panel (and its `u` key), the host page's card, a
   desktop notification through a user path unit, the login line
   (`environment.interactiveShellInit`; NixOS has no `/etc/profile.d`) and
-  `nixie doctor`. The control panel is a static bundle served by incusd with
-  nowhere to read a live file from, so it is the one surface without it.
+  `nixie doctor`. The control panel, a static bundle with no host to ask,
+  reads them from the daemon's own `user.nixie.notices` -- the free-form
+  server configuration its settings already live in, which takes the client
+  certificate the rest of its data does; a file beside the bundle would tell
+  anyone who opened the page that a backup had failed. It says the notice
+  and names the command, and acting on it stays the machine's own business.
 - **D38 Code lives in files, not in Nix strings.** Asked for after the
   modules had grown long: shell, Lua, CSS, HTML, JavaScript and the tests'
   Python sat inside `''` strings, where an editor sees one string, shellcheck

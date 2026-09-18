@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { incus, parseMetrics, type Backend, type Instance, type Op } from "./api";
 import { demo, demoSeries } from "./demo";
 import { applyFinish, type Finish, type Tokens } from "../tokens";
-import { UI_KEY, type UiConfig } from "./ui-config";
+import { NOTICES_KEY, UI_KEY, type Notice, type UiConfig } from "./ui-config";
 
 export type Machine = { name: string; profile: string; url: string | null };
 export type SiteConfig = {
@@ -62,6 +62,7 @@ type Store = {
   toast: (msg: string, err?: boolean) => void;
   toasts: { id: number; msg: string; err: boolean }[];
   auth: string;
+  notices: Notice[];
   run: <T>(label: string, p: Promise<T>) => Promise<T | undefined>;
 };
 
@@ -88,6 +89,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [operations, setOperations] = useState<Op[]>([]);
   const [events, setEvents] = useState<Store["events"]>([]);
   const [toasts, setToasts] = useState<Store["toasts"]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
   const history = useRef<History>({});
   const [, tick] = useState(0);
 
@@ -172,9 +174,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     refreshing.current = "busy";
     try {
-      const [ins, ops] = await Promise.all([api.instances(), api.operations()]);
+      // The host's own notices ride along with the poll: they are a value in
+      // the daemon's configuration, so no second connection and nothing on
+      // the host to ask.
+      const [ins, ops, srv] = await Promise.all([api.instances(), api.operations(), api.server().catch(() => null)]);
       setInstances(ins);
       setOperations(ops);
+      try {
+        setNotices(JSON.parse((srv?.config ?? {})[NOTICES_KEY] ?? "[]"));
+      } catch {
+        // Edited by hand into something other than JSON: say nothing.
+        setNotices([]);
+      }
     } catch (e) {
       toast(String((e as Error).message), true);
     } finally {
@@ -270,9 +281,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<Store>(
-    () => ({ api, demo: api.demo, site, finish, setFinish, ui, saveUi, range, setRange, cursor, setCursor, instances, operations, events, history: history.current, refresh, toast, toasts, auth, run }),
+    () => ({ api, demo: api.demo, site, finish, setFinish, ui, saveUi, range, setRange, cursor, setCursor, instances, operations, events, history: history.current, refresh, toast, toasts, auth, notices, run }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [api, site, finish, ui, range, cursor, instances, operations, events, toasts, auth],
+    [api, site, finish, ui, range, cursor, instances, operations, events, toasts, auth, notices],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

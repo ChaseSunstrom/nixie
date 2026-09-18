@@ -789,7 +789,10 @@ in
 
   vm-monitoring = import ./vm/monitoring.nix { inherit pkgs nixieLib exampleSite; };
 
-  vm-ui = import ./vm/ui.nix { inherit pkgs nixieLib exampleSite; };
+  vm-ui = import ./vm/ui.nix {
+    inherit pkgs nixieLib exampleSite;
+    nixieCli = self.packages.x86_64-linux.nixie-cli;
+  };
 
   vm-host-ui = import ./vm/host-ui.nix {
     inherit pkgs nixieLib exampleSite;

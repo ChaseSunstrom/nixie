@@ -4,6 +4,7 @@
   pkgs,
   nixieLib,
   exampleSite,
+  nixieCli,
 }:
 let
   inherit (pkgs) lib;
@@ -45,6 +46,7 @@ pkgs.testers.runNixOSTest {
       }
     ];
     environment.systemPackages = [
+      nixieCli
       pkgs.curl
       pkgs.jq
     ];

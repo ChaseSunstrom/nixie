@@ -1289,8 +1289,8 @@ single-process `nix flake check` does not fit in this host's memory; see
 
 | check | result |
 |---|---|
-| boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security | pass |
-| vm-backup (53s), vm-boot-plain (42s), vm-console (246s), vm-data (53s), vm-desktop (131s), vm-egress (96s), vm-encryption (410s), vm-guests (90s), vm-hardware (54s), vm-host-ui (42s), vm-installer-lan (232s), vm-monitoring (61s), vm-rollback (156s), vm-splash (567s), vm-ui (46s) | pass |
+| boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (58s), vm-boot-plain (42s), vm-console (248s), vm-data (50s), vm-desktop (138s), vm-egress (114s), vm-encryption (415s), vm-guests (101s), vm-hardware (60s), vm-host-ui (29s), vm-installer-lan (244s), vm-monitoring (105s), vm-rollback (155s), vm-splash (576s), vm-ui (66s, on its own), vm-updates (47s) | pass |
 
 Beyond the checks:
 
@@ -1387,13 +1387,17 @@ one file rather than each asking its own questions -- the front panel (and
 `u` applies what is waiting), the host page (with "Apply it now"), a desktop
 notification each notice once, the login line, and `nixie doctor`.
 
-The control panel is the one surface that does not show them, deliberately:
-it is a static bundle incusd serves and it speaks only the Incus API, as its
-own History page already says. Reaching host state from it would mean
-serving `/run/nixie/notices.json` unauthenticated beside the bundle, which
-would publish backup failures and site commit subjects to anyone who can
-open the page. It links to the host page, which shows them behind Cockpit's
-authentication.
+The control panel reads them from the daemon rather than from that file. It
+is a static bundle incusd serves and it speaks only the Incus API, so
+serving `/run/nixie/notices.json` beside the bundle was the obvious way and
+the wrong one: that directory needs no certificate, and it would publish a
+failed backup and the site's commit subjects to anyone who opened the page.
+`nixie notices --write` sets `user.nixie.notices` on the local daemon
+instead -- the free-form server configuration the panel's own settings
+already live in -- and the panel picks it up with the poll it already runs,
+behind the client certificate everything else there needs. It says the
+notice and names the command; acting on it stays with the machine, as the
+panel's History page already does for generations.
 
 `nixie secure-boot` answers the report: what the firmware holds (this
 machine's own PK certificate found *inside* the PK variable -- "disabled"
@@ -1409,6 +1413,7 @@ person sees while the stick is still in.
 | `updates` (nine facts) | pass; the three modes, the timers, the site file, the login line, the desktop notifier, and that a server has none |
 | `secure-boot-report` (four firmware states) | pass; a generated PK certificate placed inside a fake PK variable, a stand-in `bootctl` for each state |
 | `vm-updates` (two nodes, five subtests) | pass; a bare repository both machines share, a second checkout standing in for the laptop that pushes |
+| `vm-ui` (extended) | pass; a unit broken on purpose reaches `user.nixie.notices` on the daemon, the chunk the page preloads carries the reader, and nothing of the notice is served to a caller with no certificate |
 
 `vm-updates` is the whole path with nothing stubbed but the build: a machine
 that is up to date says so and shows nothing; a change pushed from elsewhere
@@ -1451,7 +1456,9 @@ Four things the work turned up:
 
 All forty checks on this tree, one `nix build` per output as ever (the
 evaluator still cannot hold every check in one process, see the Final run
-note below), on 2026-09-18:
+note below), on 2026-09-18. The run was interrupted once by the host's own
+low-memory watchdog, with other work of the operator's holding fifty of its
+sixty gigabytes, and resumed from the check it died on:
 
 | check | result |
 |---|---|
