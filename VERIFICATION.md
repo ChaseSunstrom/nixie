@@ -1690,6 +1690,41 @@ they are read. The unit itself is built into that host (`unit-nixie-
 fetch.service` appears in the install log), so the branch taken was the one
 that starts it rather than the one that says there is no data.
 
+## The wizard driven on the machine's own screen (2026-09-18)
+
+The brief asks `packages.test-iso` to drive the wizard end to end "via the
+setup backend's HTTP API, and via the kiosk with a browser automation tool
+for at least one full run". Only the first existed: the kiosk was
+screenshotted, never driven. `nixie-test-iso --kiosk` drives it now --
+Playwright attached over CDP to the browser the image itself started, under
+cage on the machine's screen, walking Machine, Disks, Name, Security,
+Network, Services, Review and Install to a finished install in 184 s.
+
+That browser has to be reachable, and four things stood in the way, each
+found by running it: `--remote-debugging-port` binds the guest's loopback,
+which QEMU's hostfwd cannot reach; the installer's firewall admits only SSH
+and the wizard; Chromium hangs up on a debugger websocket from another
+origin; and Chromium ignores `--remote-debugging-address` and binds the
+loopback whatever it is told, so the image relays the port with socat. The
+debug port is off in everything the platform ships: `packages.nixie-iso-
+kiosk` is the only image that sets `nixie.kiosk.remoteDebugPort`, and that
+image is what `--kiosk` boots. It differs from the shipped ISO by that one
+flag, the relay and the firewall opening, and nothing else.
+
+Two faults of the harness's own turned up as well. The script posted an API
+configuration for a host called `iso-test` before handing over, so the site
+already held an entry whose `hardware.nix` phase 1 had never written and
+Review rightly refused to evaluate it -- in kiosk mode the wizard is what
+configures the machine, and nothing is posted. And the run now ends at the
+install: what follows the restart is the setup generation, which the HTTP
+path drives to Finish, and which cannot be driven here at all, because a
+machine a person configured has no serial console for the script to read
+(the HTTP path puts `console=ttyS0` in its own settings; a person does not).
+
+| check | result |
+|---|---|
+| `nix run .#test-iso --kiosk` | pass; the wizard driven through the kiosk's own browser to a finished install, 184 s, with a screenshot of each step it went through |
+
 ## A hardened machine that stops in the initrd says why (2026-09-18)
 
 Reported: a hardened server install, restarted after phase 3, comes up in

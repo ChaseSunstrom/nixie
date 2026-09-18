@@ -111,7 +111,13 @@ features='{"nixie.security.encryption.enable":true}'
 [ "$security" != hardened ] || features='{"nixie.security.encryption.enable":true,"nixie.security.tpm.enable":true,"nixie.security.attestation.enable":true,"nixie.security.secureBoot.enable":true,"nixie.security.duress.enable":true,"nixie.security.hardening.ssh.enable":true,"nixie.security.hardening.usbguard.enable":true,"nixie.security.hardening.memoryEncryption.enable":true,"nixie.auth.ssh.passwordLogin":false,"nixie.auth.ssh.keyAndPassword":true}'
 # The installed system's console is the serial port, so its prompts and
 # banner reach this script.
-api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --arg p "$profile" --argjson f "$features" '{host:"iso-test",profile:$p,systemDisk:$d,uplinks:(if $p == "server" then [$m] else [] end),settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
+# In kiosk mode the wizard is what configures the machine, so nothing is
+# posted here: a host written by this would leave the site holding an entry
+# whose hardware.nix phase 1 never wrote, and the page then refuses to
+# evaluate ("does not exist in Git repository").
+if [ "$kiosk" = 0 ]; then
+  api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --arg p "$profile" --argjson f "$features" '{host:"iso-test",profile:$p,systemDisk:$d,uplinks:(if $p == "server" then [$m] else [] end),settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
+fi
 echo "== phases 1 to 3: the site flake is evaluated and built on the ISO" | tee -a "$out/run.log"
 start=$(date +%s)
 if [ "$kiosk" = 1 ]; then
@@ -126,6 +132,15 @@ if [ "$kiosk" = 1 ]; then
   echo "install took $(( $(date +%s) - start )) s" | tee -a "$out/run.log"
   shot install-done
   api -X POST https://127.0.0.1:9443/api/reboot >/dev/null; stopped "$pid"
+  # This run ends here. What it is for is the brief's "at least one full
+  # run via the kiosk": a person at the machine driving the wizard through
+  # a whole install, on the screen, in the browser the image starts. What
+  # follows the restart is the setup generation, which the HTTP path above
+  # drives to Finish -- and cannot be driven here anyway, because a machine
+  # the wizard configured has no serial console for the script to read: the
+  # HTTP path adds console=ttyS0 to its settings, and a person does not.
+  echo "test-iso: PASS, the kiosk drove a whole install (artifacts in $out)" | tee -a "$out/run.log"
+  exit 0
 else
 phase 1
 # The review step's check: the host evaluates the way phase 3 builds it.

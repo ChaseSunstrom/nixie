@@ -117,6 +117,13 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+`nix run .#test-iso --kiosk` drives the wizard through the browser on the
+machine's own screen, not over the HTTP API: a whole install, in the kiosk
+the image starts, which the brief asks for and which nothing did before.
+Only a test image opens that browser to a debugger -- `packages.nixie-iso-
+kiosk` -- and nothing the platform installs sets
+`nixie.kiosk.remoteDebugPort`.
+
 A machine that gives up in the initrd now says why. The prompt it drops to
 cannot be used -- the root account is locked, and a signed boot chain has no
 editable kernel command line -- so a screen that said only "emergency mode"
