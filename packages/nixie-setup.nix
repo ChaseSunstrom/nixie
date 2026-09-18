@@ -29,6 +29,14 @@ let
   optionsJson = pkgs.writeText "options.json" (
     (import ../lib/options-json.nix { inherit lib; }) probe.options
   );
+  # The same rendering, asked for at run time against a site that exists, so
+  # options a site's own modules declare reach the wizard too.
+  siteOptions = pkgs.writeText "site-options.nix" (
+    (import ../lib/template.nix lib).fill ../installer/site-options.nix.in {
+      lib = "${inputs.nixpkgs}/lib";
+      nixieLib = ../lib;
+    }
+  );
   # Both run `nixie apply` from the host's own PATH: the host's CLI is built
   # for its profile, and bundling the full one would put OpenTofu and the
   # Incus client in a desktop's setup generation.
@@ -67,10 +75,11 @@ pkgs.writeShellApplication {
       --platform "path:${self}" \
       --static ${web.nixie-setup-web} \
       --options ${optionsJson} \
+      --site-options ${siteOptions} \
       --template ${../templates/site} \
       "$@"
   '';
   passthru = {
-    inherit optionsJson finish;
+    inherit optionsJson siteOptions finish;
   };
 }

@@ -65,12 +65,39 @@ with subtest("pair from the LAN with the single-use code"):
 with subtest("configure, plan, install"):
     api("POST", "/api/secrets", {"passphrase": "hunter2", "admin-password": "nixie"})
     api("POST", "/api/config", {"host": "server", "profile": "server", "systemDisk": "/dev/vda", "uplinks": ["52:54:00:12:01:03"], "settings": {"nixie.auth.admin.name": "admin", "nixie.security.encryption.enable": True}})
+    # A module of the site's own, in the file the wizard leaves to the site:
+    # hosts/<name>/configuration.nix, which it writes once and then never
+    # touches (the directory itself is remade when the host entry is
+    # written, so this belongs after that). Its option asks for a wizard
+    # section, which is the extension point docs/extending.md describes.
+    installer.succeed(
+        "cat >/etc/nixie/site/hosts/server/configuration.nix <<'EOF'\n"
+        "{ inputs, lib, ... }:\n"
+        "{\n"
+        "  options.nixie.site.motto = inputs.nixie.lib.mkOption {\n"
+        "    type = lib.types.str;\n"
+        '    default = "";\n'
+        '    description = "A line this site puts on its own machines.";\n'
+        '    nixieUi.section = "services";\n'
+        "  };\n"
+        "}\n"
+        "EOF"
+    )
     assert phase(1) == 0
     plan = api("GET", "/api/plan")
     assert 'nixie.disks.system = "/dev/vda"' in plan["hardware"] and "nixie.security.encryption.enable = true" in plan["site"], plan
     assert phase(2) == 0
     assert phase(3) == 0
     installer.succeed("test -e /var/lib/nixie/setup/3.done")
+    # And now that the site evaluates, the wizard offers the site's own
+    # option beside the platform's, with the section it asked for.
+    opts = api("GET", "/api/options")
+    mine = [o for o in opts if o["path"] == "nixie.site.motto"]
+    assert mine and mine[0]["section"] == "services", mine
+    # No label is written for it anywhere in the platform, so the wizard
+    # falls back to the option's own path.
+    assert mine[0]["label"] is None, mine
+    assert any(o["path"] == "nixie.security.encryption.enable" for o in opts), "the platform's own are still there"
     installer.shutdown()
 
 with subtest("first boot lands in the setup generation and continues over the same URL"):

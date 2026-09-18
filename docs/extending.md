@@ -18,9 +18,24 @@ Every hook point is an option a site sets; none is an edit to the platform.
 - **Change the finish or the tokens.** `nixie.ui.theme` and a JSON override
   in `nixie.ui.tokens`; the desktop follows with `nixie.desktop.finish`.
 - **Replace the control panel.** `nixie.incus.ui.package = pkgs.callPackage ./my-ui.nix { };`.
-- **Add an installer step.** Declare an option with `nixieUi = { section = "services"; order = 9; }`
-  (through `lib/option.nix`'s `mkOption`) and its description; the wizard
-  renders it in that section.
+- **Add an installer step.** In a module of the site's own (the host's
+  `configuration.nix` is never overwritten), declare an option with
+  `inputs.nixie.lib.mkOption`, giving it `nixieUi = { section = "services"; order = 9; }`
+  and a description written for a person; the wizard renders it in that
+  section, labelled by its path. nixpkgs' own `mkOption` refuses an argument
+  it does not know, which is why the metadata goes through this one:
+
+  ```nix
+  { inputs, ... }:
+  {
+    options.nixie.site.motto = inputs.nixie.lib.mkOption {
+      type = inputs.nixpkgs.lib.types.str;
+      default = "";
+      description = "A line this site puts on its own machines.";
+      nixieUi.section = "services";
+    };
+  }
+  ```
 - **Recipes.** `nixie.recipes.<name> = ./recipes/<name>.nix;` then
   `recipe = "<name>";` in a guest. The platform ships `static-web` and
   `oci-service` and no more.

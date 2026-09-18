@@ -117,6 +117,16 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+An option a site declares reaches the installer, which is what the extension
+point in docs/extending.md promised and could not do: the wizard's list was
+rendered once when the installer was built, from the platform's modules
+alone, and a site's own option was never in it. The backend asks the site
+for its options once the site exists and names a host, and again whenever
+the site changes, so a module added at Review shows up without a restart.
+`inputs.nixie.lib.mkOption` is how a site declares one -- nixpkgs' own
+refuses an argument it does not know, which is why the wizard metadata could
+not be attached before.
+
 `nix run .#offline` stands behind the promise that nothing fetches behind
 the lock file: it archives every pinned input into a store of its own and
 then evaluates every output with the network refused, where an unpinned

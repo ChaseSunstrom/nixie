@@ -1290,7 +1290,7 @@ single-process `nix flake check` does not fit in this host's memory; see
 | check | result |
 |---|---|
 | boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (55s), vm-boot-plain (39s), vm-console (313s), vm-data (50s), vm-desktop (127s), vm-egress (96s), vm-encryption (380s), vm-guests (76s), vm-hardware (55s), vm-host-ui (46s), vm-installer-lan (175s), vm-monitoring (81s), vm-rollback (152s), vm-splash (541s), vm-ui (19s), vm-updates (41s) | pass |
+| vm-backup (54s), vm-boot-plain (42s), vm-console (199s), vm-data (53s), vm-desktop (166s), vm-egress (95s), vm-encryption (377s), vm-guests (107s), vm-hardware (55s), vm-host-ui (20s), vm-installer-lan (239s), vm-monitoring (84s), vm-rollback (151s), vm-splash (547s), vm-ui (19s), vm-updates (41s) | pass |
 
 Beyond the checks:
 
@@ -1585,8 +1585,39 @@ site and not in this flake), `no-secrets-in-store`, `nixie-cli`, `nixie-
 iso`, `nixie-setup`, `deploy` and `docs` all evaluated with the network
 refused.
 
+**The wizard's extension point did not work.** Section 13 of the brief says
+an option carrying `nixie.ui.section` is rendered by the wizard, and
+`docs/extending.md` told sites how to declare one. Neither could happen: the
+option list is rendered when the installer is built, from a throwaway
+evaluation of the *platform's* modules, and served as a static file, so
+nothing a site declares was ever in it -- and the flake did not expose the
+`mkOption` the docs told sites to use, nixpkgs' own refusing the `nixieUi`
+argument outright.
+
+Both ends are fixed. `nixie.lib.mkOption` is a flake output now, reachable
+from a site's modules as `inputs.nixie.lib.mkOption`, and the backend asks
+the site for its own options -- the same renderer, against the site's
+evaluated host -- once a site exists and names a host, merging in anything
+the platform does not already declare that asked for a section. It is asked
+again whenever a file under the site changes, so a module added at Review
+appears without a restart, and never on every poll, because it is a full
+evaluation of the host. Anything going wrong there (a site mid-edit, a host
+that does not evaluate) leaves the platform's own list rather than an error:
+the site's files are checked at Review, which is where a person is told
+about them.
+
+Three wrong turns on the way, each caught by running it rather than by
+reading it: the renderer was copied into the store on its own and lost the
+`wizard.nix` beside it that it reads for labels ("'wizard.nix' is too short
+to be a valid store path"); the test declared its option with nixpkgs'
+`mkOption`, which drops the metadata silently, so the wizard saw an option
+with no section; and the test wrote the site's module before the wizard had
+made the site, which removes and remakes `hosts/` as it writes the host's
+entry.
+
 | check | result |
 |---|---|
+| `vm-installer-lan` (extended) | pass; a module of the site's own, written where a person would write it, declares an option that the wizard then offers in the section it asked for, labelled by its path, with the platform's own still there |
 | `nix run .#offline` | pass; every input archived, every output evaluated with the network refused |
 | `desktop-motion` (three facts) | pass; "none" reaches GTK 3 and GTK 4, "full" leaves them |
 | `vm-host-ui` (extended) | pass; the three commands and the stream are in the page the host serves, and `nixie doctor` answers on that machine |

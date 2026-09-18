@@ -194,6 +194,65 @@ def site_flake(platform, hyde):
     )
 
 
+SITE_OPTIONS: dict = {"host": None, "seen": None, "value": []}
+
+
+def site_options(host):
+    """Options a site's own modules declare, on top of the platform's.
+
+    The platform's list is rendered when the installer is built and cannot
+    know about a site that does not exist yet; a site module's option that
+    carries `nixieUi.section` is meant to appear in the wizard like any other.
+    This is asked for once per host and remembered, because it is a full
+    evaluation of the host. Anything going wrong here -- a site mid-edit, a
+    host that does not evaluate, no flake at all -- leaves the wizard with
+    the platform's own list rather than an error: the site's own files are
+    checked at Review, which is where a person is told about them.
+    """
+    if not host or not os.path.exists(os.path.join(ARGS.site, "flake.nix")):
+        return []
+    # Asked again when the site changes: a person who adds a module at
+    # Review sees their option without the backend being restarted. The
+    # newest file under the site stands for "changed"; it is a full
+    # evaluation of the host, so it is not done on every poll.
+    newest = 0.0
+    for root, _, names in os.walk(ARGS.site):
+        if ".git" in root:
+            continue
+        for n in names:
+            try:
+                newest = max(newest, os.path.getmtime(os.path.join(root, n)))
+            except OSError:
+                pass
+    if SITE_OPTIONS["host"] == host and SITE_OPTIONS["seen"] == newest:
+        return SITE_OPTIONS["value"]
+    known = set()
+    try:
+        with open(ARGS.options) as f:
+            known = {o["path"] for o in json.load(f)}
+    except OSError:
+        pass
+    found = []
+    r = sh(
+        ["nix", "eval", "--no-eval-cache", "--impure", "--raw", "--expr",
+         f'(import {ARGS.site_options}) {{ site = "{ARGS.site}"; host = "{host}"; }}'],
+        cwd=ARGS.site,
+    )
+    if r.returncode == 0:
+        try:
+            # Only what the platform does not already declare, and only what
+            # asked to be shown: a site's module may declare plenty else.
+            found = [o for o in json.loads(r.stdout) if o["path"] not in known and o.get("section")]
+            log(f"the site declares {len(found)} option(s) of its own: {[o['path'] for o in found]}")
+        except json.JSONDecodeError as e:
+            log(f"the site's own options were not JSON: {e}; {r.stdout[:200]!r}")
+            found = []
+    else:
+        log(f"the site's own options could not be read: {r.stderr.strip().splitlines()[-1:]}")
+    SITE_OPTIONS["host"], SITE_OPTIONS["seen"], SITE_OPTIONS["value"] = host, newest, found
+    return found
+
+
 def check_site(host):
     """Evaluate the host the way phase 3 will, and point at the lines an error
     names, so a mistake shows in the editor rather than in phase 3."""
@@ -446,7 +505,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({"failed": any("nixie-finish.service: Failed" in l for l in out), "lines": out[-20:]})
         if path == "/api/options":
             with open(ARGS.options) as f:
-                return self.send_json(json.load(f))
+                opts = json.load(f)
+            return self.send_json(opts + site_options(read_state().get("host", "")))
         if path == "/api/files":
             host = read_state().get("host", "")
             out = []
@@ -751,6 +811,7 @@ def main():
     ap.add_argument("--port", type=int, default=9443)
     ap.add_argument("--static", required=True)
     ap.add_argument("--options", required=True)
+    ap.add_argument("--site-options", required=True, help="nix file rendering a site's own options")
     ap.add_argument("--template", required=True)
     ap.add_argument("--platform", required=True, help="flake URL a new site's nixie input points at")
     ap.add_argument("--site", default="/etc/nixie/site")

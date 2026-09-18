@@ -32,6 +32,12 @@
       nixosModules.nixie = import ./modules { inherit inputs self; };
       lib = {
         inherit (nixieLib) mkSite;
+        # The wizard renders any option carrying `nixieUi`, and nixpkgs'
+        # own mkOption refuses an argument it does not know, so a site that
+        # wants an option of its own in the installer declares it with this
+        # one (docs/extending.md). Its modules reach it as
+        # `inputs.nixie.lib.mkOption`.
+        inherit (import ./lib/option.nix inputs.nixpkgs.lib) mkOption;
         version = "0.1.0";
       };
       templates.site = {

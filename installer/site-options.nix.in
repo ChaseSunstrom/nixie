@@ -1,0 +1,24 @@
+# The options a site's own modules declare, as the wizard's data.
+#
+# The platform's list is rendered once when the installer is built, from a
+# throwaway evaluation of the module tree. A site can add modules of its own,
+# and an option of theirs that carries `nixieUi.section` is meant to appear in
+# the wizard like any other (the extension point in docs/extending.md). That
+# cannot be known before the site exists, so the backend asks for it here,
+# once a site is on disk and names a host.
+#
+# @lib@ and @nixieLib@ are filled in when the installer is built, so this uses
+# the platform's own nixpkgs and the same renderer the platform's list came
+# from -- a site that pins its own nixpkgs still yields one shape of data.
+# @nixieLib@ is the whole directory, because the renderer reads its own
+# neighbour `wizard.nix` for the labels.
+{
+  site,
+  host,
+}:
+let
+  lib = import @lib@;
+  flake = builtins.getFlake site;
+in
+(import (@nixieLib@ + "/options-json.nix") { inherit lib; })
+  flake.nixosConfigurations.${host}.options
