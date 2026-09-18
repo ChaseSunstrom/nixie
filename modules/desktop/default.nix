@@ -200,7 +200,11 @@ in
           "none"
         ];
         default = "full";
-        description = "Window and workspace motion: the full set, faster and fewer, or none.";
+        description = ''
+          Window and workspace motion: the full set, faster and fewer, or
+          none. "none" also turns GTK's own animations off, so applications
+          are as still as the compositor.
+        '';
       };
       barPosition = mkOption {
         type = t.enum [

@@ -353,7 +353,9 @@ Keyboard layout variant, if any.
 
 *one of "full", "reduced", "none" (full, reduced, none)*, default: `"full"`.
 
-Window and workspace motion: the full set, faster and fewer, or none.
+Window and workspace motion: the full set, faster and fewer, or
+none. "none" also turns GTK's own animations off, so applications
+are as still as the compositor.
 
 ## `nixie.desktop.look.barPosition`
 

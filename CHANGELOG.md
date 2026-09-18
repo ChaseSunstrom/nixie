@@ -117,6 +117,14 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+The host page can run the three things it is for: Apply the site, Fetch the
+cache and Run the checks, each printing as it goes rather than at the end.
+They are the same commands the machine runs for itself, spawned through
+Cockpit's bridge, so nothing new listens on the host. And
+`nixie.desktop.look.animations = "none"` now turns GTK's own animations off
+as well as the compositor's, so applications are as still as the windows
+around them.
+
 A headless install finishes. `nix run .#deploy` installed the machine,
 rebooted it and printed a line to carry on by hand -- a line that could not
 have worked, since everything after the first `;` ran on the operator's own

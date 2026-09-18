@@ -19,10 +19,12 @@
       button { background: @brand@; color: @bg@; border: 0; border-radius: 7px; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer; }
       button[disabled] { background: @line2@; cursor: default; }
       #notices p { margin: 4px 0 10px; }
+      .out { background: @s2@; border: 1px solid @line@; border-radius: 8px; padding: 10px; margin: 10px 0 0; font-size: 12px; line-height: 1.5; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
     </style>
   </head>
   <body>
     <div id="notices"></div>
+    <div id="actions"></div>
     <div id="root" class="muted">reading the host's history…</div>
     <script src="../base1/cockpit.js"></script>
     <script src="history.js"></script>

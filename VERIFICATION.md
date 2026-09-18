@@ -1289,8 +1289,8 @@ single-process `nix flake check` does not fit in this host's memory; see
 
 | check | result |
 |---|---|
-| boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (56s), vm-boot-plain (43s), vm-console (301s), vm-data (54s), vm-desktop (137s), vm-egress (104s), vm-encryption (407s), vm-guests (83s), vm-hardware (61s), vm-host-ui (32s), vm-installer-lan (177s), vm-monitoring (94s), vm-rollback (185s), vm-splash (739s), vm-ui (48s), vm-updates (47s) | pass |
+| boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (74s), vm-boot-plain (57s), vm-console (199s), vm-data (50s), vm-desktop (133s), vm-egress (100s), vm-encryption (382s), vm-guests (88s), vm-hardware (55s), vm-host-ui (45s), vm-installer-lan (232s), vm-monitoring (68s), vm-rollback (152s), vm-splash (544s), vm-ui (16s), vm-updates (41s) | pass |
 
 Beyond the checks:
 
@@ -1548,20 +1548,41 @@ generation's own terminal front end, which already knows phases 4 to 8,
 Finish, the secrets each one asks for and the Secure Boot restarts. It lands
 in the operator's terminal, where they are standing.
 
+**The host page had none of the three things the brief scopes it for.**
+Section 12.1 lists `apply`, `fetch` and `doctor` with streamed output; the
+page showed generations, snapshots, backups and (since this week) notices,
+and could run nothing but the one "Apply it now" button a waiting update put
+there. It has a Run panel now: the three commands spawned through Cockpit's
+bridge with `err: "out"` and `.stream()`, so the output arrives as it is
+produced, the buttons are held while one runs, and the history and notices
+below refresh when it finishes. Nothing new listens on the host; they are
+the same commands the machine runs for itself.
+
+**The desktop had no reduced-motion equivalent.** Section 12.2 asks for the
+toolkit's own where it offers one. `nixie.desktop.look. animations = "none"`
+stopped the compositor and left GTK applications animating; `gtk-enable-
+animations` follows it now, in both the GTK 3 and GTK 4 settings. GTK has no
+middle setting, so "reduced" leaves them on, which is what "where the
+toolkit offers them" allows.
+
 | check | result |
 |---|---|
+| `desktop-motion` (three facts) | pass; "none" reaches GTK 3 and GTK 4, "full" leaves them |
+| `vm-host-ui` (extended) | pass; the three commands and the stream are in the page the host serves, and `nixie doctor` answers on that machine |
 | `deploy-continues` | pass; the built script reboots, forgets the host key and hands over, in that order, and the instruction that ran the phases locally is gone |
 | `exporters` (four facts) | pass; the default, one turned off with its job, another of nixpkgs' turned on with its job, and every one bound to this host |
 | `vm-ui` (extended) | pass; a certificate three days from expiry, added to the daemon's real trust store, reaches `nixie doctor` as EXPIRING |
 | `eval-matrix`, `option-reference`, `option-docs`, `readme`, `fmt`, `statix`, `deadnix`, `boot-and-setup`, `setup-devices` | pass |
 | the `apply` wrapper | built from the example site and read: it carries `/etc/nixie/site` from that site's own `nixie.site.path` |
-Then the whole gate on this tree, forty-two checks now that `exporters` and
-`deploy-continues` have joined them. `vm-installer-lan` was starved to a
-wedge twice while the host's other work ran -- once 3429 s, once 33 minutes
-of wall time on 78 seconds of CPU at a load average of 118 -- abandoned both
-times, and passed in the loop at 362 s once the machine was quiet. The
-formatter caught the new check's own indentation before any of this, which
-is why the run was started again from nothing: every check is built from
+Then the whole gate on this tree, forty-three checks now that `exporters`,
+`deploy-continues` and `desktop-motion` have joined them, run in chunks in
+the foreground because the harness's own low-memory watchdog kept killing
+the background run -- once after three checks, once before any, with fifty
+gigabytes free. `vm-installer-lan` was starved to a wedge twice while the
+host's other work ran (3429 s, then 33 minutes of wall time on 78 seconds of
+CPU at a load average of 118), abandoned both times, and passes here in 232
+s. The formatter caught a new check's own indentation, which is why one run
+was started again from nothing: every check is built from
 `tests/default.nix`, so a change to it makes every earlier result stale.
 
 | check | result |

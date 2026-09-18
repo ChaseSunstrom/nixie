@@ -182,6 +182,10 @@ in
           gtk-cursor-theme-name=${cfg.look.cursor.theme}
           gtk-cursor-theme-size=${toString cfg.look.cursor.size}
           gtk-decoration-layout=:close
+          # The toolkit's own reduced-motion switch, so nixie.desktop.look.
+          # animations = "none" quietens GTK applications as well as the
+          # compositor. GTK has no middle setting, so "reduced" keeps them.
+          gtk-enable-animations=${if cfg.look.animations == "none" then "0" else "1"}
         '';
         "xdg/gtk-4.0/settings.ini".text = config.environment.etc."xdg/gtk-3.0/settings.ini".text;
         "xdg/kitty/kitty.conf".text = template.fill ./conf/kitty.conf {

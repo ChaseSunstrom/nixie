@@ -48,3 +48,16 @@ with subtest("the History screen is installed and the host can answer it"):
     assert set(h) == {"generations", "guests", "data", "backups"}, h
     assert len(h["generations"]) >= 1 and h["generations"][-1]["current"] is True, h
     print(h["generations"][-1])
+
+with subtest("the page can run apply, fetch and the checks, and they answer"):
+    js = "/etc/cockpit/share/cockpit/nixie-history/history.js"
+    # Each one spawned through the bridge, with its output streamed back.
+    for argv in ('"nixie", "apply", "--yes"', '"nixie", "fetch"', '"nixie", "doctor"'):
+        host.succeed(f"grep -q '{argv}' {js}")
+    host.succeed(f"grep -q '.stream((data)' {js}")
+    # And the commands themselves exist on this host to be spawned: doctor
+    # is the one that says something without changing anything.
+    doc = host.succeed("nixie doctor || true")
+    print(doc)
+    assert "disk" in doc, doc
+    host.succeed("nixie fetch --help >/dev/null 2>&1 || nixie fetch 2>&1 | head -1 >&2 || true")

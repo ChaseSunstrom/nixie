@@ -613,6 +613,36 @@ in
     touch $out
   '';
 
+  # Stillness reaches the applications, not only the compositor: GTK's own
+  # switch follows nixie.desktop.look.animations.
+  desktop-motion =
+    let
+      laptopWith =
+        settings:
+        (testHost ../examples/desktop-site {
+          hosts.laptop = desktopSite.hosts.laptop // {
+            settings = {
+              imports = [
+                desktopSite.hosts.laptop.settings
+                settings
+              ];
+            };
+          };
+        } "laptop").config;
+      gtk = c: c.environment.etc."xdg/gtk-3.0/settings.ini".text;
+      still = laptopWith { nixie.desktop.look.animations = "none"; };
+      moving = laptopWith { nixie.desktop.look.animations = "full"; };
+      facts = {
+        "none stops GTK's animations too" = lib.hasInfix "gtk-enable-animations=0" (gtk still);
+        "full leaves them" = lib.hasInfix "gtk-enable-animations=1" (gtk moving);
+        "and GTK 4 is told the same thing" =
+          still.environment.etc."xdg/gtk-4.0/settings.ini".text == gtk still;
+      };
+      failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
+    in
+    assert lib.assertMsg (failed == [ ]) "desktop-motion: ${lib.concatStringsSep "; " failed}";
+    pkgs.writeText "desktop-motion" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
   # Which exporters run, and that what is scraped follows them.
   exporters =
     let

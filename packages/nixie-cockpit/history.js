@@ -63,6 +63,51 @@ function notices(n) {
   };
 }
 
+// The three things a person opens the host page to run, with their output as
+// it arrives rather than at the end. They are the same commands the machine
+// runs for itself; nothing new is listening, the Cockpit bridge carries them.
+const RUNNABLE = [
+  { id: "apply", label: "Apply the site", argv: ["nixie", "apply", "--yes"], superuser: "require" },
+  { id: "fetch", label: "Fetch the cache", argv: ["nixie", "fetch"], superuser: "require" },
+  { id: "doctor", label: "Run the checks", argv: ["nixie", "doctor"], superuser: "try" },
+];
+
+function actions() {
+  const box = document.getElementById("actions");
+  box.innerHTML =
+    '<div class="card"><h2>Run</h2>' +
+    '<p class="muted">Each prints as it goes. Applying switches this machine and brings the guests the site declares with it.</p>' +
+    RUNNABLE.map((r) => '<button id="run-' + r.id + '">' + esc(r.label) + "</button> ").join("") +
+    '<pre id="output" class="mono out" hidden></pre></div>';
+  const out = document.getElementById("output");
+  const buttons = RUNNABLE.map((r) => document.getElementById("run-" + r.id));
+  const idle = (on) => buttons.forEach((b) => (b.disabled = !on));
+  for (const r of RUNNABLE) {
+    document.getElementById("run-" + r.id).onclick = () => {
+      idle(false);
+      out.hidden = false;
+      out.textContent = "$ " + r.argv.join(" ") + "\n";
+      cockpit
+        .spawn(r.argv, { superuser: r.superuser, err: "out" })
+        .stream((data) => {
+          out.textContent += data;
+          out.scrollTop = out.scrollHeight;
+        })
+        .then(() => {
+          out.textContent += "\n— done\n";
+          idle(true);
+          // What it did shows in the history and the notices below.
+          actions();
+load();
+        })
+        .catch((e) => {
+          out.textContent += "\n— it stopped: " + (e.message || e) + "\n";
+          idle(true);
+        });
+    };
+  }
+}
+
 function load() {
   cockpit
     .spawn(["nixie", "notices", "--json"], { superuser: "try", err: "message" })
@@ -76,4 +121,5 @@ function load() {
     });
 }
 
+actions();
 load();
