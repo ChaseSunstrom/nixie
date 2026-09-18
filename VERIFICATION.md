@@ -1804,8 +1804,18 @@ so the unit died at `203/EXEC` without a word. And nixpkgs has its own
 it crashed the kernel sixteen milliseconds after the reporter started, and
 the reporter now runs before it.
 
+A second reproduction, after the first found nothing: VirtualBox presents
+its TPM through a CRB interface where QEMU's default here is TIS, and those
+are different kernel modules, so a TPM whose driver never loads would leave
+the initrd's attestation service waiting on `dev-tpmrm0.device` in front of
+every disk prompt -- which is what the report looks like. `nixie-test-iso`
+takes `--tpm tis|crb` now, and the hardened install with Secure Boot passes
+on both. The TPM interface is not it, and real machines vary in this anyway,
+so the coverage stays.
+
 | check | result |
 |---|---|
+| `nix run .#test-iso --security hardened --tpm crb` | pass; keys staged, the same as with TIS |
 | `vm-boot-plain` (extended) | pass; a node told to go straight to the initrd's emergency target shows the report on its console, before the panic that a failed start triggers there |
 | `nix run .#test-iso --security hardened` (now the wizard's preset) | pass, keys staged |
 

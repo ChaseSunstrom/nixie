@@ -1,21 +1,25 @@
 # shellcheck shell=bash
 out=${NIXIE_ARTIFACTS:-tests/artifacts}; mkdir -p "$out"
 iso=$(ls @iso@/iso/nixie_*.iso)
-medium=(-cdrom "$iso" -boot d); security=plain; profile=server; kiosk=0
+medium=(-cdrom "$iso" -boot d); security=plain; profile=server; kiosk=0; tpm=tis
 while [ $# -gt 0 ]; do
   case "$1" in
     # The wizard driven on the machine's own screen. That image differs by
     # one Chromium flag -- the debugger this needs to reach the page -- and
     # is the only one the platform builds with it.
     --kiosk) kiosk=1; iso=$(ls @kioskIso@/iso/nixie_*.iso); medium=(-cdrom "$iso" -boot d) ;;
+    # Which interface the TPM speaks. Real machines vary, and so do the
+    # hypervisors: VirtualBox presents a CRB device where QEMU's default
+    # here is TIS, and the driver for each is a different kernel module.
+    --tpm) tpm=$2; shift ;;
     --usb) medium=(-drive "if=none,id=stick,format=raw,readonly=on,file=$iso" -device qemu-xhci -device "usb-storage,drive=stick,bootindex=0") ;;
     --security) security=$2; shift ;;
     --profile) profile=$2; shift ;;
-    *) echo "usage: nixie-test-iso [--kiosk] [--usb] [--security plain|tpm|secureboot|hardened] [--profile server|desktop]" >&2; exit 2 ;;
+    *) echo "usage: nixie-test-iso [--kiosk] [--usb] [--tpm tis|crb] [--security plain|tpm|secureboot|hardened] [--profile server|desktop]" >&2; exit 2 ;;
   esac
   shift
 done
-echo "== medium ${medium[0]}, security $security, profile $profile" | tee -a "$out/run.log"
+echo "== medium ${medium[0]}, security $security, profile $profile, tpm $tpm" | tee -a "$out/run.log"
 disk="$out/target.qcow2"; qemu-img create -q -f qcow2 "$disk" 40G; rm -f "$out/unlock-prompt.png"
 vars="$out/efi-vars.fd"; cp @ovmf@/FV/OVMF_VARS.fd "$vars"; chmod +w "$vars"
 # A failed run must not leave the VM holding the disk for the next one.
@@ -37,7 +41,7 @@ boot() {
     -drive if=pflash,format=raw,readonly=on,file=@ovmf@/FV/OVMF_CODE.fd \
     -drive if=pflash,format=raw,file="$vars" \
     -drive file="$disk",if=none,id=sys,format=qcow2 -device virtio-blk-pci,drive=sys,serial=nixie-system \
-    -chardev socket,id=chrtpm,path="$out/tpm/sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0 \
+    -chardev socket,id=chrtpm,path="$out/tpm/sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device "tpm-$tpm,tpmdev=tpm0" \
     -netdev "user,id=n0,hostfwd=tcp::9443-:9443,hostfwd=tcp::8443-:8443''${kiosk:+,hostfwd=tcp::9222-:9223}" -device virtio-net-pci,netdev=n0 \
     -chardev "socket,id=ser,path=$out/serial.sock,server=on,wait=off,logfile=$out/serial.log,logappend=on" -serial chardev:ser \
     -display none -monitor unix:"$out/monitor.sock",server,nowait "$@" \
