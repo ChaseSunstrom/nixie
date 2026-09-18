@@ -251,6 +251,7 @@ grep -q 'gpu = true' guests.nix
 | `nixie rollback data <name> [--snapshot s] [--in-place]` | a state directory from a ZFS snapshot, beside the live one or in place |
 | `nixie reseal` | reseals attestation to the running boot chain |
 | `nixie security reenroll` | after a board, TPM or firmware change: Secure Boot enrolment, TPM + PIN binding with a new recovery key, attestation, lockout password, header backups; resumable, also from the front panel (`e`) ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
+| `nix run .#apply [<machine>]` | from a site checkout: copy it to that machine and run its own `nixie apply` there; with no machine, this one |
 | `nixie update [--check \| --now]` | whether the site repository is ahead of this machine, and apply it; the timer does this by itself (`nixie.updates.mode`) |
 | `nixie update --inputs [name…]` | update what the site pins, the platform itself among them, then apply; the other machines follow it as they do any change |
 | `nixie notices` | what this machine wants you to know, as the front panel, the control panel, the host page and the desktop show it |

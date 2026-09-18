@@ -369,6 +369,27 @@ case "$cmd" in
       n=$(usbguard list-devices -b 2>/dev/null | grep -c . || true)
       if [ "$n" -gt 0 ]; then say "usb" "$n BLOCKED device(s); run nixie usb"; rc=1; else say "usb" "nothing blocked"; fi
     fi
+    # Who the daemon trusts, and for how long: a browser's certificate that
+    # has quietly expired looks exactly like a panel that will not load.
+    if [ "$guests" = 1 ] && command -v incus >/dev/null; then
+      if incus info >/dev/null 2>&1; then
+        # The two columns by name: the default layout is ntdfe, and asking
+        # for what is wanted survives a change to it.
+        trust() { incus config trust list -f csv -c ne 2>/dev/null || true; }
+        certs=$(trust | grep -c . || true)
+        soon=""
+        while IFS=, read -r name expiry; do
+          until=$(date -d "${expiry:-}" +%s 2>/dev/null || true)
+          # "Never", and anything else that is not a date: nothing to say.
+          [ -n "$until" ] || continue
+          # Anything inside a fortnight, and anything already past.
+          left=$(( (until - $(date +%s)) / 86400 ))
+          [ "$left" -gt 14 ] || soon="$soon $name(${left}d)"
+        done < <(trust)
+        if [ -n "$soon" ]; then say "trust" "$certs certificate(s); EXPIRING:$soon"; rc=1
+        else say "trust" "$certs certificate(s), none expiring soon"; fi
+      else say "trust" "the daemon did not answer"; rc=1; fi
+    fi
     if [ -e /run/current-system/etc/nixie/guests.json ] && incus info >/dev/null 2>&1; then
       for g in $(jq -r '.declared | keys[]' /run/current-system/etc/nixie/guests.json); do
         st=$(incus list "^$g\$" -c s -f csv 2>/dev/null || echo MISSING); say "guest" "$g: ${st:-MISSING}"

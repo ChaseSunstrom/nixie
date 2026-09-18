@@ -1480,6 +1480,93 @@ fault. It passes in 177 s with the machine to itself:
 | boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
 | vm-backup (54s), vm-boot-plain (43s), vm-console (311s), vm-data (53s), vm-desktop (142s), vm-egress (105s), vm-encryption (484s), vm-guests (112s), vm-hardware (72s), vm-host-ui (30s), vm-installer-lan (251s), vm-monitoring (77s), vm-rollback (162s), vm-splash (585s), vm-ui (45s), vm-updates (41s) | pass |
 
+## Six things the brief asks for that were missing (2026-09-18)
+
+With the wishlist done, the brief itself was read against the tree, section
+by section, and every concrete requirement checked for an implementation
+under any name. Most of what it asks for is there; what follows is what was
+not, and what the deliberate deviations in ARCHITECTURE section 13 already
+cover (D3 WebAuthn, D14 in-place guest updates, D16 Declare from the control
+panel) is left as it stands.
+
+**`nix run .#apply` did not exist.** ARCHITECTURE section 6 listed it among
+`mkSite`'s outputs and `docs/guides/add-a-guest.md` told people to run it;
+`mkSite` emitted `nixosConfigurations`, per-host packages and checks, and no
+`apps` or `apply`. Anyone following the guide got an error. It is now
+`lib/apply.sh`: copy the checkout to the machine named and run that
+machine's own `nixie apply` there, which is the brief's "thin wrapper that
+syncs and runs it". The site's `.git` is excluded, because the host's
+checkout carries commits of its own -- its `hardware.nix`, what setup wrote
+-- and `nixie apply` commits what arrives as a hand edit and pushes it like
+any other change.
+
+**`nixie doctor` checked neither trust nor certificates**, both of which the
+brief names. It now reports how many certificates the daemon trusts and
+warns a fortnight before one expires, which is worth saying because an
+expired browser certificate looks exactly like a control panel that will not
+load. The two columns are asked for by name (`-c ne`), not taken from the
+default layout, and anything that is not a date -- "Never", a header a
+future version might print -- is passed over rather than read as expired.
+
+**Phase 8 never fetched.** The brief's phase 8 is "apply: site checkout,
+guest images, tofu, fetch, optional restore"; the phase ran `nixie apply
+--skip-host` alone, so a site's caches filled only if
+`nixie.data.fetch.timer` was set. It now starts `nixie-fetch.service`
+without waiting: a manifest can name tens of gigabytes, and setup has no
+business holding the wizard open for that. The optional restore at install
+time is not done, and is not claimed.
+
+**`nixie.monitoring.exporters.*` was in the brief's option tree and nowhere
+in the platform**, which turned the node and NVIDIA exporters on implicitly
+with no way to say otherwise. The option now takes any of nixpkgs' exporters
+by name, the two the platform knows about default to what they did, and the
+scrape configuration is derived from whichever are enabled rather than
+listed separately -- so turning one off stops the job that scraped it.
+
+**The host page's History screen was built with the graphite finish
+outright**, while the Cockpit branding around it followed `nixie.ui.theme`,
+so an umber or paper site got one graphite screen. It takes the finish now.
+And the brief's requirement to say in `docs/` that Cockpit is the one
+component whose look will not fully match the design file is met, with the
+reason: PatternFly's own pages keep PatternFly's shapes, and a native agent
+rewritten to the tokens would be a second thing to keep secure.
+
+**A headless deploy wrote `profile: "server"` unconditionally** into the
+setup state, so a desktop installed with `nix run .#deploy` continued as a
+server in every front end that reads that state. It asks the site.
+
+| check | result |
+|---|---|
+| `exporters` (four facts) | pass; the default, one turned off with its job, another of nixpkgs' turned on with its job, and every one bound to this host |
+| `vm-ui` (extended) | pass; a certificate three days from expiry, added to the daemon's real trust store, reaches `nixie doctor` as EXPIRING |
+| `eval-matrix`, `option-reference`, `option-docs`, `readme`, `fmt`, `statix`, `deadnix`, `boot-and-setup`, `setup-devices` | pass |
+| the `apply` wrapper | built from the example site and read: it carries `/etc/nixie/site` from that site's own `nixie.site.path` |
+Then the whole gate on this tree, forty-one checks now that `exporters` has
+joined them. The host's other work was going again for part of it, so `vm-
+installer-lan` was starved a second time -- 33 minutes of wall time on 78
+seconds of CPU at a load average of 118 -- abandoned, and run on its own
+afterwards in 178 s, the same story and the same remedy as the run above.
+
+| check | result |
+|---|---|
+| boot-and-setup, deadnix, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (55s), vm-boot-plain (41s), vm-console (247s), vm-data (54s), vm-desktop (178s), vm-egress (103s), vm-encryption (432s), vm-guests (136s), vm-hardware (99s), vm-host-ui (39s), vm-installer-lan (178s), vm-monitoring (91s), vm-rollback (245s), vm-splash (603s), vm-ui (46s), vm-updates (45s) | pass |
+
+Phase 8 is not run by any VM check; `packages.test-iso` runs the whole
+sequence on a booted ISO, and that is what was used: `nix run .#test-iso`,
+429 s, PASS, install in 187 s, phases 1 to 8 all reporting rc 0 and Finish
+handing over to the normal system. The host's other work had eased to a load
+average of 18 by then, after two runs abandoned at 155 and above.
+
+What that run does and does not show, precisely: phase 8 completed with the
+new step in it, which a failing `systemctl cat` guard or a failing start
+would have prevented under `set -euo pipefail`. It does not show the fetch
+unit's state afterwards -- each phase's step output goes to the target's own
+journal, not to the run's artifacts, and the machine is gone by the time
+they are read. The unit itself is built into that host (`unit-nixie-
+fetch.service` appears in the install log), so the branch taken was the one
+that starts it rather than the one that says there is no data.
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

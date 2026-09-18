@@ -11,6 +11,25 @@ let
   inherit (import ../lib/option.nix lib) mkOption;
   cfg = config.nixie.monitoring;
   gpu = config.nixie.hardware.gpu == "nvidia";
+  # The two the platform knows about, which a site may turn off, plus any
+  # other of nixpkgs' exporters the site names. Every one answers on this
+  # host alone; the local Prometheus is the only thing that reads them.
+  wanted = name: default: cfg.exporters.${name}.enable or default;
+  exporters = lib.mapAttrs (_: e: e // { listenAddress = "127.0.0.1"; }) (
+    {
+      node = {
+        enable = wanted "node" true;
+        enabledCollectors = [ "systemd" ];
+      };
+      nvidia-gpu.enable = wanted "nvidia-gpu" gpu;
+    }
+    // lib.mapAttrs (_: e: { inherit (e) enable; }) (
+      lib.removeAttrs cfg.exporters [
+        "node"
+        "nvidia-gpu"
+      ]
+    )
+  );
   metricsPort = 8444;
   # A dashboard's only site-specific number is the GPU power cap, so it is
   # substituted here rather than typed into JSON by hand.
@@ -67,6 +86,26 @@ in
       type = lib.types.nullOr lib.types.int;
       default = null;
       description = "Reference line on the GPU dashboard, in watts. Set it to your card's limit.";
+    };
+    exporters = mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options.enable = mkOption {
+            type = lib.types.bool;
+            default = true;
+            description = "Collect this machine's figures with this exporter.";
+          };
+        }
+      );
+      default = { };
+      example = lib.literalExpression "{ node.enable = false; }";
+      description = ''
+        Which of Prometheus' exporters run, by the name nixpkgs gives them.
+        "node" (this machine's own figures) is on, and "nvidia-gpu" is on
+        when the machine has an NVIDIA card; naming either here with
+        `enable = false` turns it off, and anything else nixpkgs offers can
+        be turned on. What is scraped follows what runs.
+      '';
     };
     extraScrapeConfigs = mkOption {
       type = lib.types.listOf lib.types.attrs;
@@ -126,37 +165,27 @@ in
       inherit (cfg) port;
       listenAddress = "127.0.0.1";
       retentionTime = cfg.retention;
-      exporters.node = {
-        enable = true;
-        listenAddress = "127.0.0.1";
-        enabledCollectors = [ "systemd" ];
-      };
-      exporters.nvidia-gpu = lib.mkIf gpu {
-        enable = true;
-        listenAddress = "127.0.0.1";
-      };
-      scrapeConfigs = [
-        {
-          job_name = "node";
+      inherit exporters;
+      # One job per exporter that runs, at whatever port nixpkgs gives it.
+      scrapeConfigs =
+        lib.mapAttrsToList (name: _: {
+          job_name = name;
           static_configs = [
-            { targets = [ "127.0.0.1:${toString config.services.prometheus.exporters.node.port}" ]; }
+            {
+              targets = [
+                "127.0.0.1:${toString config.services.prometheus.exporters.${name}.port}"
+              ];
+            }
           ];
+        }) (lib.filterAttrs (_: e: e.enable) exporters)
+        ++ lib.optional config.nixie.incus.enable {
+          job_name = "incus";
+          metrics_path = "/1.0/metrics";
+          scheme = "https";
+          tls_config.insecure_skip_verify = true;
+          static_configs = [ { targets = [ "127.0.0.1:${toString metricsPort}" ]; } ];
         }
-      ]
-      ++ lib.optional config.nixie.incus.enable {
-        job_name = "incus";
-        metrics_path = "/1.0/metrics";
-        scheme = "https";
-        tls_config.insecure_skip_verify = true;
-        static_configs = [ { targets = [ "127.0.0.1:${toString metricsPort}" ]; } ];
-      }
-      ++ lib.optional gpu {
-        job_name = "gpu";
-        static_configs = [
-          { targets = [ "127.0.0.1:${toString config.services.prometheus.exporters.nvidia-gpu.port}" ]; }
-        ];
-      }
-      ++ cfg.extraScrapeConfigs;
+        ++ cfg.extraScrapeConfigs;
     };
 
     # The metrics endpoint is bound to this host only and read by the local

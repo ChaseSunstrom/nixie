@@ -242,3 +242,17 @@ Not present. No "install", "wizard", "setup", or first-run content anywhere in t
 | distinct property names across all scopes | 21 |
 
 No other `--*` declarations exist in the file (the bundler shell's own `<style>` defines none).
+
+## 10. The one surface that does not fully match
+
+The host page is Cockpit, branded rather than rebuilt: `modules/host-ui.nix`
+writes the site's finish into Cockpit's own branding (its colours, the logo,
+the login page) and the History screen is the platform's own page in that
+finish. Everything else on it -- the file browser, the terminal, storage,
+podman -- is PatternFly, Cockpit's design system, and keeps PatternFly's
+shapes, spacing and controls. It is the one component whose look will not
+fully match the design file, and that is deliberate: a native agent
+rewritten to the tokens would be a second thing to keep secure and current,
+where Cockpit is audited, packaged and maintained. The control panel, the
+installer, the front panel and the boot splash all come from the tokens in
+this file.

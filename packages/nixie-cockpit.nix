@@ -5,9 +5,11 @@
 {
   pkgs,
   lib ? pkgs.lib,
+  # The site's finish, as the rest of the host page wears it.
+  finish ? "graphite",
 }:
 let
-  t = (import ../lib/tokens.nix { inherit lib; }).forFinish "graphite";
+  t = (import ../lib/tokens.nix { inherit lib; }).forFinish finish;
   manifest = builtins.toJSON {
     version = 0;
     requires.cockpit = "266";

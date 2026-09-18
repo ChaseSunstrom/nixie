@@ -582,7 +582,7 @@ nixosConfigurations.<host>                the host
 packages.x86_64-linux.<host>-guest-<g>    NixOS guest tarball + metadata (kind = "nixos")
 packages.x86_64-linux.<host>-tofu         terranix JSON for the host
 packages.x86_64-linux.<host>-vm           quick VM of the host
-packages.x86_64-linux.apply               `nix run .#apply`: sync to the host and run `nixie apply`
+packages.x86_64-linux.apply               `nix run .#apply [<machine>]`: copy this checkout to a machine of the site and run its own `nixie apply` there; with no machine, this one
 checks.x86_64-linux.<host>-eval           the host evaluates and its guests build
 ```
 

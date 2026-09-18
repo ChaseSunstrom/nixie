@@ -265,8 +265,11 @@ enc=$(nix eval "$site#nixosConfigurations.$host.config.nixie.security.encryption
 tpm=$(nix eval "$site#nixosConfigurations.$host.config.nixie.security.tpm.enable")
 dur=$(nix eval "$site#nixosConfigurations.$host.config.nixie.security.duress.enable")
 sb=$(nix eval "$site#nixosConfigurations.$host.config.nixie.security.secureBoot.enable")
-jq -n --arg h "$host" --arg d "$disk" --arg dd "$data" --argjson sb "$sb" --argjson hw "$hw" \
-  '{host:$h, profile:"server", systemDisk:$d, dataDisk:(if $dd=="null" then null else $dd end), uplinks:[], gpu:($hw.gpu // "none"), tpm:($hw.tpm // false), options:{secureBoot:$sb}}' \
+# The site says which it is; a desktop installed from here was told it was a
+# server, which is what the continuation front ends read.
+profile=$(nix eval --raw "$site#nixosConfigurations.$host.config.nixie.profile")
+jq -n --arg h "$host" --arg p "$profile" --arg d "$disk" --arg dd "$data" --argjson sb "$sb" --argjson hw "$hw" \
+  '{host:$h, profile:$p, systemDisk:$d, dataDisk:(if $dd=="null" then null else $dd end), uplinks:[], gpu:($hw.gpu // "none"), tpm:($hw.tpm // false), options:{secureBoot:$sb}}' \
   | r "cat >/var/lib/nixie/setup/state.json"
 if [ "$enc" = true ]; then secret "disk passphrase" | r "cat >/run/nixie/keys/passphrase"; fi
 if [ "$tpm" = true ]; then secret "TPM PIN" | r "cat >/run/nixie/keys/pin"; fi

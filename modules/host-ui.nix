@@ -66,7 +66,10 @@ let
           mv branded.html "$f"
         done
       '';
-  historyPage = import ../packages/nixie-cockpit.nix { inherit pkgs; };
+  historyPage = import ../packages/nixie-cockpit.nix {
+    inherit pkgs;
+    finish = config.nixie.ui.theme;
+  };
   port = toString cfg.port;
   wsDropin = {
     overrideStrategy = "asDropin";

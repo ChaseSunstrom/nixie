@@ -49,6 +49,19 @@ host.succeed("systemctl reset-failed nixie-broken-test.service")
 host.succeed("curl -sfk https://127.0.0.1:8443/ui/notices.json -o /tmp/served")
 assert "nixie-broken-test" not in host.succeed("cat /tmp/served")
 
+# Who the daemon trusts, and for how long, is part of `nixie doctor`: a
+# browser certificate that quietly expired looks just like a panel that will
+# not load. One that expires in three days, which is inside the fortnight it
+# warns about:
+host.succeed(
+    "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -sha256 -days 3 "
+    "-nodes -subj /CN=soon -keyout /tmp/soon.key -out /tmp/soon.crt 2>/dev/null"
+)
+host.succeed("incus config trust add-certificate --name soon /tmp/soon.crt")
+doc = host.succeed("nixie doctor || true")
+print(doc)
+assert "EXPIRING: soon" in doc, doc
+
 # The daemon itself answers on the same origin, untrusted without a client certificate.
 host.succeed("curl -sfk https://127.0.0.1:8443/1.0 | jq -e '.metadata.auth == \"untrusted\"'")
 host.succeed("curl -sfk https://127.0.0.1:8443/1.0 | jq -e '.metadata.config // {} | has(\"user.nixie.notices\") | not'")

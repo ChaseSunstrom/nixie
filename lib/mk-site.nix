@@ -126,17 +126,30 @@ let
     in
     {
       nixosConfigurations = hosts;
-      packages.${system} =
-        lib.mapAttrs' (n: h: lib.nameValuePair "${n}-vm" h.config.system.build.vm) hosts
-        // lib.mapAttrs' (
-          n: h: lib.nameValuePair "${n}-tofu" h.config.environment.etc."nixie/tofu/config.tf.json".source
-        ) (lib.filterAttrs (_: h: h.config.nixie.incus.enable) hosts)
-        // lib.concatMapAttrs (
-          n: h:
-          lib.mapAttrs' (
-            g: img: lib.nameValuePair "${n}-guest-${g}" img.package
-          ) h.config.nixie.build.guestImages
-        ) hosts;
+      packages.${system} = {
+        # The brief's thin wrapper: sync this checkout to a machine of the
+        # site and run the machine's own `nixie apply` there.
+        apply = inputs.nixpkgs.legacyPackages.${system}.writeShellApplication {
+          name = "apply";
+          runtimeInputs = with inputs.nixpkgs.legacyPackages.${system}; [
+            rsync
+            openssh
+          ];
+          text = (import ./template.nix lib).fill ./apply.sh {
+            sitePath = (lib.head (lib.attrValues hosts)).config.nixie.site.path;
+          };
+        };
+      }
+      // lib.mapAttrs' (n: h: lib.nameValuePair "${n}-vm" h.config.system.build.vm) hosts
+      // lib.mapAttrs' (
+        n: h: lib.nameValuePair "${n}-tofu" h.config.environment.etc."nixie/tofu/config.tf.json".source
+      ) (lib.filterAttrs (_: h: h.config.nixie.incus.enable) hosts)
+      // lib.concatMapAttrs (
+        n: h:
+        lib.mapAttrs' (
+          g: img: lib.nameValuePair "${n}-guest-${g}" img.package
+        ) h.config.nixie.build.guestImages
+      ) hosts;
       checks.${system} = lib.mapAttrs' (
         n: h: lib.nameValuePair "${n}-eval" h.config.system.build.toplevel
       ) hosts;

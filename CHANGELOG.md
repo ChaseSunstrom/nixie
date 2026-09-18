@@ -99,6 +99,24 @@ that disk's boot partition up with its pools, and `nixie secure-boot --at`
 reports on the system there while reading the firmware of the machine it is
 running on.
 
+Six things the brief asks for that the platform had not done. `nix run
+.#apply` exists: ARCHITECTURE.md and the guide to adding a guest both told
+people to run it from a site checkout, and `mkSite` emitted no such package,
+so it failed. It copies the checkout to a machine of the site and runs that
+machine's own `nixie apply` there, leaving the site's `.git` alone because
+the host's checkout has commits of its own.
+
+`nixie doctor` reports who the daemon trusts and warns a fortnight before a
+certificate expires, which the brief asks of it and which looks, when it
+happens, exactly like a control panel that will not load. Phase 8 of setup
+starts the cache fetch the site's data manifest lists, without waiting for
+it. `nixie.monitoring.exporters.<name>.enable` turns either of the two the
+platform runs off, or any other of nixpkgs' exporters on, and what is
+scraped follows what runs. The host page's History screen wears the site's
+finish instead of always graphite. A headless deploy writes the host's real
+profile into the setup state instead of always "server", which had a desktop
+installed that way continuing as a server.
+
 The code the platform installs now lives in files of its own -- shell, Lua,
 CSS, HTML, JavaScript and the tests' Python -- next to the module that
 installs it, instead of inside Nix strings: `lib/template.nix` puts the

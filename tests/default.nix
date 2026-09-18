@@ -594,6 +594,52 @@ in
     assert lib.assertMsg (failed == [ ]) "hardware-keys: ${lib.concatStringsSep "; " failed}";
     pkgs.writeText "hardware-keys" (lib.concatStringsSep "\n" (lib.attrNames facts));
 
+  # Which exporters run, and that what is scraped follows them.
+  exporters =
+    let
+      server =
+        settings:
+        (testHost ../examples/site {
+          hosts.server = exampleSite.hosts.server // {
+            settings = {
+              imports = [
+                exampleSite.hosts.server.settings
+                settings
+              ];
+            };
+          };
+        } "server").config;
+      on = server { nixie.monitoring.enable = true; };
+      off = server {
+        nixie.monitoring.enable = true;
+        nixie.monitoring.exporters.node.enable = false;
+      };
+      extra = server {
+        nixie.monitoring.enable = true;
+        nixie.monitoring.exporters.smartctl.enable = true;
+      };
+      jobs = c: map (j: j.job_name) c.services.prometheus.scrapeConfigs;
+      facts = {
+        "this machine's own figures by default" =
+          on.services.prometheus.exporters.node.enable && builtins.elem "node" (jobs on);
+        "a site can turn one off, and then nothing scrapes it" =
+          !off.services.prometheus.exporters.node.enable && !(builtins.elem "node" (jobs off));
+        "and turn another of nixpkgs' own on, which is then scraped" =
+          extra.services.prometheus.exporters.smartctl.enable && builtins.elem "smartctl" (jobs extra);
+        # Named, not swept: reading every exporter option throws on the
+        # ones nixpkgs has removed.
+        "every exporter answers on this host alone" =
+          lib.all (n: extra.services.prometheus.exporters.${n}.listenAddress == "127.0.0.1")
+            [
+              "node"
+              "smartctl"
+            ];
+      };
+      failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
+    in
+    assert lib.assertMsg (failed == [ ]) "exporters: ${lib.concatStringsSep "; " failed}";
+    pkgs.writeText "exporters" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
   # The three modes for following the site, and the surfaces that show it.
   updates =
     let

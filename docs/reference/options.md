@@ -754,6 +754,16 @@ Extra dashboards, name to JSON file.
 Collect host, guest and GPU metrics with Prometheus so the dashboards
 show history. Costs some memory and disk.
 
+## `nixie.monitoring.exporters`
+
+*attribute set of (submodule)*, default: `{}`.
+
+Which of Prometheus' exporters run, by the name nixpkgs gives them.
+"node" (this machine's own figures) is on, and "nvidia-gpu" is on
+when the machine has an NVIDIA card; naming either here with
+`enable = false` turns it off, and anything else nixpkgs offers can
+be turned on. What is scraped follows what runs.
+
 ## `nixie.monitoring.extraScrapeConfigs`
 
 *list of (attribute set)*, default: `[]`.
