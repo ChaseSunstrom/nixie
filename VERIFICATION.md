@@ -1815,7 +1815,16 @@ so the coverage stays.
 
 | check | result |
 |---|---|
+A third: VirtualBox gives a new machine a SATA controller where this gives
+it virtio, and again those are different modules -- an installed initrd that
+does not carry the driver for the disk it boots from would leave the machine
+exactly where the report puts it. `--disk virtio|sata` now says which, and
+the hardened install with Secure Boot passes on both.
+
+| check | result |
+|---|---|
 | `nix run .#test-iso --security hardened --tpm crb` | pass; keys staged, the same as with TIS |
+| `nix run .#test-iso --security hardened --disk sata` | pass; keys staged, the same as on virtio |
 | `vm-boot-plain` (extended) | pass; a node told to go straight to the initrd's emergency target shows the report on its console, before the panic that a failed start triggers there |
 | `nix run .#test-iso --security hardened` (now the wizard's preset) | pass, keys staged |
 

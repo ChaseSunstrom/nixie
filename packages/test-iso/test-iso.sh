@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 out=${NIXIE_ARTIFACTS:-tests/artifacts}; mkdir -p "$out"
 iso=$(ls @iso@/iso/nixie_*.iso)
-medium=(-cdrom "$iso" -boot d); security=plain; profile=server; kiosk=0; tpm=tis
+medium=(-cdrom "$iso" -boot d); security=plain; profile=server; kiosk=0; tpm=tis; bus=virtio
 while [ $# -gt 0 ]; do
   case "$1" in
     # The wizard driven on the machine's own screen. That image differs by
@@ -12,14 +12,26 @@ while [ $# -gt 0 ]; do
     # hypervisors: VirtualBox presents a CRB device where QEMU's default
     # here is TIS, and the driver for each is a different kernel module.
     --tpm) tpm=$2; shift ;;
+    # What the system disk hangs off. VirtualBox gives a new machine a SATA
+    # controller where this gives it virtio, and the driver for each is a
+    # different kernel module -- one the installed initrd has to carry, or
+    # the disk it boots from is not there.
+    --disk) bus=$2; shift ;;
     --usb) medium=(-drive "if=none,id=stick,format=raw,readonly=on,file=$iso" -device qemu-xhci -device "usb-storage,drive=stick,bootindex=0") ;;
     --security) security=$2; shift ;;
     --profile) profile=$2; shift ;;
-    *) echo "usage: nixie-test-iso [--kiosk] [--usb] [--tpm tis|crb] [--security plain|tpm|secureboot|hardened] [--profile server|desktop]" >&2; exit 2 ;;
+    *) echo "usage: nixie-test-iso [--kiosk] [--usb] [--tpm tis|crb] [--disk virtio|sata] [--security plain|tpm|secureboot|hardened] [--profile server|desktop]" >&2; exit 2 ;;
   esac
   shift
 done
-echo "== medium ${medium[0]}, security $security, profile $profile, tpm $tpm" | tee -a "$out/run.log"
+# The device the drive hangs off, and the controller it needs when it is not
+# virtio: by-id names come from the serial either way.
+if [ "$bus" = sata ]; then
+  sysdisk=(-device "ahci,id=ahci" -device "ide-hd,bus=ahci.0,drive=sys,serial=nixie-system")
+else
+  sysdisk=(-device "virtio-blk-pci,drive=sys,serial=nixie-system")
+fi
+echo "== medium ${medium[0]}, security $security, profile $profile, tpm $tpm, disk $bus" | tee -a "$out/run.log"
 disk="$out/target.qcow2"; qemu-img create -q -f qcow2 "$disk" 40G; rm -f "$out/unlock-prompt.png"
 vars="$out/efi-vars.fd"; cp @ovmf@/FV/OVMF_VARS.fd "$vars"; chmod +w "$vars"
 # A failed run must not leave the VM holding the disk for the next one.
@@ -40,9 +52,9 @@ boot() {
   qemu-system-x86_64 -machine q35,smm=on,accel=$accel -cpu $cpu -m 4096 -smp 4 -no-reboot \
     -drive if=pflash,format=raw,readonly=on,file=@ovmf@/FV/OVMF_CODE.fd \
     -drive if=pflash,format=raw,file="$vars" \
-    -drive file="$disk",if=none,id=sys,format=qcow2 -device virtio-blk-pci,drive=sys,serial=nixie-system \
+    -drive file="$disk",if=none,id=sys,format=qcow2 "${sysdisk[@]}" \
     -chardev socket,id=chrtpm,path="$out/tpm/sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device "tpm-$tpm,tpmdev=tpm0" \
-    -netdev "user,id=n0,hostfwd=tcp::9443-:9443,hostfwd=tcp::8443-:8443''${kiosk:+,hostfwd=tcp::9222-:9223}" -device virtio-net-pci,netdev=n0 \
+    -netdev "user,id=n0,hostfwd=tcp::9443-:9443,hostfwd=tcp::8443-:8443${kiosk:+,hostfwd=tcp::9222-:9223}" -device virtio-net-pci,netdev=n0 \
     -chardev "socket,id=ser,path=$out/serial.sock,server=on,wait=off,logfile=$out/serial.log,logappend=on" -serial chardev:ser \
     -display none -monitor unix:"$out/monitor.sock",server,nowait "$@" \
     >>"$out/qemu.log" 2>&1 &

@@ -141,7 +141,7 @@ offers the previous system, to the screen and to the kernel log at error
 level so a quiet console still shows it. It runs before the panic that
 `boot.panic_on_fail` triggers on that same target.
 
-`nix run .#test-iso` takes `--tpm tis|crb`: machines and hypervisors differ
+`nix run .#test-iso` takes `--disk virtio|sata` as well as `--tpm tis|crb`: machines and hypervisors differ
 in which interface their TPM speaks, and each is a different kernel module.
 
 `nix run .#test-iso --security hardened` now writes what the wizard's
