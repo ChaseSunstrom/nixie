@@ -1837,13 +1837,25 @@ the prompt waits with it: ninety seconds of a machine that looks hung, while
 longer orders itself after the device; the script waits five seconds for it
 and says there is no code if it never comes.
 
-What that is verified by, and what it is not: `boot-and-setup` pins the
-ordering so it cannot creep back, and `vm-splash` -- which boots a machine
-that does have a TPM and reads the code off the screen by OCR before the PIN
-prompt -- shows the code still arrives first. No test here boots a machine
-with attestation on and no TPM at all: that wants an installed encrypted
-disk, which is a full installer run. The ninety seconds is what systemd's
-device timeout is, not something measured on such a machine.
+That is measured now, not reasoned. `vm-splash` installs an encrypted disk
+and boots it several times over; a sixth node boots that same disk with
+`virtualisation.tpm.enable = false`, which is a machine with attestation on
+and no TPM at all -- the shape this was guessed to be. The passphrase is
+asked for 7.7 seconds into the boot, by the kernel's own clock, and the
+machine says there is no code rather than pretending to have one. `boot-and-
+setup` pins the ordering so it cannot creep back, and the other nodes, which
+do have a TPM, show the code still arrives before the PIN prompt.
+
+Three things that subtest got wrong first, all mine and all about the
+harness rather than the platform. It waited with `wait_for_console_text`,
+which reads about a line a second where a boot writes hundreds, and was
+still catching up two minutes after the prompt had come and gone -- this
+very file has an `on_console` helper carrying that lesson in a comment, and
+it was not reused. It then asked the guest to shut down while the guest was
+sitting at the passphrase prompt in the initrd, where there is no backdoor
+to answer, which hung the whole run past forty minutes and held the disk the
+later starts share; it is stopped through the QEMU monitor now. And the run
+was started without `-L`, so none of the test output was there to read.
 
 | `vm-boot-plain` (extended) | pass; a node told to go straight to the initrd's emergency target shows the report on its console, before the panic that a failed start triggers there |
 | `nix run .#test-iso --security hardened` (now the wizard's preset) | pass, keys staged |

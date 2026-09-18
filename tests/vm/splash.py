@@ -87,6 +87,36 @@ with subtest("first start: the passphrase typed on the splash opens both layers"
     assert sealed == target.succeed("readlink -f /run/booted-system").strip(), sealed
     target.shutdown()
 
+with subtest("a machine with no TPM still asks for the passphrase, and soon"):
+    # The code comes from the TPM and is drawn in front of every prompt. With
+    # the service ordered after the TPM's device unit, a machine without one
+    # waited that device out -- ninety seconds -- before asking for anything.
+    # The disk still has its passphrase here: the TPM is enrolled below.
+    notpm.start()
+    # Polled, like on_console above and for the same reason: the driver's
+    # own wait reads about a line a second and a boot prints hundreds, so it
+    # was still catching up two minutes after the prompt had come and gone.
+    said = ""
+    for _ in range(120):
+        said = notpm.get_console_log()
+        if "nixie-unlock: asking for" in said:
+            break
+        time.sleep(1)
+    asked_at = re.search(r"\[ *([0-9.]+)\] nixie-unlock: asking for", said)
+    assert asked_at, said[-3000:]
+    # The machine's own clock, which is the measurement that matters: the
+    # device timeout this used to sit through is ninety seconds.
+    seconds = float(asked_at.group(1))
+    print(f"the passphrase was asked for {seconds:.1f} s into the boot")
+    assert seconds < 60, f"the prompt came {seconds:.1f} s in"
+    # And it says there is no code rather than pretending to have one.
+    assert "nixie-attestation: warn shown" in said, said[-3000:]
+    # Stopped through the monitor, not by asking the guest: it is sitting at
+    # the passphrase prompt in the initrd, where there is no backdoor to
+    # answer a shutdown, and the disk below is shared with the starts after
+    # this one.
+    notpm.crash()
+
 with subtest("the code and the PINs on the splash, a wrong PIN said so"):
     target.start()
     on_console("nixie-attestation: code shown")

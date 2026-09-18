@@ -105,6 +105,19 @@ pkgs.testers.runNixOSTest {
         siteSrc
       ];
     };
+    # The same disk on a machine with no TPM at all, which is where the
+    # attestation code used to hold the passphrase prompt behind a device
+    # unit for a TPM that never appears.
+    notpm = {
+      imports = [ shared ];
+      virtualisation.tpm.enable = lib.mkForce false;
+      virtualisation.useBootLoader = true;
+      virtualisation.useDefaultFilesystems = false;
+      virtualisation.fileSystems."/" = {
+        device = "/dev/disk/by-label/never-used";
+        fsType = "ext4";
+      };
+    };
     target = {
       imports = [ shared ];
       # The key's state lives next to the disk, so it keeps its PIN and
