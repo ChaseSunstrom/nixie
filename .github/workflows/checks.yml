@@ -1,0 +1,87 @@
+# What can be proved without a machine of our own.
+#
+# The gate is `nix flake check`, and most of it is evaluation: the option
+# tree, the profiles' closures, the docs, the formatter, the linters. Those
+# run here. The VM tests need KVM, which a hosted runner does not give, so
+# they are a job of their own that only a runner labelled `kvm` takes, and
+# only when it is asked for -- the alternative is a workflow that is red for
+# everyone by design.
+#
+# The screenshots the brief asks for come from demo mode, which needs no
+# daemon and no VM: `nix run .#demo-shots` serves the panel's own bundle and
+# photographs every screen in all three finishes.
+name: checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      vm-tests:
+        description: Also run the VM tests (needs a self-hosted runner labelled kvm)
+        type: boolean
+        default: false
+
+jobs:
+  evaluate:
+    name: checks that need no KVM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The official installer rather than an action: one less thing pinned
+      # to a version this repository cannot verify.
+      - name: Install Nix
+        run: |
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon
+          echo "/nix/var/nix/profiles/default/bin" >>"$GITHUB_PATH"
+      - name: Enable flakes
+        run: |
+          sudo mkdir -p /etc/nix
+          echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
+      - name: Run every check but the VM tests
+        run: |
+          names=$(nix eval --raw .#checks.x86_64-linux --apply \
+            'cs: builtins.concatStringsSep " " (builtins.filter (n: builtins.substring 0 3 n != "vm-") (builtins.attrNames cs))')
+          echo "$names"
+          for c in $names; do
+            echo "== $c"
+            nix build ".#checks.x86_64-linux.$c" -L --no-link
+          done
+
+  screenshots:
+    name: every screen in all three finishes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        run: |
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon
+          echo "/nix/var/nix/profiles/default/bin" >>"$GITHUB_PATH"
+      - name: Enable flakes
+        run: |
+          sudo mkdir -p /etc/nix
+          echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
+      - name: Photograph the panel from demo mode
+        run: nix run .#demo-shots -- shots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens
+          path: shots
+
+  vm-tests:
+    name: the VM tests
+    # A hosted runner has no KVM; under TCG these take hours. This job waits
+    # for a machine of the project's own, and is asked for by hand.
+    if: inputs.vm-tests
+    runs-on: [self-hosted, kvm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run them one at a time
+        run: |
+          names=$(nix eval --raw .#checks.x86_64-linux --apply \
+            'cs: builtins.concatStringsSep " " (builtins.filter (n: builtins.substring 0 3 n == "vm-") (builtins.attrNames cs))')
+          for c in $names; do
+            echo "== $c"
+            nix build ".#checks.x86_64-linux.$c" -L --no-link
+          done

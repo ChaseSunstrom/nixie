@@ -66,5 +66,9 @@ rec {
   test-iso = import ./test-iso.nix { inherit pkgs nixie-iso nixie-iso-kiosk; };
   docs = import ./docs.nix { inherit pkgs nixie-setup; };
   media = import ./media.nix { inherit pkgs; };
+  demo-shots = import ./demo-shots.nix {
+    inherit pkgs;
+    inherit ((import ./nixie-web.nix { inherit pkgs; })) nixie-ui;
+  };
   offline = import ./offline.nix { inherit pkgs; };
 }

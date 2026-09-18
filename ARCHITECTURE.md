@@ -583,6 +583,7 @@ packages.x86_64-linux.<host>-guest-<g>    NixOS guest tarball + metadata (kind =
 packages.x86_64-linux.<host>-tofu         terranix JSON for the host
 packages.x86_64-linux.<host>-vm           quick VM of the host
 lib.mkOption                              the wizard's own `mkOption`, for an option a site declares (docs/extending.md)
+packages.x86_64-linux.demo-shots         `nix run .#demo-shots`: the panel's screens in three finishes from demo mode (what CI photographs)
 packages.x86_64-linux.apply               `nix run .#apply [<machine>]`: copy this checkout to a machine of the site and run its own `nixie apply` there; with no machine, this one
 checks.x86_64-linux.<host>-eval           the host evaluates and its guests build
 ```

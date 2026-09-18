@@ -1690,6 +1690,41 @@ they are read. The unit itself is built into that host (`unit-nixie-
 fetch.service` appears in the install log), so the branch taken was the one
 that starts it rather than the one that says there is no data.
 
+## CI, and the screens it photographs (2026-09-18)
+
+Section 14 asks for "screenshots of every screen in all three finishes,
+generated from demo mode in CI", and there was no CI at all -- no
+`.github/`, no workflow of any kind. The reason it had been left alone is
+real: the gate is `nix flake check` and half of it is VM tests, which want
+KVM that a hosted runner does not give. But the thing the brief actually
+asks CI for does not need a machine: demo mode is the panel answering itself
+from seeded data, with no daemon, no certificate and nothing installed.
+
+So `nix run .#demo-shots` serves the panel's own bundle on a port of its own
+and photographs fourteen screens in graphite, umber and paper -- forty-two
+pictures, no VM -- and fails if any screen raised while it was being taken,
+because a picture of a screen that threw is a lie.
+`.github/workflows/checks.yml` runs that and every check whose name does not
+begin with `vm-`; the VM tests are a job of their own that only a runner
+labelled `kvm` takes, and only when asked for by hand, because a workflow
+that is red for everyone by design is worth nothing.
+
+One fault in the generator, found by looking at what it produced rather than
+at whether it exited: the finish is a browser choice the panel reads once as
+it starts, and it was being set after the page had loaded. Forty-two
+screenshots came out, three finishes were named, and every picture was
+graphite. It reloads after setting it now.
+
+| check | result |
+|---|---|
+| `nix run .#demo-shots` | pass; 42 screenshots, 14 screens in 3 finishes, each finish visibly its own |
+| `.github/workflows/checks.yml` | parses; its jobs are evaluate, screenshots, vm-tests. Not run on GitHub from here -- this repository's runs will be its first |
+
+| check | result |
+|---|---|
+| boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, registry, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (54s), vm-boot-plain (64s), vm-console (242s), vm-data (31s), vm-desktop (177s), vm-egress (97s), vm-encryption (377s), vm-guests (86s), vm-hardware (54s), vm-host-ui (46s), vm-installer-lan (235s), vm-monitoring (81s), vm-rollback (151s), vm-splash (545s), vm-ui (18s), vm-updates (41s) | pass |
+
 ## The wizard driven on the machine's own screen (2026-09-18)
 
 The brief asks `packages.test-iso` to drive the wizard end to end "via the

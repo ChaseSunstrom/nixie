@@ -117,6 +117,14 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+There is CI. `.github/workflows/checks.yml` runs every check that does not
+need KVM on a hosted runner, and photographs every screen of the control
+panel in all three finishes from demo mode -- which is what the brief asks
+to be generated there, and what demo mode makes possible without a daemon or
+a VM. The VM tests are a job of their own that only a runner labelled `kvm`
+takes, asked for by hand: a hosted runner cannot run them, and a workflow
+that is red for everyone by design is worth nothing.
+
 `nix run .#test-iso --kiosk` drives the wizard through the browser on the
 machine's own screen, not over the HTTP API: a whole install, in the kiosk
 the image starts, which the brief asks for and which nothing did before.
