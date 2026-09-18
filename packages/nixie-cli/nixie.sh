@@ -52,7 +52,7 @@ usage() {
   c "reseal" "reseal attestation to this boot chain"
   c "security reenroll" "Secure Boot, TPM, recovery key again, after a board or firmware change"
   c "security add-key" "enrol another security key (FIDO2) for the disk"
-  c "secure-boot [--sign]" "what the firmware holds and what is signed, when a start says \"Access Denied\""
+  c "secure-boot [--sign] [--at <dir>]" "what the firmware holds and what is signed, when a start says \"Access Denied\""
   c "disk open [<partition>] [--mount dir] [--write]" "open another Nixie disk with its keys, read-only unless --write"
   c "disk close" "unmount and lock what disk open opened"
   c "usb [--json] | usb allow <vendor:product>" "blocked USB devices, or allow one"
@@ -263,7 +263,7 @@ case "$cmd" in
           echo '{"id":"backup","level":"warn","title":"The last backup check failed","detail":"the repository was unreadable or a snapshot did not verify","action":"nixie backup verify"}'
         fi
         # The first thing anyone wants to know about a machine they cannot
-        # see. cut, not awk: the command's PATH is its runtimeInputs.
+        # see.
         broken=$(systemctl list-units --failed --plain --no-legend 2>/dev/null | cut -d' ' -f1 | tr '\n' ' ')
         if [ -n "${broken// /}" ]; then
           jq -n --arg d "$broken" '{id:"units", level:"warn", title:"A service on this machine failed",
@@ -468,11 +468,21 @@ case "$cmd" in
   secure-boot)
     # What the firmware holds, what is on the boot partition and what is
     # signed -- the three things "Access Denied" can be about.
-    sign=0
-    while [ $# -gt 0 ]; do case "$1" in --sign) sign=1 ;; esac; shift; done
-    pki=${NIXIE_SBCTL:-/var/lib/sbctl}
+    sign=0; at=""
+    while [ $# -gt 0 ]; do case "$1" in --sign) sign=1 ;; --at) at=$2; shift ;; esac; shift; done
+    # A machine that will not start is looked at from somewhere else: the
+    # installer image, with its disk opened by `nixie disk open`. The
+    # firmware's own variables are always this machine's -- they are the one
+    # thing that cannot be read from another machine's disk.
+    if [ -n "$at" ]; then
+      [ -d "$at/boot" ] || { echo "no boot partition under $at: open the disk first with 'nixie disk open --mount $at'" >&2; exit 2; }
+      pki=$at/var/lib/sbctl
+      esp=$at/boot
+    else
+      pki=${NIXIE_SBCTL:-/var/lib/sbctl}
+      esp=${NIXIE_ESP:-/boot}
+    fi
     efivars=${NIXIE_EFIVARS:-/sys/firmware/efi/efivars}
-    esp=${NIXIE_ESP:-/boot}
     # The command's own PATH comes first, so a test's stand-in is named.
     status=$(${NIXIE_BOOTCTL:-bootctl} status 2>/dev/null || true)
     sb=no; setup=no
@@ -488,6 +498,9 @@ case "$cmd" in
     fi
     staged=no
     [ -n "$(find "$esp/loader/keys" -name '*.auth' 2>/dev/null | head -1)" ] && staged=yes
+    if [ -n "$at" ]; then
+      say "looking at" "the system opened under $at; the firmware below is this machine's own"
+    fi
     say "firmware" "Secure Boot $sb, Setup Mode $setup, this machine's keys enrolled: $ours"
     say "keys on the boot partition" "$staged"
     # Everything the firmware could be asked to start.
@@ -573,9 +586,26 @@ case "$cmd" in
         zfs list -H -o name,mountpoint -r "nixie-$pool" | sort -k2 | while read -r ds mp; do
           [ "$mp" = none ] || [ "$mp" = legacy ] || zfs mount "$ds"
         done
+        # The boot partition of that same disk: where the loader, the signed
+        # files and the staged Secure Boot keys are, which is most of what
+        # anyone opens another machine's disk for. By parent disk, not by
+        # label: this machine's own partition carries the same one.
+        whole=$(lsblk -no pkname "$dev" | head -1)
+        esp=$(lsblk -no path,partlabel "/dev/$whole" 2>/dev/null | awk '$2 == "disk-system-esp" { print $1; exit }')
+        if [ -n "$esp" ] && [ -b "$esp" ]; then
+          mkdir -p "$at/boot"
+          if [ "$rw" = 1 ]; then mount "$esp" "$at/boot"; else mount -o ro "$esp" "$at/boot"; fi ||
+            echo "the boot partition $esp could not be mounted" >&2
+        fi
         echo "$dev is open at $at$([ "$rw" = 1 ] || echo ", read-only"); 'nixie disk close' locks it again." ;;
       close)
-        zpool list -H -o name | grep '^nixie-' | while read -r p; do zpool export "$p"; done
+        # Under each opened pool's own altroot, so this can never reach the
+        # boot partition the running machine is using.
+        zpool list -H -o name | grep '^nixie-' | while read -r p; do
+          at=$(zpool get -H -o value altroot "$p")
+          [ "$at" = "-" ] || umount "$at/boot" 2>/dev/null || true
+          zpool export "$p"
+        done
         find /dev/mapper -name 'nixie-*-[0-9]*' -printf '%f\n' | sort -r | while read -r m; do cryptsetup close "$m"; done
         echo "closed" ;;
       *) echo "usage: nixie disk open [<partition>] [--mount <dir>] [--write] | close" >&2; exit 2 ;;

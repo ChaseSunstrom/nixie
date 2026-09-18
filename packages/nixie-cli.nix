@@ -16,6 +16,9 @@ pkgs.writeShellApplication {
       coreutils
       cryptsetup
       git
+      # Three commands parse a tool's columns with it; without it here they
+      # depend on whatever PATH the caller happened to have.
+      gawk
       gnugrep
       openssl # the Secure Boot check reads the firmware's own key
       gnused

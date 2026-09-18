@@ -1290,7 +1290,7 @@ single-process `nix flake check` does not fit in this host's memory; see
 | check | result |
 |---|---|
 | boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (58s), vm-boot-plain (42s), vm-console (248s), vm-data (50s), vm-desktop (138s), vm-egress (114s), vm-encryption (415s), vm-guests (101s), vm-hardware (60s), vm-host-ui (29s), vm-installer-lan (244s), vm-monitoring (105s), vm-rollback (155s), vm-splash (576s), vm-ui (66s, on its own), vm-updates (47s) | pass |
+| vm-backup (56s), vm-boot-plain (43s), vm-console (301s), vm-data (54s), vm-desktop (137s), vm-egress (104s), vm-encryption (407s), vm-guests (83s), vm-hardware (61s), vm-host-ui (32s), vm-installer-lan (177s), vm-monitoring (94s), vm-rollback (185s), vm-splash (739s), vm-ui (48s), vm-updates (47s) | pass |
 
 Beyond the checks:
 
@@ -1399,6 +1399,16 @@ behind the client certificate everything else there needs. It says the
 notice and names the command; acting on it stays with the machine, as the
 panel's History page already does for generations.
 
+The machine that cannot start is the one that needs this most, and it cannot
+run the command. `nixie disk open` now brings that disk's boot partition up
+beside its pools -- found by the parent disk rather than the partition
+label, which this machine's own boot partition carries too -- and `nixie
+secure-boot --at /mnt/nixie` reports on the system opened there while
+reading the firmware of the machine it is running on, which is the one thing
+that cannot come off another machine's disk. `nixie disk close` unmounts it
+under each opened pool's own altroot, so it can never reach the boot
+partition the running machine is using.
+
 `nixie secure-boot` answers the report: what the firmware holds (this
 machine's own PK certificate found *inside* the PK variable -- "disabled"
 reads the same whoever's keys are in there), whether keys are staged on the
@@ -1411,7 +1421,7 @@ person sees while the stick is still in.
 | check | result |
 |---|---|
 | `updates` (nine facts) | pass; the three modes, the timers, the site file, the login line, the desktop notifier, and that a server has none |
-| `secure-boot-report` (four firmware states) | pass; a generated PK certificate placed inside a fake PK variable, a stand-in `bootctl` for each state |
+| `secure-boot-report` (four firmware states, and the same report about a disk opened elsewhere) | pass; a generated PK certificate placed inside a fake PK variable, a stand-in `bootctl` for each state |
 | `vm-updates` (two nodes, five subtests) | pass; a bare repository both machines share, a second checkout standing in for the laptop that pushes |
 | `vm-ui` (extended) | pass; a unit broken on purpose reaches `user.nixie.notices` on the daemon, the chunk the page preloads carries the reader, and nothing of the notice is served to a caller with no certificate |
 
@@ -1456,9 +1466,14 @@ Four things the work turned up:
 
 All forty checks on this tree, one `nix build` per output as ever (the
 evaluator still cannot hold every check in one process, see the Final run
-note below), on 2026-09-18. The run was interrupted once by the host's own
-low-memory watchdog, with other work of the operator's holding fifty of its
-sixty gigabytes, and resumed from the check it died on:
+note below), on 2026-09-18. The host was busy with other work of the
+operator's throughout -- a load average of 117 at its worst, and a
+low-memory watchdog that killed the run twice -- so the times below are
+generous, and `vm-installer-lan` had to be run again on a quiet machine: at
+3429 s its two VMs had spent fifty minutes of wall time on three minutes of
+CPU and the driver was still waiting for the target's shell to come up after
+the install reboot, which is what starvation looks like rather than a
+fault. It passes in 177 s with the machine to itself:
 
 | check | result |
 |---|---|

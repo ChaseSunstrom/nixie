@@ -407,6 +407,17 @@ in
         answers "  Secure Boot: disabled (disabled)" "Custom"
         grep -q "Access Denied" out
         grep -q "installer stick" out
+        # The same report about a machine that will not start, from
+        # somewhere else: its disk opened, its own firmware still this one's.
+        mkdir -p machine/var/lib
+        ln -s "$PWD/sb" machine/var/lib/sbctl
+        ln -s "$PWD/boot" machine/boot
+        NIXIE_BOOTCTL=$PWD/bin/bootctl NIXIE_EFIVARS=$PWD/efivars \
+          $cli secure-boot --at "$PWD/machine" >out 2>&1 || true
+        grep -q "the system opened under $PWD/machine" out || { cat out; exit 1; }
+        grep -q "Custom" out || { cat out; exit 1; }
+        $cli secure-boot --at "$PWD/nowhere" >out 2>&1 && { cat out; exit 1; }
+        grep -q "open the disk first" out || { cat out; exit 1; }
         touch $out
       '';
 

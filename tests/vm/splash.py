@@ -164,8 +164,15 @@ with subtest("another machine opens the disk with the recovery key and the passp
     )
     installer.succeed("test -e /mnt/nixie/etc/NIXOS && test -d /mnt/nixie/nix/store")
     installer.fail("touch /mnt/nixie/written")
+    # That disk's boot partition comes with it, which is what someone whose
+    # machine will not start has come here to look at.
+    installer.succeed("test -d /mnt/nixie/boot/EFI")
+    report = installer.succeed("nixie secure-boot --at /mnt/nixie || true")
+    print(report)
+    assert "the system opened under /mnt/nixie" in report, report
     installer.succeed("nixie disk close >&2")
     installer.fail("test -e /dev/mapper/nixie-vda2-0 || mountpoint -q /mnt/nixie")
+    installer.fail("mountpoint -q /mnt/nixie/boot")
     installer.shutdown()
 
 with subtest("the duress passphrase typed at the PIN prompt wipes both layers"):

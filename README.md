@@ -254,9 +254,9 @@ grep -q 'gpu = true' guests.nix
 | `nixie update [--check \| --now]` | whether the site repository is ahead of this machine, and apply it; the timer does this by itself (`nixie.updates.mode`) |
 | `nixie update --inputs [name…]` | update what the site pins, the platform itself among them, then apply; the other machines follow it as they do any change |
 | `nixie notices` | what this machine wants you to know, as the front panel, the control panel, the host page and the desktop show it |
-| `nixie secure-boot [--sign]` | what the firmware holds, what is staged and what is signed, when a start says "Access Denied" |
+| `nixie secure-boot [--sign] [--at <dir>]` | what the firmware holds, what is staged and what is signed, when a start says "Access Denied"; `--at` reads a machine opened with `nixie disk open` from the installer image, for one that will not start at all |
 | `nixie security add-key` | enrol another FIDO2 security key for the disk (a spare); asks for the passphrase, the key's PIN and a touch |
-| `nixie disk open [<partition>] [--mount <dir>] [--write]`, `nixie disk close` | open another Nixie disk, on the installer image or another machine, with a security key, the recovery key or the passphrase, its pools under temporary names at `/mnt/nixie`, read-only unless `--write` |
+| `nixie disk open [<partition>] [--mount <dir>] [--write]`, `nixie disk close` | open another Nixie disk, on the installer image or another machine, with a security key, the recovery key or the passphrase, its pools under temporary names at `/mnt/nixie` and that disk's boot partition at `/mnt/nixie/boot`, read-only unless `--write` |
 | `nixie rollback --json` | every generation, guest and data snapshot and backup as JSON; the History screens read this |
 | `nixie hardware scan \| refresh` | compare the machine with `hosts/<name>/hardware.nix`, then rewrite it, commit and apply |
 | `nixie hardware add-disk <by-id> [name]` | format and mount a disk the site does not declare; it refuses any that it does |

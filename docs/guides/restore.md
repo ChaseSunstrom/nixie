@@ -54,9 +54,18 @@ Reading a disk elsewhere, for a clone or a rescue: boot the installer image
 (the system partition by default, or name one, such as the data disk's
 `/dev/disk/by-partlabel/disk-data-data`). Each layer takes a security key,
 the recovery key or the passphrase (the TPM layer's recovery key is the one
-setup showed; the TPM itself never opens a disk outside its own boot). The pools come in read-only under
-temporary names, mounted at `/mnt/nixie` (`--mount` for elsewhere,
-`--write` to change things); `sudo nixie disk close` locks it all again.
+setup showed; the TPM itself never opens a disk outside its own boot). The
+pools come in read-only under temporary names, mounted at `/mnt/nixie`
+(`--mount` for elsewhere, `--write` to change things), with that disk's boot
+partition at `/mnt/nixie/boot`; `sudo nixie disk close` locks it all again.
+
+A machine that will not start at all, because the firmware answers "Access
+Denied": boot the installer image, open its disk as above, and run `sudo
+nixie secure-boot --at /mnt/nixie`. It reads that system's keys and boot
+files while reading the firmware of the machine it is running on, and says
+which of the two is the problem. On a machine that does start, plain `sudo
+nixie secure-boot` says the same thing about itself, and `--sign` signs any
+boot file that is not signed with its key.
 
 Disk headers: setup wrote `header-backup.tar.age` (all LUKS headers, the TPM
 lockout password and the attestation reseal password), encrypted to the

@@ -93,7 +93,11 @@ beside the bundle to anyone who opens the page.
 `nixie secure-boot` answers what "Access Denied" means on a machine: whether
 the firmware holds this machine's keys, whether they are staged on the boot
 partition, and whether every boot file is signed with them, with the step to
-take in each case; `--sign` signs what is not.
+take in each case; `--sign` signs what is not. A machine that will not start
+at all is read from the installer image instead: `nixie disk open` now brings
+that disk's boot partition up with its pools, and `nixie secure-boot --at`
+reports on the system there while reading the firmware of the machine it is
+running on.
 
 The code the platform installs now lives in files of its own -- shell, Lua,
 CSS, HTML, JavaScript and the tests' Python -- next to the module that
