@@ -141,10 +141,12 @@ switch ([`desktop-finish-runtime.webm`](docs/media/desktop-finish-runtime.webm))
    administrator and the security options; put guests in `guests.nix` and
    cache contents in `data.nix`.
 3. `nix run github:OWNER/nixie#deploy -- --site . --host <name> root@<target>`
-   installs over SSH (kexec if the target is another Linux, the ISO as is).
-4. After the reboot: `nixie-phase 4` … `nixie-phase 8` and `nixie-finish`
-   over SSH.
-5. From then on, `nixie apply` on the host: it commits hand edits in
+   installs over SSH (kexec if the target is another Linux, the ISO as is),
+   restarts the machine, waits for it and carries on with the rest of setup
+   in your own terminal: the passphrase, the PIN, the Secure Boot restarts
+   and Finish. An encrypted target is unlocked at its screen, or over SSH on
+   port 2222 when remote unlock is on, before it comes back.
+4. From then on, `nixie apply` on the host: it commits hand edits in
    `/etc/nixie/site`, switches the system, and pushes the site back when
    `nixie.site.repo` is set. Details:
    [docs/guides/install-headlessly.md](docs/guides/install-headlessly.md).

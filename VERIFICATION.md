@@ -1535,22 +1535,48 @@ rewritten to the tokens would be a second thing to keep secure.
 setup state, so a desktop installed with `nix run .#deploy` continued as a
 server in every front end that reads that state. It asks the site.
 
+**A headless install stopped at the reboot.** The brief's acceptance
+criteria say `nix run nixie#deploy` reaches the same end state as the other
+front ends; it ran phases 1 to 3, rebooted the target and printed a line to
+carry on by hand. That line could not have worked twice over: everything
+after the first `;` ran on the operator's own machine rather than the
+target, and the installer and the installed system have different SSH host
+keys, so reconnecting would have been refused as a changed host. The deploy
+now forgets the installer's host key, waits for the machine to come back,
+and hands over to `nixie-deploy --continue` over `ssh -t` -- the setup
+generation's own terminal front end, which already knows phases 4 to 8,
+Finish, the secrets each one asks for and the Secure Boot restarts. It lands
+in the operator's terminal, where they are standing.
+
 | check | result |
 |---|---|
+| `deploy-continues` | pass; the built script reboots, forgets the host key and hands over, in that order, and the instruction that ran the phases locally is gone |
 | `exporters` (four facts) | pass; the default, one turned off with its job, another of nixpkgs' turned on with its job, and every one bound to this host |
 | `vm-ui` (extended) | pass; a certificate three days from expiry, added to the daemon's real trust store, reaches `nixie doctor` as EXPIRING |
 | `eval-matrix`, `option-reference`, `option-docs`, `readme`, `fmt`, `statix`, `deadnix`, `boot-and-setup`, `setup-devices` | pass |
 | the `apply` wrapper | built from the example site and read: it carries `/etc/nixie/site` from that site's own `nixie.site.path` |
-Then the whole gate on this tree, forty-one checks now that `exporters` has
-joined them. The host's other work was going again for part of it, so `vm-
-installer-lan` was starved a second time -- 33 minutes of wall time on 78
-seconds of CPU at a load average of 118 -- abandoned, and run on its own
-afterwards in 178 s, the same story and the same remedy as the run above.
+Then the whole gate on this tree, forty-two checks now that `exporters` and
+`deploy-continues` have joined them. `vm-installer-lan` was starved to a
+wedge twice while the host's other work ran -- once 3429 s, once 33 minutes
+of wall time on 78 seconds of CPU at a load average of 118 -- abandoned both
+times, and passed in the loop at 362 s once the machine was quiet. The
+formatter caught the new check's own indentation before any of this, which
+is why the run was started again from nothing: every check is built from
+`tests/default.nix`, so a change to it makes every earlier result stale.
 
 | check | result |
 |---|---|
-| boot-and-setup, deadnix, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (55s), vm-boot-plain (41s), vm-console (247s), vm-data (54s), vm-desktop (178s), vm-egress (103s), vm-encryption (432s), vm-guests (136s), vm-hardware (99s), vm-host-ui (39s), vm-installer-lan (178s), vm-monitoring (91s), vm-rollback (245s), vm-splash (603s), vm-ui (46s), vm-updates (45s) | pass |
+| boot-and-setup, deadnix, deploy-continues, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (54s), vm-boot-plain (41s), vm-console (245s), vm-data (52s), vm-desktop (172s), vm-egress (97s), vm-encryption (376s), vm-guests (99s), vm-hardware (55s), vm-host-ui (26s), vm-installer-lan (362s), vm-monitoring (93s), vm-rollback (134s), vm-splash (547s), vm-ui (17s), vm-updates (42s) | pass |
+
+Not verified here, and not newly so: the headless path end to end. It needs
+two machines -- one running the deploy, one being installed and restarted --
+and the interactive continuation drives `gum` menus on a terminal, which is
+why the existing entries for `nixie-deploy --continue` (above, 2026-09-15)
+stub gum, systemctl and the phases to exercise its flow. What is new here is
+checked by shape rather than by running: `deploy-continues`. No entry has
+ever recorded a remote deploy reaching Finish, before this change or after
+it.
 
 Phase 8 is not run by any VM check; `packages.test-iso` runs the whole
 sequence on a booted ISO, and that is what was used: `nix run .#test-iso`,

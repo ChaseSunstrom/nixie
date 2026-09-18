@@ -117,6 +117,15 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+A headless install finishes. `nix run .#deploy` installed the machine,
+rebooted it and printed a line to carry on by hand -- a line that could not
+have worked, since everything after the first `;` ran on the operator's own
+machine and the reconnection would have been refused as a changed host key
+(the installer's and the installed system's differ). It now forgets that
+key, waits for the machine, and hands over to the setup generation's own
+terminal front end in the operator's terminal, which knows phases 4 to 8,
+Finish and the secrets each asks for.
+
 The code the platform installs now lives in files of its own -- shell, Lua,
 CSS, HTML, JavaScript and the tests' Python -- next to the module that
 installs it, instead of inside Nix strings: `lib/template.nix` puts the

@@ -289,5 +289,26 @@ rsync -a "$target:/tmp/nixie-site/secrets/" "$site/secrets/"
 rsync -a "$target:/tmp/nixie-site/.sops.yaml" "$site/.sops.yaml"
 say "installed; rebooting the target"
 r systemctl reboot || true
-say "When it is back (unlock it over SSH on port 2222 if remote unlock is on), continue with:"
-echo "  ssh $target nixie-phase 4; nixie-phase 5; ... nixie-phase 8; nixie-finish"
+# Phases 4 to 8 and Finish belong to the setup generation, whose own terminal
+# front end is this script's --continue. Run over ssh -t it lands in the
+# operator's terminal here, asking for the passphrase, the PIN and the Secure
+# Boot restarts where they are standing, which is what the brief means by the
+# headless path reaching the same end state.
+if [ "$enc" = true ]; then
+  say "the disk is encrypted: unlock the target at its screen, or over SSH on port 2222 if remote unlock is on"
+fi
+# The installer and the installed system have host keys of their own, so the
+# entry left from the install is the installer's and the reconnection would
+# read as an impostor.
+ssh-keygen -R "${target#*@}" >/dev/null 2>&1 || true
+say "waiting for $target to come back"
+back=0
+for _ in $(seq 180); do
+  if r true 2>/dev/null; then back=1; break; fi
+  sleep 10
+done
+if [ "$back" = 0 ]; then
+  say "$target has not come back. When it does, carry on with: ssh -t $target nixie-deploy --continue"
+  exit 1
+fi
+exec ssh "${ssh_opts[@]}" -t "$target" nixie-deploy --continue

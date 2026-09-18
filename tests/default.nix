@@ -594,6 +594,25 @@ in
     assert lib.assertMsg (failed == [ ]) "hardware-keys: ${lib.concatStringsSep "; " failed}";
     pkgs.writeText "hardware-keys" (lib.concatStringsSep "\n" (lib.attrNames facts));
 
+  # The headless install does not stop at the reboot: it waits for the
+  # machine and hands over to the setup generation's own front end. The run
+  # itself needs two machines (see VERIFICATION.md); this is the shape of the
+  # script that does it.
+  deploy-continues = pkgs.runCommand "deploy-continues" { } ''
+    s=${self.packages.x86_64-linux.deploy}/bin/nixie-deploy
+    # In this order: reboot, forget the installer's host key, wait, hand over.
+    grep -n 'systemctl reboot' "$s" >/dev/null
+    grep -q 'ssh-keygen -R' "$s"
+    grep -q 'exec ssh .* -t "$target" nixie-deploy --continue' "$s"
+    r=$(grep -n 'systemctl reboot' "$s" | head -1 | cut -d: -f1)
+    h=$(grep -n 'nixie-deploy --continue' "$s" | tail -1 | cut -d: -f1)
+    [ "$h" -gt "$r" ] || { echo "the hand-over comes before the reboot"; exit 1; }
+    # And the instruction that could not work is gone: the phases after the
+    # first ran on the operator's own machine, not the target.
+    ! grep -q 'nixie-phase 4; nixie-phase 5' "$s"
+    touch $out
+  '';
+
   # Which exporters run, and that what is scraped follows them.
   exporters =
     let
