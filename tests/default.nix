@@ -1034,7 +1034,39 @@ in
         target = "/etc/nixie/site";
       };
     };
+    # A machine whose initrd gives up: it is told to go straight to the
+    # initrd's emergency target, which is where a disk that never opens
+    # lands a person. The prompt there cannot be used -- root is locked --
+    # so what matters is that the screen says which part gave up.
+    nodes.stuck = {
+      imports = nixieLib.hostModules ../examples/site "server" exampleSite.hosts.server ++ [
+        ./vm/qemu.nix
+      ];
+      virtualisation.vlans = [ ];
+      boot.kernelParams = [ "rd.systemd.unit=emergency.target" ];
+    };
     testScript = ''
+      stuck.start()
+      # It never reaches a shell the driver can use, so the console is the
+      # only thing to read -- and read by polling the log, not with
+      # wait_for_console_text, which takes about a second a line: this
+      # machine is told to panic on a failed start and is gone in under two.
+      # What is waited for is the kernel-log copy at error level, which is
+      # what a quiet console shows and a serial console keeps; /dev/console
+      # is the screen here, not the serial port.
+      import time
+
+      said = ""
+      for _ in range(120):
+          said = stuck.get_console_log()
+          if "nixie-emergency: The disk is still locked" in said:
+              break
+          time.sleep(1)
+      assert "nixie-emergency: Nixie could not finish starting" in said, said[-3000:]
+      assert "nixie-emergency: The disk is still locked" in said, said[-3000:]
+      # And it got out before the panic that a failed start triggers here.
+      assert said.index("nixie-emergency: The disk is still locked") < said.index("Kernel panic"), said[-3000:]
+
       server.wait_for_unit("multi-user.target")
       server.succeed("id admin")
       server.succeed("test -s /run/secrets-for-users/admin-password")

@@ -117,6 +117,20 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+A machine that gives up in the initrd now says why. The prompt it drops to
+cannot be used -- the root account is locked, and a signed boot chain has no
+editable kernel command line -- so a screen that said only "emergency mode"
+left nothing to act on or to report. It prints which units failed, that the
+disk is still locked and nothing has been changed, and that holding Space
+offers the previous system, to the screen and to the kernel log at error
+level so a quiet console still shows it. It runs before the panic that
+`boot.panic_on_fail` triggers on that same target.
+
+`nix run .#test-iso --security hardened` now writes what the wizard's
+Hardened button writes, Secure Boot included. Leaving it out meant the
+configuration a person actually installs was the one combination never
+booted here, while each half of it was.
+
 The container images a site lists are served from the machine that fetched
 them, which is what the brief's `oci` kind meant by "into the local registry
 mirror": `nixie.data.registry` runs a registry on the host, storing under

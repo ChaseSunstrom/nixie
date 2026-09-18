@@ -4,6 +4,8 @@
   inputs,
   self,
   packages,
+  # What a test image adds; the shipped one adds nothing.
+  extraModules ? [ ],
 }:
 let
   # Every source the platform's lock names. Evaluating a site on the installer
@@ -24,7 +26,8 @@ let
         nixpkgs.pkgs = pkgs;
         system.extraDependencies = sources;
       }
-    ];
+    ]
+    ++ extraModules;
   };
 in
 # The configuration rides along for checks.iso-config.

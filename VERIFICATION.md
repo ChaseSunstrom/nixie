@@ -1690,6 +1690,60 @@ they are read. The unit itself is built into that host (`unit-nixie-
 fetch.service` appears in the install log), so the branch taken was the one
 that starts it rather than the one that says there is no data.
 
+## A hardened machine that stops in the initrd says why (2026-09-18)
+
+Reported: a hardened server install, restarted after phase 3, comes up in
+the initrd's emergency mode -- "You are in emergency mode", "Cannot open
+access to console, the root account is locked" -- on VirtualBox with TPM 2.0
+enabled.
+
+It could not be reproduced here, and what was run says so precisely:
+hardened without Secure Boot installs and reaches Finish; Secure Boot on its
+own reaches the setup generation; and the wizard's own hardened preset,
+Secure Boot included, installs and stages its keys. All three under QEMU
+with OVMF and a software TPM, which is not VirtualBox's firmware or its TPM.
+
+What the report did find is a hole in the gate: `test-iso --security
+hardened` left `nixie.security.secureBoot.enable` out, so the configuration
+a person gets by pressing "Hardened" in the wizard -- the signed boot chain
+with the whole security stack in the initrd behind it -- was the one
+combination never booted here, while each half was. It now writes the
+wizard's preset and stops where the `secureboot` run stops, after phase 5
+stages the keys; the first start, which is where the report puts the
+failure, is before that.
+
+And a defect of the platform's own, whatever the root cause turns out to be:
+a machine that gives up in the initrd tells nobody anything. The root
+account is locked, so the emergency prompt offers no shell, and a signed
+boot chain carries no editable kernel command line to add a debug parameter
+to, so there is no way in at all. `nixie-emergency` now runs on
+`emergency.target` and prints, to the screen and to the kernel log, which
+units failed, that the disk is still locked and nothing has been changed,
+and that holding Space offers the previous system.
+
+Four things went wrong in that reporter, each found by booting a machine
+into the state rather than by reading the code, and each of them would have
+made it useless exactly when it was needed. `TTYPath=/dev/console` is the
+last `console=` on the command line, which is the screen and not a serial
+console. The kernel-log copy was written at the default priority, which
+`quiet` and `boot.consoleLogLevel = 3` suppress -- the settings every Nixie
+machine boots with -- so it went to a console that would not show it; it is
+written at error level now. The script itself was not in the initrd's store,
+so the unit died at `203/EXEC` without a word. And nixpkgs has its own
+`panic-on-fail` service on that same target: with nothing ordering the two,
+it crashed the kernel sixteen milliseconds after the reporter started, and
+the reporter now runs before it.
+
+| check | result |
+|---|---|
+| `vm-boot-plain` (extended) | pass; a node told to go straight to the initrd's emergency target shows the report on its console, before the panic that a failed start triggers there |
+| `nix run .#test-iso --security hardened` (now the wizard's preset) | pass, keys staged |
+
+| check | result |
+|---|---|
+| boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, registry, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (53s), vm-boot-plain (64s), vm-console (242s), vm-data (29s), vm-desktop (129s), vm-egress (98s), vm-encryption (380s), vm-guests (102s), vm-hardware (57s), vm-host-ui (22s), vm-installer-lan (240s), vm-monitoring (63s), vm-rollback (152s), vm-splash (542s), vm-ui (18s), vm-updates (44s) | pass |
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

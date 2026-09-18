@@ -5,6 +5,8 @@
 # generation to Finish. Screenshots and the serial log land in
 # tests/artifacts/.
 #
+#   --kiosk               drive the wizard through the browser on the
+#                         machine's own screen, not over the HTTP API
 #   --usb                 the image is a USB stick instead of a CD
 #   --profile desktop     install a desktop: setup shows the wizard on its
 #                         screen too, and Finish hands over to the greeter
@@ -13,9 +15,16 @@
 #   --security tpm        and TPM with PIN, attestation, duress, to Finish
 #   --security secureboot and Secure Boot, until the keys are staged: firmware
 #                         enrolment then needs real hardware (VERIFICATION.md)
-{ pkgs, nixie-iso }:
+{
+  pkgs,
+  nixie-iso,
+  nixie-iso-kiosk,
+}:
 let
   ovmf = (pkgs.OVMF.override { secureBoot = true; }).fd;
+  # --kiosk drives the browser on the machine's own screen, over the
+  # debugger the kiosk image opens on the loopback.
+  py = pkgs.python3.withPackages (p: [ p.playwright ]);
 in
 pkgs.writeShellApplication {
   name = "nixie-test-iso";
@@ -34,6 +43,8 @@ pkgs.writeShellApplication {
   # The run itself is packages/test-iso/test-iso.sh.
   text = (import ../lib/template.nix pkgs.lib).fill ./test-iso/test-iso.sh {
     iso = nixie-iso;
+    kioskIso = nixie-iso-kiosk;
+    kioskDriver = "${py}/bin/python3 ${./test-iso/kiosk-wizard.py}";
     inherit ovmf;
   };
 }

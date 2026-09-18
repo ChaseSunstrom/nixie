@@ -9,6 +9,8 @@ for _ in $(seq 300); do curl -sk --max-time 2 -o /dev/null "$url" && break; slee
 # The certificate is the setup service's own, made on this machine.
 # --kiosk alone never goes full screen under cage on Wayland and leaves
 # the tab strip and address bar; --app opens a window without them.
-exec chromium --app="$url" --kiosk --start-fullscreen --no-first-run --disable-translate --noerrdialogs \
+# @debug@ is empty unless nixie.kiosk.remoteDebugPort is set, which only a
+# test image does: it opens this browser to whatever can reach that port.
+exec chromium --app="$url" --kiosk --start-fullscreen --no-first-run --disable-translate --noerrdialogs @debug@ \
   --disable-infobars --password-store=basic --ozone-platform=wayland \
   --ignore-certificate-errors --user-data-dir=/var/lib/nixie-kiosk/chromium

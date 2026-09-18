@@ -746,6 +746,17 @@ Port the control panel listens on.
 
 Internal: show one web page full screen on the local display.
 
+## `nixie.kiosk.remoteDebugPort`
+
+*null or 16 bit unsigned integer; between 0 and 65535 (both inclusive)*, default: `null`.
+
+Internal, and for a test image only: open this browser's debugger
+on this port, on every interface, so a test can drive the page the
+way a person at the screen would. Anything that reaches the port
+drives the browser, which is why nothing the platform ships sets it:
+`packages.nixie-iso-kiosk` is the one image that does, and
+`nixie-test-iso --kiosk` is what boots it.
+
 ## `nixie.kiosk.tokenFile`
 
 *string*, default: `"/run/nixie-setup/local-token"`.
@@ -1088,7 +1099,7 @@ Internal: the front end chosen at the installer's boot menu, which setup keeps u
 
 ## `nixie.setup.packages`
 
-*attribute set*, default: `{"deploy": null, "docs": null, "media": null, "nixie-cli": null, "nixie-cockpit": null, "nixie-installer": null, "nixie-iso": null, "nixie-panel": null, "nixie-setup": null, "nixie-setup-web": null, "nixie-ui": null, "offline": null, "test-iso": null}`.
+*attribute set*, default: `{"deploy": null, "docs": null, "media": null, "nixie-cli": null, "nixie-cockpit": null, "nixie-installer": null, "nixie-iso": null, "nixie-iso-kiosk": null, "nixie-panel": null, "nixie-setup": null, "nixie-setup-web": null, "nixie-ui": null, "offline": null, "test-iso": null}`.
 
 Internal: the platform packages the setup generation runs.
 

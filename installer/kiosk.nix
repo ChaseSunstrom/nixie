@@ -29,6 +29,17 @@ let
     text = template.fill ./kiosk-browser.sh {
       url = lib.escapeShellArg cfg.url;
       token = tokenSetup;
+      debug =
+        if cfg.remoteDebugPort == null then
+          ""
+        else
+          # The address as well: bound to the loopback it cannot be reached
+          # from outside the machine at all, which is the whole point here.
+          # The address, because bound to the loopback it cannot be reached
+          # from outside the machine at all, which is the whole point here;
+          # and the origins, because Chromium hangs up on a debugger
+          # websocket that comes from anywhere but itself.
+          "--remote-debugging-address=0.0.0.0 --remote-allow-origins=* --remote-debugging-port=${toString cfg.remoteDebugPort}";
     };
   };
 in
@@ -43,6 +54,18 @@ in
       type = lib.types.str;
       default = "https://127.0.0.1:9443/";
       description = "Internal: the page the kiosk shows.";
+    };
+    remoteDebugPort = mkOption {
+      type = lib.types.nullOr lib.types.port;
+      default = null;
+      description = ''
+        Internal, and for a test image only: open this browser's debugger
+        on this port, on every interface, so a test can drive the page the
+        way a person at the screen would. Anything that reaches the port
+        drives the browser, which is why nothing the platform ships sets it:
+        `packages.nixie-iso-kiosk` is the one image that does, and
+        `nixie-test-iso --kiosk` is what boots it.
+      '';
     };
     tokenFile = mkOption {
       type = lib.types.str;

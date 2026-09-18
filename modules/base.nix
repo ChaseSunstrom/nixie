@@ -5,7 +5,18 @@
   pkgs,
   ...
 }:
+let
+  # The initrd carries the script itself, not just its name: a unit whose
+  # command is not in there fails at EXEC, which is how this one first
+  # behaved. storePaths brings its closure, the shell included.
+  emergencyReport = pkgs.writeShellScript "nixie-emergency" (
+    (import ../lib/template.nix lib).fill ./emergency.sh {
+      plymouth = lib.optionalString config.boot.plymouth.enable "${config.boot.plymouth.package}/bin/plymouth";
+    }
+  );
+in
 {
+  boot.initrd.systemd.storePaths = [ emergencyReport ];
   nix.settings.experimental-features = [
     "nix-command"
     "flakes"
@@ -17,6 +28,31 @@
   system.nixos.distroName = lib.mkDefault "Nixie";
 
   boot.initrd.systemd.enable = true;
+  # When the initrd gives up, say what failed. The prompt it drops to cannot
+  # be used -- root is locked, and a signed boot chain has no editable
+  # command line -- so without this the screen says only "emergency mode"
+  # and the person has nothing to act on or to report.
+  boot.initrd.systemd.services.nixie-emergency = {
+    description = "Say what failed before the emergency prompt";
+    wantedBy = [ "emergency.target" ];
+    before = [
+      "emergency.service"
+      # A machine told to panic on a failed start (a test VM, and anything
+      # else passing boot.panic_on_fail) crashes from this same target, so
+      # the reason has to be out before it does. Without the ordering the
+      # two raced and the panic won by sixteen milliseconds.
+      "panic-on-fail.service"
+    ];
+    unitConfig.DefaultDependencies = false;
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = emergencyReport;
+      # The console is the only screen there is at this point.
+      StandardOutput = "tty";
+      StandardError = "tty";
+      TTYPath = "/dev/console";
+    };
+  };
   boot.loader.systemd-boot.enable = lib.mkDefault (!config.boot.lanzaboote.enable);
   boot.loader.efi.canTouchEfiVariables = true;
   # No menu: the machine starts its default entry, the setup generation until

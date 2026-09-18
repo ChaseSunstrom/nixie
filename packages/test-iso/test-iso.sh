@@ -1,13 +1,17 @@
 # shellcheck shell=bash
 out=${NIXIE_ARTIFACTS:-tests/artifacts}; mkdir -p "$out"
 iso=$(ls @iso@/iso/nixie_*.iso)
-medium=(-cdrom "$iso" -boot d); security=plain; profile=server
+medium=(-cdrom "$iso" -boot d); security=plain; profile=server; kiosk=0
 while [ $# -gt 0 ]; do
   case "$1" in
+    # The wizard driven on the machine's own screen. That image differs by
+    # one Chromium flag -- the debugger this needs to reach the page -- and
+    # is the only one the platform builds with it.
+    --kiosk) kiosk=1; iso=$(ls @kioskIso@/iso/nixie_*.iso); medium=(-cdrom "$iso" -boot d) ;;
     --usb) medium=(-drive "if=none,id=stick,format=raw,readonly=on,file=$iso" -device qemu-xhci -device "usb-storage,drive=stick,bootindex=0") ;;
     --security) security=$2; shift ;;
     --profile) profile=$2; shift ;;
-    *) echo "usage: nixie-test-iso [--usb] [--security plain|tpm|secureboot|hardened] [--profile server|desktop]" >&2; exit 2 ;;
+    *) echo "usage: nixie-test-iso [--kiosk] [--usb] [--security plain|tpm|secureboot|hardened] [--profile server|desktop]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -34,7 +38,7 @@ boot() {
     -drive if=pflash,format=raw,file="$vars" \
     -drive file="$disk",if=none,id=sys,format=qcow2 -device virtio-blk-pci,drive=sys,serial=nixie-system \
     -chardev socket,id=chrtpm,path="$out/tpm/sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0 \
-    -netdev user,id=n0,hostfwd=tcp::9443-:9443,hostfwd=tcp::8443-:8443 -device virtio-net-pci,netdev=n0 \
+    -netdev "user,id=n0,hostfwd=tcp::9443-:9443,hostfwd=tcp::8443-:8443''${kiosk:+,hostfwd=tcp::9222-:9223}" -device virtio-net-pci,netdev=n0 \
     -chardev "socket,id=ser,path=$out/serial.sock,server=on,wait=off,logfile=$out/serial.log,logappend=on" -serial chardev:ser \
     -display none -monitor unix:"$out/monitor.sock",server,nowait "$@" \
     >>"$out/qemu.log" 2>&1 &
@@ -97,15 +101,32 @@ api -X POST -H 'Content-Type: application/json' -d '{"passphrase":"hunter2","pin
 features='{"nixie.security.encryption.enable":true}'
 [ "$security" != tpm ] || features='{"nixie.security.encryption.enable":true,"nixie.security.tpm.enable":true,"nixie.security.attestation.enable":true,"nixie.security.duress.enable":true}'
 [ "$security" != secureboot ] || features='{"nixie.security.encryption.enable":true,"nixie.security.secureBoot.enable":true}'
-# What the wizard's hardened setup writes, without Secure Boot: this
-# firmware stages the keys but will not boot the signed chain (see the
-# secureboot run), so the rest of the setup could never be checked.
-[ "$security" != hardened ] || features='{"nixie.security.encryption.enable":true,"nixie.security.tpm.enable":true,"nixie.security.attestation.enable":true,"nixie.security.duress.enable":true,"nixie.security.hardening.usbguard.enable":true,"nixie.security.hardening.memoryEncryption.enable":true,"nixie.auth.ssh.passwordLogin":false}'
+# What the wizard's hardened setup writes, Secure Boot included: leaving it
+# out meant the combination a person actually installs -- the signed boot
+# chain with the whole security stack in the initrd behind it -- was never
+# booted here, while each half was. This firmware will not boot the signed
+# chain once the keys are enrolled (see the secureboot run), so the run
+# stops where that one does, after phase 5 stages them; the first start,
+# which is where this combination failed for someone, happens before that.
+[ "$security" != hardened ] || features='{"nixie.security.encryption.enable":true,"nixie.security.tpm.enable":true,"nixie.security.attestation.enable":true,"nixie.security.secureBoot.enable":true,"nixie.security.duress.enable":true,"nixie.security.hardening.ssh.enable":true,"nixie.security.hardening.usbguard.enable":true,"nixie.security.hardening.memoryEncryption.enable":true,"nixie.auth.ssh.passwordLogin":false,"nixie.auth.ssh.keyAndPassword":true}'
 # The installed system's console is the serial port, so its prompts and
 # banner reach this script.
 api -X POST -H 'Content-Type: application/json' -d "$(jq -n --arg d "$disk_id" --arg m "$mac" --arg p "$profile" --argjson f "$features" '{host:"iso-test",profile:$p,systemDisk:$d,uplinks:(if $p == "server" then [$m] else [] end),settings:({"nixie.auth.admin.name":"admin","boot.kernelParams":["console=tty0","console=ttyS0,115200n8"]} + $f)}')" https://127.0.0.1:9443/api/config | grep -q ok
 echo "== phases 1 to 3: the site flake is evaluated and built on the ISO" | tee -a "$out/run.log"
 start=$(date +%s)
+if [ "$kiosk" = 1 ]; then
+  # The same install, driven through the page on the screen instead. The
+  # configuration posted above is replaced by what the driver types in.
+  echo "== driving the wizard through the kiosk's own browser" | tee -a "$out/run.log"
+  # What the debugger answers, before anything drives it: a hang-up here is
+  # the browser refusing the connection, not the wizard misbehaving.
+  for _ in $(seq 60); do curl -sS --max-time 5 http://127.0.0.1:9222/json/version >>"$out/run.log" 2>&1 && break; sleep 5; done
+  tail -3 "$out/run.log"
+  @kioskDriver@ "http://127.0.0.1:9222" "$out" 2>&1 | tee -a "$out/run.log"
+  echo "install took $(( $(date +%s) - start )) s" | tee -a "$out/run.log"
+  shot install-done
+  api -X POST https://127.0.0.1:9443/api/reboot >/dev/null; stopped "$pid"
+else
 phase 1
 # The review step's check: the host evaluates the way phase 3 builds it.
 api -X POST https://127.0.0.1:9443/api/check | tee "$out/check.json" | jq -e .ok >/dev/null
@@ -113,6 +134,7 @@ phase 2 && phase 3
 echo "install took $(( $(date +%s) - start )) s" | tee -a "$out/run.log"
 shot install-done
 api -X POST https://127.0.0.1:9443/api/reboot >/dev/null; stopped "$pid"
+fi
 
 echo "== first boot: unlock, then the setup generation" | tee -a "$out/run.log"
 mark; pid=$(boot)
@@ -120,7 +142,7 @@ unlock 80
 sleep 20; shot setup-generation
 pair
 phase 4
-if [ "$security" = secureboot ]; then
+if [ "$security" = secureboot ] || [ "$security" = hardened ]; then
   # Reaching the setup generation proves lanzaboote's default entry; in
   # Setup Mode phase 5 stages the keys and asks for the reboot (10).
   [ "$(rc 5)" = 10 ]
