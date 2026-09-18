@@ -256,6 +256,7 @@ grep -q 'gpu = true' guests.nix
 | `nix run .#apply [<machine>]` | from a site checkout: copy it to that machine and run its own `nixie apply` there; with no machine, this one |
 | `nixie update [--check \| --now]` | whether the site repository is ahead of this machine, and apply it; the timer does this by itself (`nixie.updates.mode`) |
 | `nixie update --inputs [name…]` | update what the site pins, the platform itself among them, then apply; the other machines follow it as they do any change |
+| `nix run .#offline` | archive every pinned input into a store of its own, then evaluate every output with the network refused: nothing fetches behind the lock file |
 | the host page's Run panel | Apply the site, Fetch the cache, Run the checks, each streaming its output; the same commands, through Cockpit's bridge |
 | `nixie notices` | what this machine wants you to know, as the front panel, the control panel, the host page and the desktop show it |
 | `nixie secure-boot [--sign] [--at <dir>]` | what the firmware holds, what is staged and what is signed, when a start says "Access Denied"; `--at` reads a machine opened with `nixie disk open` from the installer image, for one that will not start at all |

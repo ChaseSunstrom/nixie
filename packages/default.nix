@@ -30,4 +30,5 @@ rec {
   test-iso = import ./test-iso.nix { inherit pkgs nixie-iso; };
   docs = import ./docs.nix { inherit pkgs nixie-setup; };
   media = import ./media.nix { inherit pkgs; };
+  offline = import ./offline.nix { inherit pkgs; };
 }

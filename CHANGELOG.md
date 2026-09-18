@@ -117,6 +117,11 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+`nix run .#offline` stands behind the promise that nothing fetches behind
+the lock file: it archives every pinned input into a store of its own and
+then evaluates every output with the network refused, where an unpinned
+fetch in a module is an error rather than a download.
+
 The host page can run the three things it is for: Apply the site, Fetch the
 cache and Run the checks, each printing as it goes rather than at the end.
 They are the same commands the machine runs for itself, spawned through

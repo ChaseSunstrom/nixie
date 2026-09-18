@@ -1290,7 +1290,7 @@ single-process `nix flake check` does not fit in this host's memory; see
 | check | result |
 |---|---|
 | boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (74s), vm-boot-plain (57s), vm-console (199s), vm-data (50s), vm-desktop (133s), vm-egress (100s), vm-encryption (382s), vm-guests (88s), vm-hardware (55s), vm-host-ui (45s), vm-installer-lan (232s), vm-monitoring (68s), vm-rollback (152s), vm-splash (544s), vm-ui (16s), vm-updates (41s) | pass |
+| vm-backup (55s), vm-boot-plain (39s), vm-console (313s), vm-data (50s), vm-desktop (127s), vm-egress (96s), vm-encryption (380s), vm-guests (76s), vm-hardware (55s), vm-host-ui (46s), vm-installer-lan (175s), vm-monitoring (81s), vm-rollback (152s), vm-splash (541s), vm-ui (19s), vm-updates (41s) | pass |
 
 Beyond the checks:
 
@@ -1565,8 +1565,29 @@ animations` follows it now, in both the GTK 3 and GTK 4 settings. GTK has no
 middle setting, so "reduced" leaves them on, which is what "where the
 toolkit offers them" allows.
 
+**Nothing stood behind the clean-clone criterion "the example site builds
+offline after `nix flake archive`".** `nix run .#offline` does now -- and
+running it turned up that the criterion, read literally, cannot be met by
+any flake that uses nixpkgs. `nix flake archive` copies the inputs'
+*sources*; a store holding only those has to build the whole stdenv from
+scratch, and the bootstrap seed it starts from is itself fetched. The first
+attempt at this check did exactly that and stopped where it had to, on bash:
+"Cannot build bash-5.3p9.drv. Reason: 1 dependency failed", with no
+substituter to ask.
+
+What the criterion is actually about is that nothing reaches the network
+behind the lock file, and that is checkable: archive every input into a
+store of its own, then evaluate every output with `--offline`, where an
+unpinned `fetchTarball` or `fetchFromGitHub` in a module is an error rather
+than a download. It passes: twelve inputs archived, and `eval-matrix` (which
+is where the example site's machines are built, since the hosts live in a
+site and not in this flake), `no-secrets-in-store`, `nixie-cli`, `nixie-
+iso`, `nixie-setup`, `deploy` and `docs` all evaluated with the network
+refused.
+
 | check | result |
 |---|---|
+| `nix run .#offline` | pass; every input archived, every output evaluated with the network refused |
 | `desktop-motion` (three facts) | pass; "none" reaches GTK 3 and GTK 4, "full" leaves them |
 | `vm-host-ui` (extended) | pass; the three commands and the stream are in the page the host serves, and `nixie doctor` answers on that machine |
 | `deploy-continues` | pass; the built script reboots, forgets the host key and hands over, in that order, and the instruction that ran the phases locally is gone |
