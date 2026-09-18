@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -39,6 +40,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # `nixie secure-boot` reads the firmware's keys and checks the
+    # signatures with these.
+    environment.systemPackages = [
+      pkgs.sbctl
+      pkgs.sbsigntool
+    ];
     boot.lanzaboote = {
       enable = true;
       pkiBundle = pki;

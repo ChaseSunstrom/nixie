@@ -57,11 +57,21 @@ draw() {
     doc=$(timeout 5 nixie doctor 2>/dev/null | grep -E 'MISSING|NEEDED|NOT ENABLED|BLOCKED|RECOVERY|DRIFT|FAILED|% full' || true)
     [ -n "$doc" ] && { b "$BG"; c "$ERR"; printf '  doctor: %s\n' "$doc"; r; }
   fi
+  # What this machine wants you to know, the waiting site update included
+  # (modules/updates.nix writes the file; u applies it).
+  if [ -s /run/nixie/notices.json ]; then
+    while IFS=$'\t' read -r level title detail; do
+      [ -n "$title" ] || continue
+      b "$BG"
+      if [ "$level" = warn ]; then c "$HOT"; else c "$ACC"; fi
+      printf '  %s' "$title"; c "$MUTED"; printf ' — %s\n' "$detail"; r
+    done < <(jq -r '.notices[] | [.level, .title, .detail] | @tsv' /run/nixie/notices.json 2>/dev/null)
+  fi
   # QR at the right
   qy=3; qx=$(( cols - ${#ql[0]} - 4 )); [ "$qx" -lt 60 ] && qx=60
   for l in "${ql[@]}"; do printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$INK"; printf '%s' "$l"; r; qy=$((qy+1)); done
   printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$MUTED"; printf '%s' "$url"; r
-  printf '\033[%d;1H' "$((rows-1))"; b "$BG"; c "$MUTED"; printf '  any key: log in · r: roll back to the previous system · b: boot the previous one next time · e: re-enrol Secure Boot, TPM and attestation · Ctrl+Alt+F3: plain console'; r
+  printf '\033[%d;1H' "$((rows-1))"; b "$BG"; c "$MUTED"; printf '  any key: log in · u: apply the waiting site update · r: roll back to the previous system · b: boot the previous one next time · e: re-enrol Secure Boot, TPM and attestation · Ctrl+Alt+F3: plain console'; r
 }
 stty -echo 2>/dev/null || true
 while true; do
@@ -73,6 +83,8 @@ while true; do
       # A broken new generation is undone from here, no UI needed.
       # Their output also lands in the journal, so an action taken at the
       # console can be read back later.
+      # The site update a person has been told about, applied from here.
+      u) nixie update --now 2>&1 | tee >(logger -t nixie-panel) | tail -3; sleep 3; stty -echo 2>/dev/null || true ;;
       r) nixie rollback 2>&1 | tee >(logger -t nixie-panel) | tail -3; sleep 3; stty -echo 2>/dev/null || true ;;
       b) nixie rollback --boot-previous 2>&1 | tee >(logger -t nixie-panel) | tail -2; sleep 3; stty -echo 2>/dev/null || true ;;
       # Re-enrolment asks for the recovery key and PIN on this console.

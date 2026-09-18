@@ -49,6 +49,7 @@ modules/                  the `nixie.*` option tree; one concern per file
     egress.nix            direct / exit-node nftables chains
     firewall.nix          host default-drop, guest isolation
     tailscale.nix
+  updates.nix             following the site repository; the notices every surface shows
   incus.nix               incusd, UI serving, listen policy, preseed
   guests.nix              the guest schema type and everything derived from it
   data.nix                data root, manifest type, fetch timer
@@ -366,6 +367,12 @@ nixie.ui.allowSiteEdits bool, default false
 
 nixie.site.repo         nullOr str, default null      git URL of the site
 nixie.site.ref          str, default "main"
+nixie.updates.mode              enum "off" | "notify" | "auto", default "notify"  (change request)
+  What a machine does when the site repository is ahead of it: say so on every
+  surface and wait for `nixie update --now`, apply it and confirm only when
+  it is no less healthy than before, or not look (D39).
+nixie.updates.schedule          str, default "hourly"             (change request)
+nixie.updates.confirmWithin     str, default "10m"                (change request)
 nixie.site.path         path, default "/etc/nixie/site"
   Where the site checkout lives on the host. `nixie apply` runs from here.
 
@@ -1197,6 +1204,29 @@ and runs `nixie apply`.
   brief lists is implemented, but ones the design does not draw follow the
   same component recipes rather than a new design. `VERIFICATION.md` for the
   slice lists any feature that shipped in reduced form.
+- **D39 One site, several machines: they follow the repository, and what
+  they want to say is one file.** Asked for: a change applied on a laptop
+  should reach a desktop, with auto, manual and off. The site repository is
+  already the meeting point (`nixie apply` pulls before it builds and pushes
+  what it applied), so following it is a check, not a new channel:
+  `nixie update` fetches the branch and compares its head with the commit the
+  running system was built from (`nixie.host.siteRevision`, in
+  `/etc/nixie/site.json`), which is honest where a checkout was edited but
+  never applied. `nixie.updates.mode` decides what happens next, and applying
+  is the ordinary `nixie apply`, so the host and the guests the site declares
+  move together. In "auto" the apply carries `--confirm-within` and the
+  machine confirms only when `nixie doctor` comes out no worse than it did
+  before the apply, so one that breaks itself unattended goes back on its
+  own, while one already unhappy about something the update does not touch
+  does not revert every update it applies. What a machine wants to say -- an
+  update waiting, an apply to confirm, an attestation that needs resealing, a
+  failed backup check, a failed service, a blocked USB device -- is collected
+  by `nixie notices` into `/run/nixie/notices.json`, and every surface reads
+  that one file: the front panel (and its `u` key), the host page's card, a
+  desktop notification through a user path unit, the login line
+  (`environment.interactiveShellInit`; NixOS has no `/etc/profile.d`) and
+  `nixie doctor`. The control panel is a static bundle served by incusd with
+  nowhere to read a live file from, so it is the one surface without it.
 - **D38 Code lives in files, not in Nix strings.** Asked for after the
   modules had grown long: shell, Lua, CSS, HTML, JavaScript and the tests'
   Python sat inside `''` strings, where an editor sees one string, shellcheck

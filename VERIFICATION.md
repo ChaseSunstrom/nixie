@@ -1352,6 +1352,112 @@ caught, a token that is not a plain hex colour.
 | boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security | pass |
 | vm-backup (58s), vm-boot-plain (43s), vm-console (316s), vm-data (55s), vm-desktop (139s), vm-egress (106s), vm-encryption (414s), vm-guests (80s), vm-hardware (63s), vm-host-ui (45s), vm-installer-lan (246s), vm-monitoring (96s), vm-rollback (158s), vm-splash (583s), vm-ui (45s) | pass |
 
+## One site, several machines; and what "Access Denied" means (2026-09-18)
+
+Asked for: "is it possible to have a updating mechanism for both nixie and a
+guest configuration/system? (for example, if I update the config on my
+laptop, and I want to be able to push it and my desktop recognizing it needs
+to update the config, both auto/manual/and off modes)", "Also make sure same
+thing with guests/servers/desktops, and UI notifications for everything that
+needs it, and or menus", and "I tried doing the secure boot stuff, but it
+keeps giving access denied".
+
+Following the site is `nixie update`: fetch the site's ref, compare it with
+the commit the *running system* was built from (`site.json`'s `rev`, not the
+checkout's HEAD -- a checkout can be edited for months without ever being
+applied), and write `/run/nixie/update.json`. What happens next is
+`nixie.updates.mode`: "notify" stops there, "auto" runs `nixie apply --yes
+--confirm-within`, and confirms only when `nixie doctor` comes out no worse
+than it did before the apply, so a machine that breaks itself while nobody is
+watching goes back by the rollback timer that apply already arms. Comparing
+doctor with itself rather than demanding a pass is the point: doctor fails
+for a blocked USB device or a backup check that has not run, and a machine
+unhappy about any of that would otherwise apply and revert the same update
+every hour for ever. Applying is the ordinary `nixie apply`, which is why a
+guest's configuration follows by the same step on a server as on a desktop:
+no second mechanism (D39).
+
+Everything a machine wants to say is one file, `/run/nixie/notices.json`,
+written by `nixie notices --write` every fifteen minutes and after every
+check: an update waiting, an apply waiting to be confirmed, an attestation
+that no longer computes, a failed backup check, a service in the failed
+state, a blocked USB device. A failed unit was the one thing no surface said
+anything about, and `nixie doctor` says it now too. The surfaces read that
+one file rather than each asking its own questions -- the front panel (and
+`u` applies what is waiting), the host page (with "Apply it now"), a desktop
+notification each notice once, the login line, and `nixie doctor`.
+
+The control panel is the one surface that does not show them, deliberately:
+it is a static bundle incusd serves and it speaks only the Incus API, as its
+own History page already says. Reaching host state from it would mean
+serving `/run/nixie/notices.json` unauthenticated beside the bundle, which
+would publish backup failures and site commit subjects to anyone who can
+open the page. It links to the host page, which shows them behind Cockpit's
+authentication.
+
+`nixie secure-boot` answers the report: what the firmware holds (this
+machine's own PK certificate found *inside* the PK variable -- "disabled"
+reads the same whoever's keys are in there), whether keys are staged on the
+boot partition, and whether every `.efi` on the ESP verifies against this
+machine's db key, with the step to take for each state and `--sign` to sign
+what does not. The vendor-keys case names the installer stick as well: it is
+unsigned and the firmware tries it first, which is the "Access Denied" a
+person sees while the stick is still in.
+
+| check | result |
+|---|---|
+| `updates` (nine facts) | pass; the three modes, the timers, the site file, the login line, the desktop notifier, and that a server has none |
+| `secure-boot-report` (four firmware states) | pass; a generated PK certificate placed inside a fake PK variable, a stand-in `bootctl` for each state |
+| `vm-updates` (two nodes, five subtests) | pass; a bare repository both machines share, a second checkout standing in for the laptop that pushes |
+
+`vm-updates` is the whole path with nothing stubbed but the build: a machine
+that is up to date says so and shows nothing; a change pushed from elsewhere
+is seen by `nixie-update.service`, appears in `update.json`, in
+`nixie notices --json`, in `nixie doctor` and at a login, and nothing is
+applied; a person runs `nixie update --now` and the checkout, the running
+system and the notices all follow; an "auto" machine applies by itself and
+confirms, leaving no rollback timer behind; and a unit put into the failed
+state shows up in the notices and in doctor, and is gone from both once it
+is reset. What a real machine builds from the site it just fetched, the test
+switches to prebuilt (`NIXIE_TOPLEVEL`), as every applying test here does.
+
+Not verified here: `nixie update --inputs`, which runs `nix flake update` in
+the site checkout and then applies. Updating a lock needs the network and a
+newer upstream to move to, neither of which a sandboxed VM test has; what
+happens after it -- the apply, the push and the other machines following --
+is `vm-updates` above.
+
+Four things the work turned up:
+
+- A `systemd-run ... nixie rollback --auto` inside `nixie apply` had never
+  worked from a unit: a transient unit's PATH holds no system profile. Every
+  self-call now goes through `${BASH_SOURCE[0]}`, the pre-existing one
+  included.
+- `nixie.updates.mode` defaults to "notify", and a machine with no
+  `nixie.site.repo` then installed a timer that could only fail (caught by
+  `vm-desktop`). The units are gated on having a repository to follow, and
+  the build warns -- but only when someone asked for a mode: an option's own
+  default is a definition like any other, so the warning keys off the
+  definition's priority, not `isDefined`, which is true for every option
+  that has a default.
+- The new notice found a failed unit the moment it existed:
+  `incus-preseed.service` on the test node, where incusd cannot make the
+  site's ZFS pool because a test node's root is not ZFS. The node now
+  declares a directory pool; a real server's root is always ZFS, so this is
+  the test's own shape, not the platform's.
+- `vm-host-ui` failed on `curl -sfk ... | grep -q nixie` with curl's exit 23:
+  the finish's own tokens are the first thing in the stylesheet, so `grep -q`
+  closed the pipe while curl was still writing. It fetches to a file first.
+
+All forty checks on this tree, one `nix build` per output as ever (the
+evaluator still cannot hold every check in one process, see the Final run
+note below), on 2026-09-18:
+
+| check | result |
+|---|---|
+| boot-and-setup, deadnix, eval-matrix, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (54s), vm-boot-plain (43s), vm-console (311s), vm-data (53s), vm-desktop (142s), vm-egress (105s), vm-encryption (484s), vm-guests (112s), vm-hardware (72s), vm-host-ui (30s), vm-installer-lan (251s), vm-monitoring (77s), vm-rollback (162s), vm-splash (585s), vm-ui (45s), vm-updates (41s) | pass |
+
 ## A server installed through the web wizard
 
 2026-09-15, on the image built from this tree, in QEMU (KVM, OVMF, 8 GB, a

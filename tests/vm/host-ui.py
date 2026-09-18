@@ -3,7 +3,10 @@ host.wait_for_unit("nixie-oath-users.service")
 host.wait_for_open_port(9090)
 page = host.wait_until_succeeds("curl -sfk https://127.0.0.1:9090/")
 assert "nixie" in page.lower(), page[:500]
-host.succeed("curl -sfk https://127.0.0.1:9090/cockpit/static/branding.css | grep -q 'nixie'")
+# Into a file, not a pipe: the finish's own tokens are the first thing in
+# the stylesheet, and `grep -q` closing early makes curl report a write error.
+host.succeed("curl -sfk https://127.0.0.1:9090/cockpit/static/branding.css >/tmp/branding.css")
+host.succeed("grep -q nixie /tmp/branding.css")
 
 with subtest("password plus TOTP logs in; a wrong code does not"):
     code = host.succeed("oathtool --totp -b @totp@").strip()

@@ -12,9 +12,12 @@ in
     type = "path";
     path = self.outPath;
   };
-  # What `nixie apply` pushes to, read at run time.
+  # What `nixie apply` pushes to, which commit this system was built from,
+  # and what `nixie update` should do about a newer one; read at run time.
   config.environment.etc."nixie/site.json".text = builtins.toJSON {
     inherit (config.nixie.site) repo ref;
+    rev = config.nixie.host.siteRevision;
+    updates = { inherit (config.nixie.updates) mode confirmWithin; };
   };
   # The checkout is root's; the administrator can still read its history.
   config.programs.git = {

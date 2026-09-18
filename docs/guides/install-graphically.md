@@ -78,6 +78,16 @@ After setup:
   unlocked the code is sealed to it by itself with Secure Boot on, and with
   `sudo nixie reseal` otherwise. A start without a code that you did not
   update for is one not to unlock.
+- **"Access Denied" at a start.** The firmware refused what it was asked to
+  boot. `sudo nixie secure-boot` says which of the reasons it is: the
+  firmware still holds someone else's keys (set Secure Boot Mode to Custom,
+  reset the keys, leave Secure Boot off, restart); this machine's keys are
+  waiting on the boot partition but the firmware is not in Setup Mode yet;
+  they are enrolled and Secure Boot is simply still off; or Secure Boot is on
+  but a boot file is not signed with this machine's key, which
+  `sudo nixie secure-boot --sign` puts right. Take the installer stick out
+  too: its image is not signed, and firmware that tries it first says the
+  same thing about it.
 - **Security keys.** With "Open the disk with a security key" on, setup
   enrols the key plugged in when it binds the disk (it asks for the key's
   PIN, and the key blinks for a touch); from then on the splash asks for the

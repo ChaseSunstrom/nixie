@@ -251,6 +251,10 @@ grep -q 'gpu = true' guests.nix
 | `nixie rollback data <name> [--snapshot s] [--in-place]` | a state directory from a ZFS snapshot, beside the live one or in place |
 | `nixie reseal` | reseals attestation to the running boot chain |
 | `nixie security reenroll` | after a board, TPM or firmware change: Secure Boot enrolment, TPM + PIN binding with a new recovery key, attestation, lockout password, header backups; resumable, also from the front panel (`e`) ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
+| `nixie update [--check \| --now]` | whether the site repository is ahead of this machine, and apply it; the timer does this by itself (`nixie.updates.mode`) |
+| `nixie update --inputs [name…]` | update what the site pins, the platform itself among them, then apply; the other machines follow it as they do any change |
+| `nixie notices` | what this machine wants you to know, as the front panel, the host page and the desktop show it |
+| `nixie secure-boot [--sign]` | what the firmware holds, what is staged and what is signed, when a start says "Access Denied" |
 | `nixie security add-key` | enrol another FIDO2 security key for the disk (a spare); asks for the passphrase, the key's PIN and a touch |
 | `nixie disk open [<partition>] [--mount <dir>] [--write]`, `nixie disk close` | open another Nixie disk, on the installer image or another machine, with a security key, the recovery key or the passphrase, its pools under temporary names at `/mnt/nixie`, read-only unless `--write` |
 | `nixie rollback --json` | every generation, guest and data snapshot and backup as JSON; the History screens read this |
@@ -260,6 +264,29 @@ grep -q 'gpu = true' guests.nix
 | `nixie doctor` | TPM, attestation, Secure Boot, key slots, whether the last unlock needed the recovery key, blocked USB devices, guests, backup check, disk space |
 | `nixie export <instance>` | a `guests.nix` entry for a scratch instance |
 | `nixie menu` | the desktop menu: finish, wallpaper, packages, update, keybinds |
+
+## One site, several machines
+
+Every machine of a site follows the same git repository (`nixie.site.repo`).
+`nixie apply` on one of them commits what you changed, applies it and pushes
+it; the others notice and, depending on `nixie.updates.mode`, either say so
+or catch up:
+
+| mode | what a machine does when the repository moves ahead |
+|---|---|
+| `notify` (the default) | says so on the front panel, the host page, a desktop notification and at login, and waits for `nixie update --now` |
+| `auto` | applies it by itself, then confirms only if `nixie doctor` comes out no worse than before; otherwise the machine puts itself back (`nixie.updates.confirmWithin`) |
+| `off` | does not look |
+
+Applying is `nixie apply`, so a change reaches the host and the guests the
+site declares in the same step: a server's instances and a desktop's own
+configuration follow the same way. `nixie.updates.schedule` sets how often to
+look (hourly by default), and a machine that was off looks as soon as it is
+back.
+
+The platform travels the same way: `nixie update --inputs` (or the desktop
+menu's "Update inputs") updates what the site's lock pins, applies it and
+pushes it, and the other machines see a newer site like any other change.
 
 ## Rebuild from nothing
 

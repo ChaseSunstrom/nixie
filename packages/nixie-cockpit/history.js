@@ -43,9 +43,37 @@ function render(h) {
     '<div class="card"><h2>Backups</h2>' + table(["id", "taken", "paths", "restore with"], backups) + "</div>";
 }
 
-cockpit
-  .spawn(["nixie", "rollback", "--json"], { superuser: "try", err: "message" })
-  .then((out) => render(JSON.parse(out)))
-  .catch((e) => {
-    el.innerHTML = '<p class="err">The host did not answer: ' + esc(e.message || e) + "</p>";
-  });
+// What the machine wants you to know, above its history: a newer site
+// waiting, an apply to confirm, a failed backup check.
+function notices(n) {
+  const box = document.getElementById("notices");
+  if (!n.notices.length) { box.innerHTML = ""; return; }
+  box.innerHTML = n.notices.map((x) =>
+    '<div class="card ' + (x.level === "warn" ? "warn" : "") + '"><h2>' + esc(x.title) + "</h2>" +
+    "<p>" + esc(x.detail) + "</p>" +
+    (x.id === "update" ? '<button id="apply-update">Apply it now</button> ' : "") +
+    '<code class="muted">' + esc(x.action) + "</code></div>").join("");
+  const button = document.getElementById("apply-update");
+  if (button) button.onclick = () => {
+    button.disabled = true;
+    button.textContent = "Applying…";
+    cockpit.spawn(["nixie", "update", "--now"], { superuser: "require", err: "message" })
+      .then(() => load())
+      .catch((e) => { button.textContent = "It did not apply: " + (e.message || e); });
+  };
+}
+
+function load() {
+  cockpit
+    .spawn(["nixie", "notices", "--json"], { superuser: "try", err: "message" })
+    .then((out) => notices(JSON.parse(out)))
+    .catch(() => undefined);
+  cockpit
+    .spawn(["nixie", "rollback", "--json"], { superuser: "try", err: "message" })
+    .then((out) => render(JSON.parse(out)))
+    .catch((e) => {
+      el.innerHTML = '<p class="err">The host did not answer: ' + esc(e.message || e) + "</p>";
+    });
+}
+
+load();

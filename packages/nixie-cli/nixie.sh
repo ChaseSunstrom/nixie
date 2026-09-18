@@ -5,6 +5,10 @@ need_guests() { [ "$guests" = 1 ] || { echo "nixie: this host runs no guests (ni
 layout() { jq -r "$1" /run/current-system/etc/nixie/layout.json; }
 feature() { [ "$(layout ".features.$1")" = true ]; }
 site=${NIXIE_SITE:-/etc/nixie/site}
+# Calling itself, from a unit whose PATH has no system profile as well.
+self=${BASH_SOURCE[0]}
+say() { printf '%-14s %s\n' "$1" "$2"; }
+
 host=$(uname -n) # coreutils: a transient unit's PATH has no hostname(1)
 # nixie.site.repo keeps a copy of the site: `nixie apply` pulls from it,
 # commits hand edits, and pushes what it applied, with the host's own key.
@@ -12,6 +16,9 @@ sitekey=/var/lib/nixie/site-key
 [ ! -e "$sitekey" ] || export GIT_SSH_COMMAND="ssh -i $sitekey -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 siterepo=$(jq -r '.repo // empty' /run/current-system/etc/nixie/site.json 2>/dev/null || true)
 siteref=$(jq -r '.ref // "main"' /run/current-system/etc/nixie/site.json 2>/dev/null || echo main)
+siterev=$(jq -r '.rev // empty' /run/current-system/etc/nixie/site.json 2>/dev/null || true)
+updatemode=$(jq -r '.updates.mode // "off"' /run/current-system/etc/nixie/site.json 2>/dev/null || echo off)
+updatewithin=$(jq -r '.updates.confirmWithin // ""' /run/current-system/etc/nixie/site.json 2>/dev/null || true)
 push_site() {
   { [ -d "$site/.git" ] && git -C "$site" remote get-url origin >/dev/null 2>&1; } || return 0
   git -C "$site" push -q origin "HEAD:$siteref" \
@@ -45,6 +52,7 @@ usage() {
   c "reseal" "reseal attestation to this boot chain"
   c "security reenroll" "Secure Boot, TPM, recovery key again, after a board or firmware change"
   c "security add-key" "enrol another security key (FIDO2) for the disk"
+  c "secure-boot [--sign]" "what the firmware holds and what is signed, when a start says \"Access Denied\""
   c "disk open [<partition>] [--mount dir] [--write]" "open another Nixie disk with its keys, read-only unless --write"
   c "disk close" "unmount and lock what disk open opened"
   c "usb [--json] | usb allow <vendor:product>" "blocked USB devices, or allow one"
@@ -161,10 +169,122 @@ case "$cmd" in
       mkdir -p /run/nixie
       jq -n --arg prev "${prev_gen:-}" --arg label "$label" --arg guests "$touched" \
         '{prev: $prev, label: $label, guests: ($guests | split(" ") | map(select(. != "")))}' >/run/nixie/apply-pending.json
-      systemd-run --quiet --unit=nixie-apply-confirm --on-active="$within" --timer-property=AccuracySec=1s nixie rollback --auto
+      # By path: a transient unit's PATH has no system profile, and this
+      # apply may itself be running from one (nixie update --auto).
+      systemd-run --quiet --unit=nixie-apply-confirm --on-active="$within" --timer-property=AccuracySec=1s "$self" rollback --auto
       echo "confirm within $within with: nixie apply --confirm"
     fi
     push_site ;;
+  update)
+    # What the site repository has against what this machine runs. The
+    # commit the running system was built from is the honest comparison:
+    # a checkout can be edited without ever being applied.
+    check=0; now=0; auto=0; inputs=0
+    while [ $# -gt 0 ]; do
+      case "$1" in --check) check=1 ;; --now) now=1 ;; --auto) auto=1 ;; --inputs) inputs=1; shift; break ;; esac
+      shift
+    done
+    # The platform itself, and anything else the site pins: a newer lock is
+    # an ordinary site change, so the other machines follow it the same way.
+    if [ "$inputs" = 1 ]; then
+      [ -d "$site/.git" ] || { echo "no site checkout at $site" >&2; exit 2; }
+      (cd "$site" && nix flake update "$@")
+      exec "$self" apply --yes
+    fi
+    state=/run/nixie/update.json
+    mkdir -p /run/nixie
+    if [ -z "$siterepo" ]; then
+      echo "no site repository: set nixie.site.repo so this machine can follow one" >&2
+      exit 2
+    fi
+    if [ "$now" = 1 ]; then exec "$self" apply --yes; fi
+    if [ -d "$site/.git" ]; then
+      git -C "$site" remote get-url origin >/dev/null 2>&1 || git -C "$site" remote add origin "$siterepo"
+      git -C "$site" fetch -q origin "$siteref" 2>/dev/null || { echo "the site repository could not be reached" >&2; exit 1; }
+      remote=$(git -C "$site" rev-parse FETCH_HEAD)
+      subject=$(git -C "$site" log -1 --format=%s FETCH_HEAD)
+      running=${siterev:-$(git -C "$site" rev-parse HEAD)}
+      # How many commits this machine is behind, when it knows where it is.
+      behind=$(git -C "$site" rev-list --count "$running..FETCH_HEAD" 2>/dev/null || echo 0)
+      available=false; [ "${remote#"$running"}" = "$remote" ] && [ "$behind" != 0 ] && available=true
+    else
+      echo "no site checkout at $site" >&2; exit 2
+    fi
+    jq -n --arg checked "$(date -Is)" --arg running "$running" --arg remote "$remote" \
+      --arg subject "$subject" --argjson behind "$behind" --argjson available "$available" \
+      '{checked:$checked, running:$running, remote:$remote, subject:$subject, behind:$behind, available:$available}' >"$state"
+    "$self" notices --write
+    if [ "$available" != true ]; then
+      if [ "$auto" = 0 ]; then echo "up to date with $siteref of the site repository"; fi
+      exit 0
+    fi
+    echo "$behind commit(s) waiting on $siteref: ${remote:0:7} $subject"
+    if [ "$check" = 1 ]; then exit 0; fi
+    if [ "$auto" = 1 ] && [ "$updatemode" != auto ]; then exit 0; fi
+    if [ "$auto" = 1 ]; then
+      # Unattended: the machine puts itself back if the new system fails its
+      # own checks, or never comes back to confirm. What counts is that the
+      # new system is no worse than the one it replaced: doctor is strict,
+      # and a machine already unhappy about something the update does not
+      # touch would otherwise revert every update, hour after hour.
+      before=0; "$self" doctor >/dev/null 2>&1 || before=1
+      rc=0
+      "$self" apply --yes ${updatewithin:+--confirm-within "$updatewithin"} || rc=$?
+      if [ "$rc" = 0 ] && [ -n "$updatewithin" ]; then
+        after=0; "$self" doctor >/dev/null 2>&1 || after=1
+        if [ "$after" -le "$before" ]; then "$self" apply --confirm
+        else echo "nixie update: the new system does not pass doctor where the old one did; leaving the rollback timer to undo it" >&2; fi
+      fi
+      "$self" update --check >/dev/null || true
+      exit "$rc"
+    fi
+    echo "run 'nixie update --now' to apply it"
+    ;;
+  notices)
+    # Everything this machine wants a person to know, for the surfaces that
+    # show it: the front panel, the host page, a desktop notification, the
+    # login line and `nixie doctor`.
+    write=0; json=0
+    while [ $# -gt 0 ]; do case "$1" in --write) write=1 ;; --json) json=1 ;; esac; shift; done
+    items=$(
+      {
+        if [ -s /run/nixie/update.json ] && [ "$(jq -r .available /run/nixie/update.json)" = true ]; then
+          jq -c --arg a "nixie update --now" '{id:"update", level:"info",
+            title:(if .behind == 1 then "A newer site is waiting" else "\(.behind) newer site commits are waiting" end),
+            detail:.subject, action:$a}' /run/nixie/update.json
+        fi
+        if [ -e /run/nixie/apply-pending.json ]; then
+          echo '{"id":"apply-confirm","level":"warn","title":"An apply is waiting to be confirmed","detail":"it is undone by itself when the time runs out","action":"nixie apply --confirm"}'
+        fi
+        if feature attestation && ! tpm2-totp calculate >/dev/null 2>&1; then
+          echo '{"id":"reseal","level":"warn","title":"The attestation code does not compute","detail":"the boot chain changed; reseal it if you changed it yourself","action":"nixie reseal"}'
+        fi
+        if [ -e /var/lib/nixie/backup-check.json ] && [ "$(jq -r .ok /var/lib/nixie/backup-check.json)" != true ]; then
+          echo '{"id":"backup","level":"warn","title":"The last backup check failed","detail":"the repository was unreadable or a snapshot did not verify","action":"nixie backup verify"}'
+        fi
+        # The first thing anyone wants to know about a machine they cannot
+        # see. cut, not awk: the command's PATH is its runtimeInputs.
+        broken=$(systemctl list-units --failed --plain --no-legend 2>/dev/null | cut -d' ' -f1 | tr '\n' ' ')
+        if [ -n "${broken// /}" ]; then
+          jq -n --arg d "$broken" '{id:"units", level:"warn", title:"A service on this machine failed",
+            detail:$d, action:"systemctl --failed"}'
+        fi
+        if command -v usbguard >/dev/null && systemctl is-active -q usbguard 2>/dev/null; then
+          n=$(usbguard list-devices -b 2>/dev/null | grep -c . || true)
+          [ "$n" = 0 ] || printf '{"id":"usb","level":"info","title":"%s USB device(s) blocked","detail":"plugged in after this machine was set up","action":"nixie usb"}\n' "$n"
+        fi
+      } | jq -s .
+    )
+    out=$(jq -n --arg generated "$(date -Is)" --argjson notices "$items" '{generated:$generated, notices:$notices}')
+    if [ "$write" = 1 ]; then
+      mkdir -p /run/nixie
+      printf '%s\n' "$out" >/run/nixie/notices.json
+      chmod 644 /run/nixie/notices.json
+    fi
+    if [ "$json" = 1 ]; then printf '%s\n' "$out"; exit 0; fi
+    if [ "$write" = 1 ]; then exit 0; fi
+    printf '%s' "$out" | jq -r '.notices[] | "  \(.title)\n    \(.detail)\n    \(.action)"'
+    ;;
   site)
     case "${1:-}" in
       key)
@@ -197,7 +317,6 @@ case "$cmd" in
     echo "  };" ;;
   doctor)
     rc=0
-    say() { printf '%-14s %s\n' "$1" "$2"; }
     if feature encryption; then
       for pair in $(layout '.luks[] | .name + "=" + .device'); do
         n=$(cryptsetup luksDump "${pair#*=}" 2>/dev/null | grep -cE '^ +[0-9]+: luks2' || true)
@@ -252,6 +371,15 @@ case "$cmd" in
         else say "backup check" "FAILED; run nixie backup verify"; rc=1; fi
       else say "backup check" "not run yet"; fi
     fi
+    # What the site repository holds, from the last check; the timer keeps
+    # it current (nixie.updates.mode).
+    if [ -s /run/nixie/update.json ]; then
+      if [ "$(jq -r .available /run/nixie/update.json)" = true ]; then
+        say "site" "$(jq -r '"\(.behind) commit(s) waiting: \(.subject)"' /run/nixie/update.json); run nixie update --now"
+      else say "site" "up to date with the site repository"; fi
+    fi
+    broken=$(systemctl list-units --failed --plain --no-legend 2>/dev/null | cut -d' ' -f1 | tr '\n' ' ')
+    if [ -n "${broken// /}" ]; then say "services" "FAILED:$broken"; rc=1; else say "services" "none failed"; fi
     free=$(df --output=pcent / | tail -1 | tr -dc 0-9)
     if [ "$free" -ge 90 ]; then say "disk" "root $free% full"; rc=1; else say "disk" "root $free% used"; fi
     exit $rc ;;
@@ -327,6 +455,66 @@ case "$cmd" in
     fi
     [ -z "$rule" ] || usbguard remove-rule "$rule" >/dev/null 2>&1 || true
     exit "$rc" ;;
+  secure-boot)
+    # What the firmware holds, what is on the boot partition and what is
+    # signed -- the three things "Access Denied" can be about.
+    sign=0
+    while [ $# -gt 0 ]; do case "$1" in --sign) sign=1 ;; esac; shift; done
+    pki=${NIXIE_SBCTL:-/var/lib/sbctl}
+    efivars=${NIXIE_EFIVARS:-/sys/firmware/efi/efivars}
+    esp=${NIXIE_ESP:-/boot}
+    # The command's own PATH comes first, so a test's stand-in is named.
+    status=$(${NIXIE_BOOTCTL:-bootctl} status 2>/dev/null || true)
+    sb=no; setup=no
+    printf '%s' "$status" | grep -qE 'Secure Boot: *enabled' && sb=yes
+    printf '%s' "$status" | grep -qE 'Setup Mode: *setup|\(setup\)' && setup=yes
+    # This machine's own platform key, by its certificate inside the
+    # firmware's PK variable: "disabled" reads the same with anyone's keys.
+    ours=no
+    pk="$efivars/PK-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+    if [ -r "$pk" ] && [ -r "$pki/keys/PK/PK.pem" ]; then
+      mine=$(openssl x509 -in "$pki/keys/PK/PK.pem" -outform DER | od -An -v -tx1 | tr -d ' \n')
+      [ -n "$mine" ] && od -An -v -tx1 "$pk" | tr -d ' \n' | grep -q "$mine" && ours=yes
+    fi
+    staged=no
+    [ -n "$(find "$esp/loader/keys" -name '*.auth' 2>/dev/null | head -1)" ] && staged=yes
+    say "firmware" "Secure Boot $sb, Setup Mode $setup, this machine's keys enrolled: $ours"
+    say "keys on the boot partition" "$staged"
+    # Everything the firmware could be asked to start.
+    unsigned=""
+    if [ -r "$pki/keys/db/db.pem" ] && command -v sbverify >/dev/null; then
+      while IFS= read -r f; do
+        sbverify --cert "$pki/keys/db/db.pem" "$f" >/dev/null 2>&1 || unsigned="$unsigned $f"
+      done < <(find "$esp/EFI" -name '*.efi' -o -name '*.EFI' 2>/dev/null)
+      if [ -z "$unsigned" ]; then say "signatures" "every boot file is signed with this machine's key"
+      else say "signatures" "NOT SIGNED with this machine's key:$unsigned"; fi
+    fi
+    if [ "$sign" = 1 ] && [ -n "$unsigned" ] && command -v sbctl >/dev/null; then
+      for f in $unsigned; do sbctl sign -s "$f" || true; done
+      echo "signed again; restart to try it"
+      exit 0
+    fi
+    echo
+    if [ "$sb" = yes ] && [ -z "$unsigned" ]; then
+      echo "Secure Boot is on and this machine's own keys verify its boot chain. Nothing to do."
+    elif [ "$sb" = yes ]; then
+      echo "Secure Boot is on but the files above are not signed with this machine's key, which is what \"Access Denied\" means."
+      echo "Turn Secure Boot off, start the machine, run 'nixie secure-boot --sign', then turn it back on."
+    elif [ "$setup" = yes ] && [ "$staged" = yes ]; then
+      echo "The firmware is in Setup Mode and the keys are waiting on the boot partition: restart, and the boot loader enrols them. Leave Secure Boot off until it has."
+    elif [ "$setup" = yes ]; then
+      echo "The firmware is in Setup Mode but no keys are staged: run 'nixie apply' to put them on the boot partition, then restart."
+    elif [ "$ours" = yes ]; then
+      echo "This machine's keys are in the firmware: turn Secure Boot on in the firmware settings."
+    else
+      echo "The firmware holds someone else's keys (usually the vendor's). In the firmware settings, under Secure Boot:"
+      echo "  1. Set Secure Boot Mode to Custom (some firmware says User)."
+      echo "  2. Delete or reset the keys: \"Delete all keys\", \"Reset to Setup Mode\" or \"Clear Secure Boot keys\"."
+      echo "  3. Leave Secure Boot itself off, save, and restart. This machine then enrols its own keys."
+      echo "Turned on before that, the firmware refuses everything with \"Access Denied\"; turning it off again loses nothing."
+      echo "Take the installer stick out as well: its image is not signed, and the firmware tries it first."
+    fi
+    ;;
   disk)
     # Another Nixie disk, opened by hand for a clone or a rescue: on the
     # installer image or another machine. Each layer takes a security key,

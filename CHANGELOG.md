@@ -71,6 +71,27 @@ the whole home-manager generation failed on a 403. That one program is built
 from the same source with the platform's toolchain, which fetches crates from
 static.crates.io.
 
+One site, several machines: a change applied on one of them reaches the
+others. `nixie.updates.mode` says what a machine does when the site
+repository is ahead of it -- "notify" (the default) says so on the front
+panel, the host page, a desktop notification and at login and waits for
+`nixie update --now`; "auto" applies it and confirms only when `nixie doctor`
+comes out no worse than it did before the apply, so a machine that breaks
+itself unattended goes back on its own without one already unhappy about
+something else reverting every update;
+"off" does not look. Applying is the ordinary `nixie apply`, so the host and
+the guests the site declares move together. Everything a machine wants to
+say -- an update waiting, an apply to confirm, an attestation to reseal, a
+failed backup check, a service that failed, a blocked USB device -- is
+collected by `nixie notices`
+into one file that each of those surfaces reads, and the front panel gained
+`u` for applying what is waiting.
+
+`nixie secure-boot` answers what "Access Denied" means on a machine: whether
+the firmware holds this machine's keys, whether they are staged on the boot
+partition, and whether every boot file is signed with them, with the step to
+take in each case; `--sign` signs what is not.
+
 The code the platform installs now lives in files of its own -- shell, Lua,
 CSS, HTML, JavaScript and the tests' Python -- next to the module that
 installs it, instead of inside Nix strings: `lib/template.nix` puts the

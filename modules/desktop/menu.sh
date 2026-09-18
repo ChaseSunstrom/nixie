@@ -13,14 +13,18 @@ applyChanges() {
   else git -C "$site" checkout -- . ; fi
 }
 while true; do
-  c=$(gum choose --header "nixie menu" "Finish" "Wallpaper" "Packages" "Update" "Keybinds" "System info" "Quit")
+  c=$(gum choose --header "nixie menu" "Finish" "Wallpaper" "Packages" "Site update" "Update inputs" "Keybinds" "System info" "Quit")
   case "$c" in
     Finish) fin=$(gum choose --header "Default finish in the site (now: @finish@); Super+T switches for this session only" graphite umber paper); setopt nixie.desktop.finish "\"$fin\""; applyChanges "finish $fin" ;;
     Wallpaper) w=$(gum file "$HOME" --file); setopt nixie.desktop.wallpaper "$w"; applyChanges "wallpaper" ;;
     Packages) cat=$(gum choose browsers terminals editors media office communication gaming creative); cur=$(grep -oE "nixie.desktop.packages.categories.$cat = \[[^]]*\]" "$f" | sed -E 's/.*\[(.*)\]/\1/' || true)
       gum style "current: ${cur:-(defaults)}"; new=$(gum input --placeholder "package names, space separated" --value "$cur")
       setopt "nixie.desktop.packages.categories.$cat" "[ $(for p in $new; do printf '"%s" ' "$p"; done)]"; applyChanges "packages $cat" ;;
-    Update) (cd "$site" && nix flake update) && applyChanges "update inputs" ;;
+    # What another machine of this site pushed, and what this machine says
+    # about itself (modules/updates.nix).
+    "Site update") { sudo nixie update --check || true; sudo nixie notices || echo "  nothing waiting"; } | gum pager
+      gum confirm "Apply the site as the repository has it?" && sudo nixie update --now || true ;;
+    "Update inputs") (cd "$site" && nix flake update) && applyChanges "update inputs" ;;
     Keybinds) gum pager </etc/nixie/desktop/keys.txt ;;
     "System info") { hostnamectl; echo; nixie doctor || true; } | gum pager ;;
     Quit) exit 0 ;;

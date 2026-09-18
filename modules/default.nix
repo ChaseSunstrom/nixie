@@ -23,6 +23,7 @@
     ./ui.nix
     ./secrets.nix
     (import ./site.nix { inherit self; })
+    ./updates.nix
     ./host-ui.nix
     ./console.nix
     (import ./setup.nix { inherit inputs self; })

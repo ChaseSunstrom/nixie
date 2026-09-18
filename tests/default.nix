@@ -75,6 +75,8 @@ let
     ) sys.config.systemd.units;
   documentedExposure = [
     "nixie-attestation-reseal"
+    "nixie-notices"
+    "nixie-update"
     "nixie-backup-check"
     "nixie-gc"
     "nixie-fetch"
@@ -365,6 +367,49 @@ in
         touch $out
       '';
 
+  # `nixie secure-boot` on a machine whose start says "Access Denied": each
+  # firmware state, and an unsigned boot file, said in its own words.
+  secure-boot-report =
+    pkgs.runCommand "secure-boot-report"
+      {
+        nativeBuildInputs = [
+          pkgs.bash
+          pkgs.jq
+          pkgs.openssl
+          pkgs.coreutils
+          pkgs.gnugrep
+          pkgs.findutils
+        ];
+        cli = "${self.packages.x86_64-linux.nixie-cli}/bin/nixie";
+      }
+      ''
+        mkdir -p top/etc/nixie bin sb/keys/PK sb/keys/db efivars boot/EFI/Linux boot/loader/keys/auto
+        echo '{"features":{"secureBoot":true},"luks":[]}' >top/etc/nixie/layout.json
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=ours -keyout /dev/null -out sb/keys/PK/PK.pem 2>/dev/null
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=vendor -keyout /dev/null -out vendor.pem 2>/dev/null
+        pkvar=efivars/PK-8be4df61-93ca-11d2-aa0d-00e098032b8c
+        pk() { { printf '\x27\x00\x00\x00'; head -c 44 /dev/zero; openssl x509 -in "$1" -outform DER; } >$pkvar; }
+        printf '#!/bin/sh\ncat %s\n' "$PWD/status.txt" >bin/bootctl
+        chmod +x bin/bootctl
+        answers() { # bootctl's line, what to expect in the answer
+          printf '%s\n' "$1" >status.txt
+          NIXIE_BOOTCTL=$PWD/bin/bootctl NIXIE_EFIVARS=$PWD/efivars NIXIE_SBCTL=$PWD/sb \
+            NIXIE_ESP=$PWD/boot $cli secure-boot >out 2>&1 || true
+          grep -q "$2" out || { cat out; echo "expected: $2"; exit 1; }
+        }
+        # Nothing enrolled and nothing staged: the keys have to be put there.
+        answers "  Secure Boot: disabled (setup)" "no keys are staged"
+        touch boot/loader/keys/auto/db.auth
+        answers "  Secure Boot: disabled (setup)" "restart, and the boot loader enrols them"
+        pk sb/keys/PK/PK.pem
+        answers "  Secure Boot: disabled (disabled)" "turn Secure Boot on"
+        pk vendor.pem
+        answers "  Secure Boot: disabled (disabled)" "Custom"
+        grep -q "Access Denied" out
+        grep -q "installer stick" out
+        touch $out
+      '';
+
   # The committed reference must match what the module tree says.
   option-reference = pkgs.runCommand "option-reference" { } ''
     diff -u ${../docs/reference/options.md} ${self.packages.x86_64-linux.docs}/options.md
@@ -538,6 +583,68 @@ in
     assert lib.assertMsg (failed == [ ]) "hardware-keys: ${lib.concatStringsSep "; " failed}";
     pkgs.writeText "hardware-keys" (lib.concatStringsSep "\n" (lib.attrNames facts));
 
+  # The three modes for following the site, and the surfaces that show it.
+  updates =
+    let
+      server =
+        settings:
+        (testHost ../examples/site {
+          hosts.server = exampleSite.hosts.server // {
+            settings = {
+              imports = [
+                exampleSite.hosts.server.settings
+                settings
+              ];
+            };
+          };
+        } "server").config;
+      # A machine of a site that keeps a repository, which is what following
+      # it needs.
+      off = server {
+        nixie.updates.mode = "off";
+        nixie.site.repo = "git@example:site.git";
+      };
+      auto = server {
+        nixie.updates.mode = "auto";
+        nixie.updates.schedule = "*:0/30";
+        nixie.site.repo = "git@example:site.git";
+      };
+      alone = server { nixie.updates.mode = "notify"; };
+      # A machine that never mentions following anything: the default is not
+      # a mistake there, and nothing is said about it.
+      plain = server { };
+      saidSo = c: lib.any (w: lib.hasInfix "nixie.updates.mode" w) c.warnings;
+      notify = server {
+        nixie.updates.mode = "notify";
+        nixie.site.repo = "git@example:site.git";
+      };
+      desktop = (testHost ../examples/desktop-site desktopSite "laptop").config;
+      facts = {
+        "off does not look" =
+          !(off.systemd.timers ? nixie-update) && !(off.systemd.services ? nixie-update);
+        "nor does a machine with no repository to follow, and it says why" =
+          !(alone.systemd.timers ? nixie-update) && saidSo alone;
+        "a machine that never asked to follow one is not warned about it" =
+          !(plain.systemd.timers ? nixie-update) && !(saidSo plain);
+        "notify and auto look on their own schedule" =
+          notify.systemd.timers.nixie-update.timerConfig.OnCalendar == "hourly"
+          && auto.systemd.timers.nixie-update.timerConfig.OnCalendar == "*:0/30"
+          && auto.systemd.timers.nixie-update.timerConfig.Persistent;
+        "what the machine wants you to know is collected either way" =
+          off.systemd.timers ? nixie-notices && auto.systemd.timers ? nixie-notices;
+        "the mode reaches the command through the site file" =
+          (builtins.fromJSON auto.environment.etc."nixie/site.json".text).updates.mode == "auto";
+        "a login says it" = lib.hasInfix "notices.json" off.environment.interactiveShellInit;
+        "a desktop shows it as a notification" =
+          desktop.systemd.user.paths.nixie-notify.pathConfig.PathChanged == "/run/nixie/notices.json"
+          && desktop.systemd.user.services ? nixie-notify;
+        "a server has no desktop notifier to run" = !(off.systemd.user.services ? nixie-notify);
+      };
+      failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
+    in
+    assert lib.assertMsg (failed == [ ]) "updates: ${lib.concatStringsSep "; " failed}";
+    pkgs.writeText "updates" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
   # A theme found at any depth of its source and installed into the initrd
   # with its paths pointed at the copy.
   splash-theme =
@@ -695,6 +802,16 @@ in
 
   vm-data = import ./vm/data.nix {
     inherit pkgs nixieLib exampleSite;
+    nixieCli = self.packages.x86_64-linux.nixie-cli;
+  };
+
+  vm-updates = import ./vm/updates.nix {
+    inherit
+      pkgs
+      inputs
+      nixieLib
+      exampleSite
+      ;
     nixieCli = self.packages.x86_64-linux.nixie-cli;
   };
 

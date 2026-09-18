@@ -15,9 +15,14 @@
       .muted { color: @muted@; }
       .chip { background: @brand@; color: @bg@; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
       .err { color: @err@; }
+      .card.warn { border-color: @hot@; }
+      button { background: @brand@; color: @bg@; border: 0; border-radius: 7px; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+      button[disabled] { background: @line2@; cursor: default; }
+      #notices p { margin: 4px 0 10px; }
     </style>
   </head>
   <body>
+    <div id="notices"></div>
     <div id="root" class="muted">reading the host's history…</div>
     <script src="../base1/cockpit.js"></script>
     <script src="history.js"></script>

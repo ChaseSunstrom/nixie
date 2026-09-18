@@ -15,6 +15,15 @@
     label = "Branch";
     advanced = true;
   };
+  "nixie.updates.mode".label = "When another machine changes the site";
+  "nixie.updates.schedule" = {
+    label = "How often to look";
+    advanced = true;
+  };
+  "nixie.updates.confirmWithin" = {
+    label = "Time to prove itself before going back";
+    advanced = true;
+  };
 
   "nixie.security.encryption.enable".label = "Encrypt the disk";
   "nixie.security.tpm.enable" = {

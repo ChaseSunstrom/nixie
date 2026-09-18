@@ -17,6 +17,7 @@ pkgs.writeShellApplication {
       cryptsetup
       git
       gnugrep
+      openssl # the Secure Boot check reads the firmware's own key
       gnused
       rsync
       zfs

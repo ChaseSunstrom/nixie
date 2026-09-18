@@ -1130,3 +1130,33 @@ the whole environment.
 
 A JSON file overriding any design token, for a site that wants its own colours.
 
+## `nixie.updates.confirmWithin`
+
+*string*, default: `"10m"`. Wizard section: site.
+
+In "auto" mode, how long the machine has to prove itself after
+applying: it confirms when `nixie doctor` comes out no worse than it
+did before, and otherwise goes back to the system it had. Empty
+applies with no way back, which is only sensible where someone is
+watching.
+
+## `nixie.updates.mode`
+
+*one of "off", "notify", "auto" (off, notify, auto)*, default: `"notify"`. Wizard section: site.
+
+What this machine does when the site repository holds a newer commit
+than the one it is running. "notify" says so on the front panel, the
+host page, the desktop and at login, and waits for
+`nixie update --now`. "auto" applies it by itself, undoing it if the
+new system comes out less healthy than the one it replaced. "off"
+does not look.
+Applying brings the guests the site declares with it, on a server as
+on a desktop.
+
+## `nixie.updates.schedule`
+
+*string*, default: `"hourly"`. Wizard section: site.
+
+How often to look, as a systemd time ("hourly", "daily", "*:0/15").
+A machine that was off looks as soon as it is back.
+
