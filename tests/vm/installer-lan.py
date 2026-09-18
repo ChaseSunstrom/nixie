@@ -98,6 +98,18 @@ with subtest("configure, plan, install"):
     # falls back to the option's own path.
     assert mine[0]["label"] is None, mine
     assert any(o["path"] == "nixie.security.encryption.enable" for o in opts), "the platform's own are still there"
+    # The host's name reaches that evaluation as an argument, never as text
+    # pasted into an expression, and a name that is not one is refused before
+    # anything runs.
+    installer.succeed("cp /var/lib/nixie/setup/state.json /tmp/state.json")
+    installer.succeed(
+        """jq '.host = "evil\\"; x = builtins.currentTime; y = \\""' """
+        "/tmp/state.json >/var/lib/nixie/setup/state.json"
+    )
+    hostile = api("GET", "/api/options")
+    assert not any(o["path"] == "nixie.site.motto" for o in hostile), hostile
+    assert any(o["path"] == "nixie.security.encryption.enable" for o in hostile)
+    installer.succeed("cp /tmp/state.json /var/lib/nixie/setup/state.json")
     installer.shutdown()
 
 with subtest("first boot lands in the setup generation and continues over the same URL"):

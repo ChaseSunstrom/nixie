@@ -1289,8 +1289,8 @@ single-process `nix flake check` does not fit in this host's memory; see
 
 | check | result |
 |---|---|
-| boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (54s), vm-boot-plain (42s), vm-console (199s), vm-data (53s), vm-desktop (166s), vm-egress (95s), vm-encryption (377s), vm-guests (107s), vm-hardware (55s), vm-host-ui (20s), vm-installer-lan (239s), vm-monitoring (84s), vm-rollback (151s), vm-splash (547s), vm-ui (19s), vm-updates (41s) | pass |
+| boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, registry, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (55s), vm-boot-plain (41s), vm-console (261s), vm-data (56s), vm-desktop (146s), vm-egress (104s), vm-encryption (409s), vm-guests (81s), vm-hardware (63s), vm-host-ui (21s), vm-installer-lan (241s), vm-monitoring (69s), vm-rollback (157s), vm-splash (551s), vm-ui (19s), vm-updates (45s) | pass |
 
 Beyond the checks:
 
@@ -1585,6 +1585,28 @@ site and not in this flake), `no-secrets-in-store`, `nixie-cli`, `nixie-
 iso`, `nixie-setup`, `deploy` and `docs` all evaluated with the network
 refused.
 
+**The `oci` data kind wrote a layout and nothing served it.** Section 6 of
+the brief says that kind puts images "into the local registry mirror"; the
+fetcher copied each image into an OCI layout under `cache/oci` and stopped
+there, with no registry anywhere in the tree. `nixie.data.registry` is one
+now -- on by itself when the manifest lists any images -- storing under
+`cache/registry`, re-fetchable and never backed up like everything else
+there, and the host's firewall lets the guests through to that one port,
+above the rule that keeps them out of the host's own services. The layout
+stays beside it, so a machine that serves nothing still has the image.
+
+Two real faults came out of testing it, neither of which any check would
+have caught before, because nothing ever fetched an image. **skopeo copies
+nothing without a trust policy** ("Error loading trust policy: no
+policy.json file found"), and a Nixie host is not a container host, so it
+has no `/etc/containers`: the `oci` fetcher could not have worked on any
+real machine. It carries its own policy now, the manifest's per-image digest
+being the integrity check. And **clearing `cache/` broke the registry until
+the next restart**: the platform says clearing it is safe, but the registry
+runs as its own user and cannot make its directory again under a `cache/`
+that belongs to root. `nixie fetch` puts it back, which is what the test
+exercises -- the subtest that empties `cache/` runs before it.
+
 **The wizard's extension point did not work.** Section 13 of the brief says
 an option carrying `nixie.ui.section` is rendered by the wizard, and
 `docs/extending.md` told sites how to declare one. Neither could happen: the
@@ -1617,6 +1639,8 @@ entry.
 
 | check | result |
 |---|---|
+| `registry` (four facts) | pass; it serves what the cache holds, the guests are let through to that port and no other, off it serves nothing, and a manifest with images turns it on |
+| `vm-data` (extended) | pass; an image built in the test pushed with the fetcher's own policy, listed and pulled back, its storage under `cache/`, restored by `nixie fetch` after `cache/` was emptied, and absent from the backup |
 | `vm-installer-lan` (extended) | pass; a module of the site's own, written where a person would write it, declares an option that the wizard then offers in the section it asked for, labelled by its path, with the platform's own still there |
 | `nix run .#offline` | pass; every input archived, every output evaluated with the network refused |
 | `desktop-motion` (three facts) | pass; "none" reaches GTK 3 and GTK 4, "full" leaves them |

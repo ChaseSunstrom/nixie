@@ -38,15 +38,31 @@ pkgs.testers.runNixOSTest {
           sha256 = builtins.hashFile "sha256" dataset;
         };
       };
+      # The images a site keeps for its guests are served from the machine
+      # itself. Turned on outright here: its default follows an `oci` entry
+      # in the manifest, and fetching one wants the internet.
+      nixie.data.registry.enable = true;
       nixie.backups = {
         enable = true;
         repository = "/var/backup";
         passwordFile = "/etc/nixie-test/restic-password";
       };
       environment.etc."nixie-test/restic-password".text = "test";
-      environment.systemPackages = [ nixieCli ];
+      environment.systemPackages = [
+        nixieCli
+        pkgs.skopeo
+        pkgs.curl
+      ];
     };
   };
 
-  testScript = builtins.readFile ./data.py;
+  testScript = (import ../../lib/template.nix lib).fill ./data.py {
+    # A container image built here, so the push is a real one with no
+    # internet: what the `oci` fetcher does to an image it has pulled.
+    image = pkgs.dockerTools.buildLayeredImage {
+      name = "nixie-test";
+      tag = "latest";
+      contents = [ (pkgs.writeTextDir "hello" "from the machine's own registry") ];
+    };
+  };
 }

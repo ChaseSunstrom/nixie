@@ -613,6 +613,45 @@ in
     touch $out
   '';
 
+  # The one host service the guests are meant to reach.
+  registry =
+    let
+      server =
+        settings:
+        (testHost ../examples/site {
+          hosts.server = exampleSite.hosts.server // {
+            settings = {
+              imports = [
+                exampleSite.hosts.server.settings
+                settings
+              ];
+            };
+          };
+        } "server").config;
+      on = server { nixie.data.registry.enable = true; };
+      off = server { nixie.data.registry.enable = false; };
+      rules = c: c.networking.nftables.tables.nixie.content;
+      facts = {
+        "it serves what the cache holds" =
+          on.services.dockerRegistry.enable
+          && on.services.dockerRegistry.storagePath == "${on.nixie.data.root}/cache/registry";
+        "the guests are let through to it, and to nothing else new" =
+          lib.hasInfix "tcp dport 5000 accept" (rules on)
+          && !(lib.hasInfix "tcp dport 5000 accept" (rules off));
+        "off, nothing serves them" = !off.services.dockerRegistry.enable;
+        "a manifest with images turns it on by itself" =
+          (server {
+            nixie.data.manifest.oci.thing = {
+              image = "example.invalid/thing";
+              digest = "sha256:0";
+            };
+          }).services.dockerRegistry.enable;
+      };
+      failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
+    in
+    assert lib.assertMsg (failed == [ ]) "registry: ${lib.concatStringsSep "; " failed}";
+    pkgs.writeText "registry" (lib.concatStringsSep "\n" (lib.attrNames facts));
+
   # Stillness reaches the applications, not only the compositor: GTK's own
   # switch follows nixie.desktop.look.animations.
   desktop-motion =

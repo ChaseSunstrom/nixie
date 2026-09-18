@@ -117,6 +117,18 @@ finish instead of always graphite. A headless deploy writes the host's real
 profile into the setup state instead of always "server", which had a desktop
 installed that way continuing as a server.
 
+The container images a site lists are served from the machine that fetched
+them, which is what the brief's `oci` kind meant by "into the local registry
+mirror": `nixie.data.registry` runs a registry on the host, storing under
+`cache/` like the layouts beside it, and the host's firewall lets the guests
+reach that one port and no other. A guest pulls from the machine it runs on,
+and a machine with no way out still starts its containers. Writing it found
+that the `oci` fetcher could never have worked on a Nixie host at all:
+skopeo copies nothing without a trust policy, and a Nixie host is not a
+container host, so it has no `/etc/containers`. The fetcher carries its own
+policy now; the manifest pins every image by digest, which is the integrity
+check.
+
 An option a site declares reaches the installer, which is what the extension
 point in docs/extending.md promised and could not do: the wizard's list was
 rendered once when the installer was built, from the platform's modules

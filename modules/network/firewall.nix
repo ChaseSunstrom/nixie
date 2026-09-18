@@ -23,6 +23,10 @@ let
   hostUiPort = toString config.nixie.hostUi.port;
   promPort = toString config.nixie.monitoring.port;
   hostPorts = "${sshPort}, ${uiPort}, ${hostUiPort}, ${promPort}";
+  # The one host service the guests are meant to reach: the images this
+  # machine keeps for them (modules/data.nix).
+  registryOn = config.nixie.data.registry.enable;
+  registryPort = toString config.nixie.data.registry.port;
   onTailnet = config.nixie.network.tailscale.enable;
   private = "{ 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }";
 
@@ -99,6 +103,9 @@ in
             # carries only guests; in LAN mode it is also the LAN, and this
             # rule dropped the LAN's SSH and control panel with the guests', so
             # there the bridge family below does it, where a guest's port shows.
+            # The image registry is for the guests: it is the one host
+            # service they are meant to reach, so it goes above the drop.
+            ${lib.optionalString registryOn ''iifname "${br}" tcp dport ${registryPort} accept''}
             ${lib.optionalString nat ''iifname "${br}" tcp dport { ${hostPorts} } drop''}
             ${lib.optionalString nat ''
               iifname "${br}" udp dport { 67, 53 } accept

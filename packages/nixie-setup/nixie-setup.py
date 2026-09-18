@@ -209,7 +209,12 @@ def site_options(host):
     the platform's own list rather than an error: the site's own files are
     checked at Review, which is where a person is told about them.
     """
-    if not host or not os.path.exists(os.path.join(ARGS.site, "flake.nix")):
+    # The host's name comes from the wizard, so it is not pasted into a Nix
+    # expression: it travels as an argument (--argstr), and anything that is
+    # not a host name is refused before that.
+    if not host or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", host):
+        return []
+    if not os.path.exists(os.path.join(ARGS.site, "flake.nix")):
         return []
     # Asked again when the site changes: a person who adds a module at
     # Review sees their option without the backend being restarted. The
@@ -234,15 +239,18 @@ def site_options(host):
         pass
     found = []
     r = sh(
-        ["nix", "eval", "--no-eval-cache", "--impure", "--raw", "--expr",
-         f'(import {ARGS.site_options}) {{ site = "{ARGS.site}"; host = "{host}"; }}'],
+        ["nix-instantiate", "--eval", "--strict", "--json", ARGS.site_options,
+         "--argstr", "site", ARGS.site, "--argstr", "host", host],
         cwd=ARGS.site,
     )
     if r.returncode == 0:
         try:
+            # Twice: the file's value is a Nix string holding the JSON the
+            # renderer built, and --json quotes that string.
+            rendered = json.loads(json.loads(r.stdout))
             # Only what the platform does not already declare, and only what
             # asked to be shown: a site's module may declare plenty else.
-            found = [o for o in json.loads(r.stdout) if o["path"] not in known and o.get("section")]
+            found = [o for o in rendered if o["path"] not in known and o.get("section")]
             log(f"the site declares {len(found)} option(s) of its own: {[o['path'] for o in found]}")
         except json.JSONDecodeError as e:
             log(f"the site's own options were not JSON: {e}; {r.stdout[:200]!r}")

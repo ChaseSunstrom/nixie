@@ -15,6 +15,14 @@
     label = "Branch";
     advanced = true;
   };
+  "nixie.data.registry.enable" = {
+    label = "Serve container images to the guests";
+    advanced = true;
+  };
+  "nixie.data.registry.port" = {
+    label = "Image registry port";
+    advanced = true;
+  };
   "nixie.updates.mode".label = "When another machine changes the site";
   "nixie.updates.schedule" = {
     label = "How often to look";

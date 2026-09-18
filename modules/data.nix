@@ -15,6 +15,11 @@ let
   kinds = lib.mapAttrs (_: f: import f { inherit pkgs; }) (platformKinds // cfg.kinds);
   manifestFile = pkgs.writeText "data.json" (builtins.toJSON cfg.manifest);
 
+  # Guests pull from the machine they run on; the fetcher pushes to the same
+  # registry over the loopback.
+  inherit (cfg) registry;
+  registryAddress = "127.0.0.1:${toString registry.port}";
+
   # One script per kind, run only for the entries the manifest has for it.
   # Each entry is fetched into cache/<kind>/<name> and marked .complete; a
   # half-fetched entry is cleared and fetched again.
@@ -22,9 +27,20 @@ let
     kind: k:
     pkgs.writeShellApplication {
       name = "nixie-fetch-${kind}";
-      runtimeInputs = k.runtimeInputs ++ [ pkgs.jq ];
+      runtimeInputs = k.runtimeInputs ++ [
+        pkgs.jq
+        # The loop's own mkdir, rm and install: a unit's PATH holds nothing.
+        pkgs.coreutils
+      ];
       text = ''
         base="${root}/cache/${kind}"
+        ${lib.optionalString registry.enable ''
+          export NIXIE_REGISTRY="${registryAddress}"
+          # cache/ is re-fetchable and may have been cleared since the
+          # registry started; it runs as its own user and cannot make its
+          # own directory under a cache/ that belongs to root.
+          install -d -o docker-registry -g docker-registry -m 0750 "${root}/cache/registry"
+        ''}
         jq -c '.["${kind}"] // {} | to_entries[]' ${manifestFile} | while read -r e; do
           name=$(jq -r .key <<<"$e"); entry=$(jq -c .value <<<"$e")
           dest="$base/$name"
@@ -64,6 +80,32 @@ in
       type = lib.types.attrsOf (lib.types.attrsOf (lib.types.attrsOf lib.types.anything));
       default = { };
       description = "What lives in cache/, by fetcher kind and name. See the data guide.";
+    };
+    registry = {
+      enable = mkOption {
+        type = lib.types.bool;
+        default = cfg.manifest.oci or { } != { };
+        defaultText = "true when the manifest lists any container images";
+        description = ''
+          Serve the container images the manifest lists from this machine, so
+          guests pull them from here instead of from the internet. Off, they
+          are still fetched into the cache as an OCI layout, but nothing
+          serves them.
+        '';
+        nixieUi = {
+          section = "services";
+          advanced = true;
+        };
+      };
+      port = mkOption {
+        type = lib.types.port;
+        default = 5000;
+        description = "Where the image registry answers on this machine.";
+        nixieUi = {
+          section = "services";
+          advanced = true;
+        };
+      };
     };
     fetch.timer = mkOption {
       type = lib.types.nullOr lib.types.str;
@@ -105,6 +147,30 @@ in
         NoNewPrivileges = true;
       };
     };
+    # The brief's `oci` kind puts images "into the local registry mirror":
+    # the images the manifest lists are served from this machine, so a guest
+    # pulls from here rather than from the internet, and a machine with no
+    # way out still starts its containers. Its storage is under cache/,
+    # which is re-fetchable and never backed up, like the layouts beside it.
+    services.dockerRegistry = lib.mkIf registry.enable {
+      enable = true;
+      # Reachable by the guests, which is its whole purpose; the host's
+      # firewall is what keeps it off the LAN (modules/network/firewall.nix).
+      listenAddress = "0.0.0.0";
+      inherit (registry) port;
+      storagePath = "${root}/cache/registry";
+      # What the cache holds is disposable and re-fetchable, so it may as
+      # well be tidied.
+      enableDelete = true;
+      enableGarbageCollect = true;
+    };
+    # Its own directory, made as root at the moment it is needed: the data
+    # root is a mount of its own, and a tmpfiles rule can run before it is
+    # there. The registry itself runs as its own user and cannot make a
+    # directory under cache/, which is root's.
+    systemd.services.docker-registry.serviceConfig.ExecStartPre =
+      lib.mkIf registry.enable "+${pkgs.coreutils}/bin/install -d -o docker-registry -g docker-registry -m 0750 ${root}/cache/registry";
+
     systemd.timers.nixie-fetch = lib.mkIf (cfg.fetch.timer != null) {
       wantedBy = [ "timers.target" ];
       timerConfig = {

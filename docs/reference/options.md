@@ -193,6 +193,21 @@ What lives in cache/, by fetcher kind and name. See the data guide.
 
 Include media/ in backups. It can be large.
 
+## `nixie.data.registry.enable`
+
+*boolean*, default: `"true when the manifest lists any container images"`. Wizard section: services.
+
+Serve the container images the manifest lists from this machine, so
+guests pull them from here instead of from the internet. Off, they
+are still fetched into the cache as an OCI layout, but nothing
+serves them.
+
+## `nixie.data.registry.port`
+
+*16 bit unsigned integer; between 0 and 65535 (both inclusive)*, default: `5000`. Wizard section: services.
+
+Where the image registry answers on this machine.
+
 ## `nixie.data.root`
 
 *absolute path*, default: `"/data"`.
