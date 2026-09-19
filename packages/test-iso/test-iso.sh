@@ -35,7 +35,18 @@ echo "== medium ${medium[0]}, security $security, profile $profile, tpm $tpm, di
 disk="$out/target.qcow2"; qemu-img create -q -f qcow2 "$disk" 40G; rm -f "$out/unlock-prompt.png"
 vars="$out/efi-vars.fd"; cp @ovmf@/FV/OVMF_VARS.fd "$vars"; chmod +w "$vars"
 # A failed run must not leave the VM holding the disk for the next one.
-trap 'pkill -f "$out/serial.sock" || true; pkill -f "tpmstate dir=$out/tpm" || true' EXIT
+# A guard, not a repair: the phases keep the recovery key out of their own
+# output today, and the logs here show systemd's message with the key line
+# empty. But these files are what VERIFICATION.md links to and what a person
+# attaches to a bug report, and the key is the one secret among them that
+# opens the disk -- so anything shaped like one is redacted on the way out,
+# whatever ends the run. Word-bounded, because a nix store hash can carry
+# that shape inside it and those are not secrets.
+redact() {
+  find "$out" -type f \( -name '*.log' -o -name '*.txt' -o -name '*.json' \) -print0 2>/dev/null \
+    | xargs -0 -r sed -i -E 's/\b[0-9a-z]{8}(-[0-9a-z]{5}){4}\b/<recovery key redacted>/g' || true
+}
+trap 'pkill -f "$out/serial.sock" || true; pkill -f "tpmstate dir=$out/tpm" || true; redact' EXIT
 mkdir -p "$out/tpm"
 # Under KVM, -cpu max offers instructions the host cannot always emulate
 # ("KVM internal error ... emulation failure" mid-install); host is exact.

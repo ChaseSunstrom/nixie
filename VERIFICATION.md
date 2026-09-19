@@ -2355,3 +2355,28 @@ looking for a file nobody could find.
 | `tokens-from-design` | pass: 23 tokens in each of graphite, umber and paper, every one the design file's |
 | `nix run .#demo-shots` | 45 screenshots: every panel screen in three finishes, and the design file in three |
 | the 48-check gate | pass |
+
+## One guard on the artifacts (2026-09-19, closing)
+
+`tests/artifacts/` is deliberately not ignored -- its logs and screenshots
+are what this file links to. Checking what is in them: no recovery key. The
+phases keep it out of their own output, and systemd's message appears in
+`test-iso-hardened/phases.log` with the key line following it empty.
+
+Two things that look like keys and are not, recorded so the next person does
+not chase them: systemd's sentence "A secret recovery key has been generated
+for this volume:", which is a message and not a key; and a nix store hash,
+which can carry the 8-5-5-5-5 shape inside a longer run of characters
+(`/nix/store/nj1acsy2qjd73ikhqf60p6hh…`). A word-bounded pattern tells them
+apart, and finds nothing in any artifact here.
+
+`nix run .#test-iso` now redacts that shape from its logs as it exits,
+whatever ends the run. It is a guard rather than a repair: it makes "no
+recovery key in a committed artifact" a property of the script instead of a
+thing to remember, which is what the rule in CLAUDE.md asks for.
+
+| check | result |
+|---|---|
+| word-bounded search for a recovery key across `tests/artifacts/` | none |
+| `nix build .#test-iso` (shellcheck runs inside `writeShellApplication`) | pass |
+| fmt, statix, deadnix, no-secrets-in-store | pass |
