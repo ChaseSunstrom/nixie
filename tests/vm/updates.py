@@ -96,6 +96,23 @@ with subtest("auto: the machine applies it by itself and confirms it"):
     auto.fail("test -e /run/nixie/apply-pending.json")
     assert auto.succeed("jq -r .available /run/nixie/update.json").strip() == "false"
 
+with subtest("encryption cannot be turned on or off on an installed machine"):
+    # The one setting `apply` refuses, because it is the one that cannot be
+    # changed without erasing the disk. A prebuilt system answers from its
+    # own layout, which is how apply reads it without evaluating anything.
+    other = notify.succeed(
+        "mkdir -p /tmp/flipped/etc/nixie && "
+        "jq '.features.encryption = (.features.encryption | not)' "
+        "/run/current-system/etc/nixie/layout.json >/tmp/flipped/etc/nixie/layout.json && "
+        "echo /tmp/flipped"
+    ).strip()
+    out = notify.fail(f"NIXIE_TOPLEVEL={other} nixie apply --yes 2>&1")
+    print(out)
+    assert "cannot be changed on an installed system" in out, out
+    assert "reinstall from the ISO" in out, out
+    # And it says so before touching anything: no pending apply is left.
+    notify.fail("test -e /run/nixie/apply-pending.json")
+
 with subtest("a service that failed is said the same way"):
     # Nothing else on this machine is broken: the earlier subtests showed no
     # notices at all, so this one is the notice.

@@ -1290,7 +1290,7 @@ single-process `nix flake check` does not fit in this host's memory; see
 | check | result |
 |---|---|
 | boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, registry, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (53s), vm-boot-plain (1s), vm-console (249s), vm-data (54s), vm-desktop (176s), vm-egress (102s), vm-encryption (379s), vm-guests (86s), vm-hardware (56s), vm-host-ui (48s), vm-installer-lan (250s), vm-monitoring (87s), vm-rollback (153s), vm-splash (554s), vm-ui (19s), vm-updates (41s) | pass |
+| vm-backup (55s), vm-boot-plain (67s), vm-console (244s), vm-data (55s), vm-desktop (130s), vm-egress (97s), vm-encryption (379s), vm-guests (98s), vm-hardware (54s), vm-host-ui (46s), vm-installer-lan (246s), vm-monitoring (72s), vm-rollback (153s), vm-splash (553s), vm-ui (17s), vm-updates (41s) | pass |
 
 Beyond the checks:
 
@@ -1689,6 +1689,29 @@ journal, not to the run's artifacts, and the machine is gone by the time
 they are read. The unit itself is built into that host (`unit-nixie-
 fetch.service` appears in the install log), so the branch taken was the one
 that starts it rather than the one that says there is no data.
+
+## The brief's acceptance criteria, one by one (2026-09-18)
+
+Section 16 asks that this file list every criterion with the command that
+proved it. It never did: the entries above are chronological, by the work
+that produced them, and a reader wanting to know whether a criterion is met
+had to find it among them. Here they are in the brief's own order. Three are
+not met, and say so.
+
+| criterion | what proves it | state |
+|---|---|---|
+| Clean clone: every check passes with the VM tests actually run; every package builds; the site builds offline after `nix flake archive` | the 44-check loop, one `nix build` per check (the evaluator cannot hold them in one process; see the closing section); `nix build` of every package; `nix run .#offline` | met, with the reading of "offline" that the entry above sets out: no flake using nixpkgs can build from an archive alone, so what is proved is that nothing fetches behind the lock file |
+| The platform evaluates for no GPU, one NIC, no TPM, no data disk, and a VM | `eval-matrix`, over the throwaway sites in `tests/sites/` (`no-gpu.nix`, `one-nic.nix`, `no-tpm.nix`, `no-data-disk.nix`, `vm.nix`) | met |
+| Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk` (the wizard driven in the kiosk's own browser to a finished install); `--security hardened` (every feature the wizard turns on, to Finish); `profile-server-has-no-desktop`, `profile-server-kiosk-only` | **partly**: the install, the security stack and the closures are proved; declaring a guest from the panel is not, because the panel has no Declare (D16), and the kiosk run and the hardened run are two runs rather than one |
+| Graphical path, LAN: the same install from a browser on another VM | `vm-installer-lan` drives it from a second node over HTTP; `mediaTests.installer` drives the same pages with Playwright | met |
+| Desktop: installed from the ISO into a working Hyprland session with the chosen finish, packages and user, encryption on; no Incus, tofu or monitoring in the closure; the finish changes after `apply` without a reboot | `nix run .#test-iso --profile desktop`; `vm-desktop`; `profile-desktop-has-no-server` | met in a VM. A HyDE session on real graphics is not verified here, as the 2026-09-16 entry says |
+| Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `deploy-continues` checks the script reboots, forgets the installer's host key and hands over, in that order | **not met**: no entry records a remote deploy reaching Finish, before the change that made it possible or after. It wants two machines and a terminal driving `gum` |
+| Toggling a security feature in `site.nix` and applying takes effect without reinstalling, except encryption, which is refused clearly | `vm-hardware` and `vm-encryption` for the features that toggle; `vm-updates` flips `features.encryption` under a prebuilt system and checks `apply` refuses with "cannot be changed on an installed system; reinstall from the ISO" and leaves nothing pending | met |
+| Deleting `cache/` and fetching restores it; deleting a guest and applying recreates it; `restore` brings back `state/` | `vm-data` (both, and the registry's own directory with them); `vm-guests`; `vm-backup` | met |
+| An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone, `nixie export` writes the entry) | **partly**: Export and the round-trip through the file are proved; Declare from the panel does not exist (D16) |
+| `grep -rn` for MACs, disks, interface names, PCI addresses or board names hits only `tests/` and the example site's generated `hardware.nix` | `no-hardware-facts` | met |
+| Every platform unit passes `systemd-analyze security` at OK, or documents its exposure | `systemd-security`, against a fully enabled server and the desktop | met |
+| The control panel and the installer match the design file in all three finishes | `nix run .#demo-shots` (the panel's screens in graphite, umber and paper, from demo mode) and the gallery's panel and desktop shots | **partly**: the panel is photographed in all three, the installer and the host page in one. Comparing them with the design file is a person's judgement, not a check |
 
 ## What a photograph of the host page found (2026-09-18)
 
