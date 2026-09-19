@@ -1,31 +1,22 @@
-# NOT A CHECK YET, and tests/default.nix does not register it. What stops it
-# is written at the bottom of this comment; it is kept because it is nine
-# iterations of a harness that works up to that point, and because whoever
-# finishes it should not start again.
+# The headless path: one machine installs another over SSH, restarts it, and
+# the machine it installed carries itself the rest of the way. The brief asks
+# that `nix run .#deploy` reach the same end state as the kiosk and the LAN
+# wizard, and nothing here had ever run it -- the entries for the terminal
+# continuation stub gum and the phases, and the remote half was never
+# exercised at all.
 #
-# The headless path: one machine installs another over SSH, restarts it,
-# waits for it and carries on where the wizard's front ends carry on. The
-# brief asks that `nix run .#deploy` reach the same end state as they do, and
-# nothing here had ever run it: the entries for the terminal continuation
-# stub gum and the phases, and the remote half -- install, restart, forget
-# the installer's host key, reconnect -- was never exercised at all.
+# What it takes to run a deploy inside a test, each of which is a thing the
+# first runs of this died on: a site that arrives already locked
+# (deploy-lock.py), every source that lock names in the runner's store, a
+# system handed in rather than built here (NIXIE_TOPLEVEL), a terminal for
+# gum with a size, an answer typed when the question is on the screen rather
+# than queued before it, and a test that treats each restart as the step it
+# is rather than as the machine failing.
 #
 # The host is a plain one on purpose. Encryption, a TPM and Secure Boot each
 # add a secret or a restart that a person answers at the machine, and those
 # are the subject of vm-encryption and vm-splash; what is proved here is the
 # path between two machines.
-#
-# Where it gets to: the runner reaches the installer over SSH with the
-# repository's own test key, the deploy recognises the machine as running the
-# Nixie ISO and needs no kexec, and with NIXIE_TOPLEVEL and NIXIE_DISKO handed
-# in it does not build a system inside the VM. Where it stops: before anything
-# is evaluated, nix locks the site's flake, and locking resolves the
-# platform's transitive inputs -- disko, lanzaboote, crane, pre-commit-hooks
-# and the rest. Having every source in the store is not enough, because nix
-# fetches each `github:` reference to check it against the lock, and the VM
-# has no way out. Finishing it wants a site that arrives already locked, which
-# means generating that lock where the network is: in the derivation that
-# builds the site, not inside the machine.
 {
   pkgs,
   inputs,
@@ -59,13 +50,29 @@ let
     ];
   };
   # The site the runner deploys from: the example one with its platform
-  # input pointed at this tree in the store, so the runner can evaluate it
-  # with no network.
-  site = pkgs.runCommand "deploy-site" { } ''
-    cp -r ${lib.cleanSource ../../examples/site} $out
-    chmod -R u+w $out
-    substituteInPlace $out/flake.nix --replace 'github:OWNER/nixie' 'path:${self}'
-  '';
+  # input pointed at this tree in the store, and carrying the lock file it
+  # would have got from a machine with a network (deploy-lock.py says why).
+  site =
+    pkgs.runCommand "deploy-site"
+      {
+        nativeBuildInputs = [
+          pkgs.nix
+          pkgs.python3
+        ];
+      }
+      ''
+        cp -r ${lib.cleanSource ../../examples/site} $out
+        chmod -R u+w $out
+        substituteInPlace $out/flake.nix --replace 'github:OWNER/nixie' 'path:${self}'
+        # The disk this site names, for the machine it is installed on here: a
+        # test's virtio drive has no serial and so no by-id link (D18), and the
+        # deploy reads the disk from the site rather than from the system it is
+        # handed.
+        substituteInPlace $out/hosts/server/hardware.nix \
+          --replace '/dev/disk/by-id/virtio-nixie-system' '/dev/vda'
+        hash=$(nix --extra-experimental-features nix-command hash path ${self})
+        python3 ${./deploy-lock.py} ${self} "$hash" $out/flake.lock
+      '';
   # Every source the platform's lock names, as the ISO does.
   sources =
     let
@@ -157,6 +164,9 @@ pkgs.testers.runNixOSTest {
 
   testScript = (import ../../lib/template.nix lib).fill ./deploy.py {
     key = ../keys/client_ed25519;
+    # The site brings secrets for this host, so the deploy asks for the key
+    # that reads them rather than making a new identity.
+    age = ../keys/example-host.age;
     inherit site;
     # The system this deploy installs, built here rather than inside the
     # runner: what the site evaluates to is not what this test preloaded,

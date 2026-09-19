@@ -958,6 +958,16 @@ in
 
   vm-desktop = import ./vm/desktop.nix { inherit pkgs nixieLib desktopSite; };
 
+  vm-deploy = import ./vm/deploy.nix {
+    inherit
+      pkgs
+      inputs
+      self
+      nixieLib
+      exampleSite
+      ;
+  };
+
   vm-data = import ./vm/data.nix {
     inherit pkgs nixieLib exampleSite;
     nixieCli = self.packages.x86_64-linux.nixie-cli;

@@ -1705,7 +1705,7 @@ not met, and say so.
 | Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk` (the wizard driven in the kiosk's own browser to a finished install); `--security hardened` (every feature the wizard turns on, to Finish); `profile-server-has-no-desktop`, `profile-server-kiosk-only`; `vm-guests` for what Declare runs | **partly**: the install, the security stack and the closures are proved, and Declare now exists -- the panel hands the name to the host page, which runs `nixie declare` (D16, rewritten 2026-09-19). What no run shows is the click itself ending in a declared guest, and the kiosk run and the hardened run are still two runs rather than one |
 | Graphical path, LAN: the same install from a browser on another VM | `vm-installer-lan` drives it from a second node over HTTP; `mediaTests.installer` drives the same pages with Playwright | met |
 | Desktop: installed from the ISO into a working Hyprland session with the chosen finish, packages and user, encryption on; no Incus, tofu or monitoring in the closure; the finish changes after `apply` without a reboot | `nix run .#test-iso --profile desktop`; `vm-desktop`; `profile-desktop-has-no-server` | met in a VM. A HyDE session on real graphics is not verified here, as the 2026-09-16 entry says |
-| Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `deploy-continues` checks the script reboots, forgets the installer's host key and hands over, in that order | **not met**: no entry records a remote deploy reaching Finish. A harness for it exists and does not run -- `tests/vm/deploy.nix`, unregistered, with the entry of 2026-09-19 for where it stops |
+| Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `vm-deploy`: one machine deploys another over SSH, phases 1 to 3 run on the target, it restarts, and the setup generation carries 4 to 8 to the end; `deploy-continues` checks the hand-over's shape | met from the ISO, which is what the test's target runs. From kexec is not: the deploy says `target runs the Nixie ISO; no kexec needed`, and the other branch wants a machine running something else to kexec out of |
 | Toggling a security feature in `site.nix` and applying takes effect without reinstalling, except encryption, which is refused clearly | `vm-hardware` and `vm-encryption` for the features that toggle; `vm-updates` flips `features.encryption` under a prebuilt system and checks `apply` refuses with "cannot be changed on an installed system; reinstall from the ISO" and leaves nothing pending | met |
 | Deleting `cache/` and fetching restores it; deleting a guest and applying recreates it; `restore` brings back `state/` | `vm-data` (both, and the registry's own directory with them); `vm-guests`; `vm-backup` | met |
 | An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone; `nixie export` writes the entry; `nixie declare` puts it in the site; an apply whose state has never seen a running declared guest adopts it and then plans nothing) | met, in the two halves a single machine can show; the seam between them is in the entry of 2026-09-19 |
@@ -2169,3 +2169,49 @@ happened. The test runs the two halves either side of that seam -- the write
 with `--skip-host`, the adoption against a guest the site already declares
 -- because building a NixOS inside a test VM is what `NIXIE_TOPLEVEL` exists
 to avoid.
+
+## The headless path, all the way (2026-09-19, later)
+
+The entry above this one says what stopped `vm-deploy` and what finishing it
+would take: "a site that arrives already locked, which means generating that
+lock where the network is". That is what `tests/vm/deploy-lock.py` does, and
+with it the test runs. It is registered, and the gate is forty-five checks.
+
+The lock is written from the platform's own: every node carried over, the
+root renamed to `nixie` and pointed at the platform's store path, and every
+`follows` re-rooted a step deeper. Nothing is fetched, because a locked node
+carries a hash and a hash is something nix finds in a store it already has
+-- the same reason `nix run .#offline` works. Checked before the VM ran, by
+`nix flake metadata --offline` on a site holding that lock: every input
+resolved, `nixie/lanzaboote/pre-commit/gitignore` and all.
+
+Then five more things, each one a run:
+
+| it ran into | what that was |
+|---|---|
+| `nixie-deploy: not found` | a transient unit is given a minimal PATH, and the system profile is not on it |
+| an empty log for as long as it ran | `script` writes its typescript in blocks; `-f` flushes it, and until then the only readable copy was the journal, where every coloured line is "[77B blob data]" |
+| the answer typed as `p  4h` | gum asks the terminal for its colours as it starts and reads the reply from the same input, so an answer queued before the question is eaten by it. It goes in a fifo now, written when the question is on the screen |
+| the answer typed but not submitted | in raw mode Enter is a carriage return; a line feed leaves it sitting in the box |
+| "broken pipe", three times, in three places | the deploy restarts the target as its own next step, and the test was waiting on the machine that was going away. It waits on the runner, treats the backdoor going away as that restart, and writes the machine off so the driver's closing `sync` does not look for it |
+
+What the run shows, in order: the runner reaches the installer over SSH with
+the repository's own key; the deploy sees `target runs the Nixie ISO; no
+kexec needed`; `copying 0 paths` (the closure is already there, handed in
+rather than built inside a VM); the one question a plain install asks --
+where the key for this host's secrets is -- answered; `nixie-phase 1 && 2 &&
+3` over SSH; `1.done`, `2.done`, `3.done`; the target restarted by the
+deploy. Then the disk it wrote is started as a machine of its own: it comes
+up as `server`, and the setup generation runs on to `7.done`, restarts, and
+comes back with `8.done` and no `specialisation/setup` left. Nobody typed
+anything after the key.
+
+| check | result |
+|---|---|
+| `vm-deploy` (342 s, two subtests) | pass |
+| the 45-check gate | pass |
+
+Not proved here: the kexec branch. The target runs the Nixie ISO, so the
+deploy says so and skips it; proving the other branch wants a machine
+running some other Linux to kexec out of, which is a second image this test
+does not build.
