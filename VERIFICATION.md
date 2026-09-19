@@ -2427,3 +2427,53 @@ in. The gate is forty-nine.
 | `deploy-kexecs` | pass |
 | `vm-deploy` | pass, re-run after the build moved above the branch |
 | the 49-check gate | pass |
+
+## How far the kexec gets with an image built here (2026-09-19, kexec II)
+
+The entry above ends by saying the branch needs either `nixos-images` as a
+sixth input or that image rebuilt from nixpkgs. Between the two, the one
+that costs the platform nothing is worth trying first, so it was tried:
+`tests/vm/kexec-image.nix` wraps nixpkgs' netboot installer in the layout
+nixos-anywhere unpacks.
+
+The contract, learned by running into each part of it: the tarball holds a
+`kexec/` directory, it is extracted into `$HOME/kexec`, `kexec/run` is
+called with `--kexec-extra-flags`, and nixos-anywhere greps the output for
+"machine will boot into nixos" to decide the machine is on its way. The
+script has to say that *before* the kernel it says it from goes away, and
+leave the kexec itself to a moment later so the caller's SSH closes rather
+than dying underneath it.
+
+With that, the run gets here:
+
+```
+kexec/run … machine will boot into nixos
+Connection to 192.168.1.9 closed.
+<<< Welcome to NixOS kexec-26.05.20260910.d58a46e (x86_64) - ttyS0 >>>
+```
+
+The kexec fires, nixos-anywhere accepts it, and the machine comes up as the
+NixOS installer. Then nothing can reach it -- `No route to host` -- and the
+deploy waits at the loop that was added for exactly this moment.
+
+What is missing is the piece a downloaded kexec-installer does at runtime
+and this one is told at build time: carrying the machine's networking
+across. Telling it is not enough. The VM has two interfaces, a user-mode one
+and the test's own; the address has to land on the one the deploy is
+talking to; and the names belong to the kernel that just started rather than
+the one that was configured. Matching every NIC gives neither a route,
+matching the name it had leaves it unreachable another way.
+nix-community/nixos-images reads the running machine's addresses and routes
+before the kexec and replays them after, which is the piece to write -- or
+to take as an input, which costs a dependency and is not a call to make
+alone.
+
+So `vm-deploy` stays the ISO path, `deploy-kexecs` keeps the branch's shape,
+and the image is in the tree unreferenced with its own note. What the three
+runs bought is in the entry above: the branch is no longer broken.
+
+| check | result |
+|---|---|
+| the kexec itself, by hand through `vm-deploy` | fires; the machine boots the installer; it is then unreachable |
+| `vm-deploy` (the ISO path) | pass, unchanged |
+| fmt, deadnix, statix | pass |
