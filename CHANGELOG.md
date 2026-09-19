@@ -187,10 +187,12 @@ Two faults the gallery found the moment it photographed the host page's own
 screen, which it had never pictured before. `nixie rollback --json` on a
 machine with no generations recorded passed an unmatched glob through as a
 path, and stat, date and jq each failed on it in turn, so the page showed a
-line of shell errors where its history belongs. And the page wore Cockpit's
-styling rather than the site's finish: Cockpit brings its own stylesheet in
-after the page's, so every rule that named nothing of the page's own lost to
-it.
+line of shell errors where its history belongs. And the page wore Cockpit's styling rather than the site's finish, which it
+had done since it was first built, on every site and in every finish: its
+rules were a `<style>` block in the page, and Cockpit serves its packages
+under a content security policy of `default-src 'self'`, which refuses
+inline styles. The browser discarded the lot. They are a file beside the
+page now.
 
 The host page can run the three things it is for: Apply the site, Fetch the
 cache and Run the checks, each printing as it goes rather than at the end.

@@ -1,0 +1,19 @@
+/* The host page's own rules. A file, not a <style> block in the page:
+   Cockpit serves its packages under a content security policy of
+   default-src 'self', which refuses inline styles, so the page came up
+   wearing Cockpit's look and none of the site's finish. */
+html body { background: @bg@; color: @ink@; font-family: Archivo, sans-serif; margin: 0; padding: 16px; }
+#root h2, #notices h2, #actions h2 { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; margin: 18px 0 8px; }
+.card { background: @s1@; border: 1px solid @line@; border-radius: 10px; box-shadow: 0 8px 24px -14px @shadow@; padding: 12px 14px; margin-bottom: 14px; }
+#root table { width: 100%; border-collapse: collapse; font-size: 12px; }
+#root td, #root th { text-align: left; padding: 5px 8px; border-bottom: 1px solid @line@; }
+#root th { color: @muted@; font-weight: 500; }
+.mono { font-family: "JetBrains Mono", monospace; }
+.muted { color: @muted@; }
+.chip { background: @brand@; color: @bg@; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+.err { color: @err@; }
+.card.warn { border-color: @hot@; }
+.card button { background: @brand@; color: @bg@; border: 0; border-radius: 7px; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+.card button[disabled] { background: @line2@; cursor: default; }
+#notices p { margin: 4px 0 10px; }
+.out { background: @s2@; border: 1px solid @line@; border-radius: 8px; padding: 10px; margin: 10px 0 0; font-size: 12px; line-height: 1.5; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; }

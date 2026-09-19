@@ -38,6 +38,13 @@ with subtest("the History screen is installed and the host can answer it"):
     host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/manifest.json")
     host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/index.html")
     host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/history.js")
+    # Its rules are a file of their own. As a <style> block in the page they
+    # were refused by the content security policy Cockpit serves packages
+    # under (default-src 'self'), and the page wore Cockpit's look instead
+    # of the site's finish -- which no check saw, because the page answered.
+    host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/history.css")
+    host.succeed("grep -q 'href=\"history.css\"' /etc/cockpit/share/cockpit/nixie-history/index.html")
+    host.fail("grep -q '<style>' /etc/cockpit/share/cockpit/nixie-history/index.html")
     import json as _json
     m = _json.loads(host.succeed("cat /etc/cockpit/share/cockpit/nixie-history/manifest.json"))
     assert m["menu"]["index"]["label"] == "History", m

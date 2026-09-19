@@ -1690,6 +1690,45 @@ they are read. The unit itself is built into that host (`unit-nixie-
 fetch.service` appears in the install log), so the branch taken was the one
 that starts it rather than the one that says there is no data.
 
+## What a photograph of the host page found (2026-09-18)
+
+The gallery was regenerated because eleven commits had changed what it
+shows, and while doing it the one page the platform owns turned out never to
+have been photographed: Cockpit's overview, files, terminal and journal
+were, `nixie-history` was not. The shot added for it came back carrying two
+faults, neither of which any check could see.
+
+`nixie rollback --json`, on a machine with no generations recorded, passed
+an unmatched glob through as a path: `stat: cannot statx
+'/nix/var/nix/profiles/system-*-link'`, then `date: invalid date '@'`, then
+`jq: string ("*") cannot be parsed as a number`. Those three lines were what
+the page displayed where its history goes. The loops skip what does not
+exist, and `vm-host-ui` asks for the history before a profile is set, which
+is the state that produced it.
+
+And the page had worn Cockpit's look rather than the site's finish since it
+was first built, in every finish and on every site. Its rules were a
+`<style>` block, and Cockpit serves packages under a content security policy
+of `default-src 'self'`, which refuses inline styles: the browser discarded
+the whole stylesheet. The first attempt at this blamed specificity and
+scoped the selectors, which changed nothing, because nothing was being
+applied at all; the rules are a file beside the page now, and `vm-host-ui`
+checks it ships, that the page links it, and that no `<style>` block
+returns.
+
+Both were invisible to the gate by their nature. The page answered, its
+files installed, its manifest and its script held what they should. What
+showed them was looking at the screen.
+
+| check | result |
+|---|---|
+| `nix run .#media` | pass; 124 assets, 20 MB, every one from a run on this tree, `hostui-history.png` among them for the first time |
+
+| check | result |
+|---|---|
+| boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, registry, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
+| vm-backup (53s), vm-boot-plain (66s), vm-console (200s), vm-data (59s), vm-desktop (129s), vm-egress (102s), vm-encryption (383s), vm-guests (82s), vm-hardware (62s), vm-host-ui (47s), vm-installer-lan (248s), vm-monitoring (62s), vm-rollback (157s), vm-splash (560s), vm-ui (21s), vm-updates (46s) | pass |
+
 ## CI, and the screens it photographs (2026-09-18)
 
 Section 14 asks for "screenshots of every screen in all three finishes,

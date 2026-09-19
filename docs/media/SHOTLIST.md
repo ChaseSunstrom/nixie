@@ -1,6 +1,6 @@
 # Shot list
 
-Every file here was produced by `nix run .#media` at commit ccfae32 (2026-09-17T19:16Z) from a real run in a VM;
+Every file here was produced by `nix run .#media` at commit 196686e (2026-09-19T01:11Z) from a real run in a VM;
 nothing is mocked. Regenerate with the same command. Stills are PNG, video is webm (1280 wide,
 at most 45 s, VP9), GIFs only for loops under 8 s. The whole gallery is kept under 100 MB and
 each video under 8 MB so it lives in git with no large-file storage.
@@ -8,6 +8,7 @@ each video under 8 MB so it lives in git with no large-file storage.
 | asset | produced by |
 |---|---|
 | `hostui-files.png` | `mediaTests.panel` (machine.screenshot or Playwright) |
+| `hostui-history.png` | `mediaTests.panel` (machine.screenshot or Playwright) |
 | `hostui-journal.png` | `mediaTests.panel` (machine.screenshot or Playwright) |
 | `hostui-login.png` | `mediaTests.panel` (machine.screenshot or Playwright) |
 | `hostui-overview.png` | `mediaTests.panel` (machine.screenshot or Playwright) |

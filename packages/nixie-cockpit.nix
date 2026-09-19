@@ -24,11 +24,14 @@ let
       ];
     };
   };
-  # The page itself is packages/nixie-cockpit/index.html, in the finish.
-  page = pkgs.writeText "nixie-history.html" (
-    (import ../lib/template.nix lib).fill ./nixie-cockpit/index.html (
-      (import ../lib/tokens.nix { inherit lib; }).marks t
-    )
+  # The page itself is packages/nixie-cockpit/index.html; its rules are
+  # beside it in history.css, in the finish. They are a file rather than a
+  # <style> block because Cockpit serves its packages under default-src
+  # 'self', which refuses an inline one.
+  inherit ((import ../lib/template.nix lib)) fill;
+  page = pkgs.writeText "nixie-history.html" (fill ./nixie-cockpit/index.html { });
+  style = pkgs.writeText "nixie-history.css" (
+    fill ./nixie-cockpit/history.css ((import ../lib/tokens.nix { inherit lib; }).marks t)
   );
 in
 pkgs.runCommand "nixie-cockpit" { meta.priority = 4; } ''
@@ -38,5 +41,6 @@ pkgs.runCommand "nixie-cockpit" { meta.priority = 4; } ''
   ${manifest}
   JSON
   cp ${page} "$d/index.html"
+  cp ${style} "$d/history.css"
   cp ${./nixie-cockpit/history.js} "$d/history.js"
 ''
