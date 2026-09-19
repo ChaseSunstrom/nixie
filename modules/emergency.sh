@@ -12,8 +12,16 @@ report() {
   echo
   echo "Nixie could not finish starting. What failed:"
   echo
-  systemctl --failed --no-legend --plain 2>/dev/null || echo "  (systemd listed nothing)"
-  echo
+  systemctl --failed --no-legend --plain 2>/dev/null || true
+  # A start that is stuck rather than failed lists nothing above: what names
+  # it is the job that never finished -- a disk that never appeared, a
+  # device waited for until its timeout.
+  jobs=$(systemctl list-jobs --no-legend --plain 2>/dev/null || true)
+  if [ -n "$jobs" ]; then
+    echo "Still waiting for:"
+    printf '%s\n' "$jobs"
+    echo
+  fi
   echo "The disk is still locked and nothing has been changed."
   echo "Take a photo of this screen: it says which part gave up."
   echo "Starting again and holding Space offers the previous system."
