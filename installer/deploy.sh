@@ -252,8 +252,11 @@ else
 fi
 
 say "building $host from $site"
-toplevel=$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.toplevel")
-disko=$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.diskoScript")
+# Built here and copied over, unless a system is handed in: `nixie apply`
+# takes NIXIE_TOPLEVEL the same way, and for the same reason -- a test has a
+# system already and no business building another inside a VM.
+toplevel=${NIXIE_TOPLEVEL:-$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.toplevel")}
+disko=${NIXIE_DISKO:-$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.diskoScript")}
 nix copy --to "ssh://$target" "$toplevel" "$disko"
 rsync -a --delete "$site/" "$target:/tmp/nixie-site/"
 r mkdir -p /var/lib/nixie/setup /run/nixie/keys "&&" chmod 700 /run/nixie/keys

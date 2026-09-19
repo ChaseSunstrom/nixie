@@ -1705,7 +1705,7 @@ not met, and say so.
 | Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk` (the wizard driven in the kiosk's own browser to a finished install); `--security hardened` (every feature the wizard turns on, to Finish); `profile-server-has-no-desktop`, `profile-server-kiosk-only` | **partly**: the install, the security stack and the closures are proved; declaring a guest from the panel is not, because the panel has no Declare (D16), and the kiosk run and the hardened run are two runs rather than one |
 | Graphical path, LAN: the same install from a browser on another VM | `vm-installer-lan` drives it from a second node over HTTP; `mediaTests.installer` drives the same pages with Playwright | met |
 | Desktop: installed from the ISO into a working Hyprland session with the chosen finish, packages and user, encryption on; no Incus, tofu or monitoring in the closure; the finish changes after `apply` without a reboot | `nix run .#test-iso --profile desktop`; `vm-desktop`; `profile-desktop-has-no-server` | met in a VM. A HyDE session on real graphics is not verified here, as the 2026-09-16 entry says |
-| Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `deploy-continues` checks the script reboots, forgets the installer's host key and hands over, in that order | **not met**: no entry records a remote deploy reaching Finish, before the change that made it possible or after. It wants two machines and a terminal driving `gum` |
+| Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `deploy-continues` checks the script reboots, forgets the installer's host key and hands over, in that order | **not met**: no entry records a remote deploy reaching Finish. A harness for it exists and does not run -- `tests/vm/deploy.nix`, unregistered, with the entry of 2026-09-19 for where it stops |
 | Toggling a security feature in `site.nix` and applying takes effect without reinstalling, except encryption, which is refused clearly | `vm-hardware` and `vm-encryption` for the features that toggle; `vm-updates` flips `features.encryption` under a prebuilt system and checks `apply` refuses with "cannot be changed on an installed system; reinstall from the ISO" and leaves nothing pending | met |
 | Deleting `cache/` and fetching restores it; deleting a guest and applying recreates it; `restore` brings back `state/` | `vm-data` (both, and the registry's own directory with them); `vm-guests`; `vm-backup` | met |
 | An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone, `nixie export` writes the entry) | **partly**: Export and the round-trip through the file are proved; Declare from the panel does not exist (D16) |
@@ -2077,3 +2077,43 @@ for the shapes a real machine comes in), `nix run .#media` (the gallery,
 from real runs), and `nix run .#offline` (every input archived, every output
 evaluated with the network refused). Each entry above says when it last ran
 and what it showed.
+
+## Two machines, and where that run stops (2026-09-19)
+
+The headless criterion above wanted something no entry had: one machine
+running `nix run .#deploy`, another being installed by it. `tests/vm/deploy.nix`
+and `deploy.py` are that harness. It is in the tree and **not registered in
+`tests/default.nix`**, because it does not pass, and a check that does not
+pass is not a gate.
+
+What nine runs of it established, each fixing what the one before ran into:
+
+| it ran into | what that was |
+|---|---|
+| `start_all()` hung | the installed node shares the disk image the installer writes; the nodes are started one at a time |
+| `PAM: Authentication failure for root` | the deploy runs plain `ssh`, which uses the identities it reaches for by itself, so the key has to be at `/root/.ssh/id_ed25519` |
+| `experimental Nix feature 'nix-command' is disabled` | the runner is a plain machine, not a Nixie host, and carries none of the platform's nix settings |
+| a broken pipe, then the machine out of room | the installer node was running the kiosk -- a compositor and a browser -- beside the deploy; `mode = "terminal"` is the headless path's own front end |
+| `gum` panicked drawing its placeholder | `script(1)` sizes its terminal from its own stdin, a pipe here, so the terminal was zero columns wide; `stty rows 40 cols 120` inside it |
+| the whole budget spent compiling NixOS inside a VM | the deploy now takes `NIXIE_TOPLEVEL` and `NIXIE_DISKO`, as `nixie apply` already did and for the same reason |
+| a lock file written into a read-only store path | the site is copied to `/root/site` first |
+| GitHub reached for, from a machine with no way out | every source the platform's lock names is in `system.extraDependencies`, as the ISO carries them |
+
+And where it stops, which is the ninth run: before anything of the site is
+evaluated, nix locks it, and locking the site resolves the platform's own
+inputs -- `disko`, `lanzaboote`, `crane`, `pre-commit-hooks`. The captured
+log ends inside that list. Having each source in the store is not enough:
+nix fetches the `github:` reference to check it against the lock, and the
+test VM has no network. Finishing it wants a site that arrives already
+locked, which means generating that lock where the network is -- in the
+derivation that builds the site -- not inside the machine.
+
+So the criterion stays **not met**, and this is what it would take. What did
+come out of the attempt and is kept: `NIXIE_TOPLEVEL` and `NIXIE_DISKO` in
+`installer/deploy.sh`, which are the reason a deploy can be tested at all
+without building a system inside the machine under test.
+
+| check | result |
+|---|---|
+| fmt, statix, deadnix | pass |
+| the 44-check gate | pass |
