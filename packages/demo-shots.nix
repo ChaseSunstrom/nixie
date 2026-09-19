@@ -12,6 +12,6 @@ pkgs.writeShellApplication {
     out=''${1:-docs/media/demo}
     export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
     # Chromium from the same pin as the driver, so the two agree.
-    exec ${py}/bin/python3 ${./demo-shots/shots.py} ${nixie-ui} "$out"
+    exec ${py}/bin/python3 ${./demo-shots/shots.py} ${nixie-ui} "$out" ${../design}
   '';
 }

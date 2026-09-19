@@ -284,6 +284,16 @@ in
   # The attestation code has to scan. tpm2-totp draws its own in ANSI colour,
   # which a browser prints as escape codes, so the page shows a QR made from
   # the URI tpm2-totp prints under it; this decodes that image again.
+  # Still the design file's tokens: the brief calls that file the visual
+  # source of truth, and this is the part of "matches the design" a machine
+  # can hold.
+  tokens-from-design =
+    pkgs.runCommand "tokens-from-design" { nativeBuildInputs = [ pkgs.python3 ]; }
+      ''
+        python3 ${./tokens-from-design.py} "${../design}/Nixie Front Panel.html" \
+          ${../ui/src/tokens/tokens.json} | tee $out
+      '';
+
   # One token set: what the design file gave, and the hex beside each one
   # that a toolkit, a terminal or a boot theme can read.
   tokens-agree =

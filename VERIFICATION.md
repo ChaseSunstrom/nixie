@@ -1711,7 +1711,7 @@ not met, and say so.
 | An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone; `nixie export` writes the entry; `nixie declare` puts it in the site; `panel-declare` for the button that runs it; an apply whose state has never seen a running declared guest adopts it and then plans nothing) | met, in the two halves a single machine can show; the seam between them is in the entry of 2026-09-19 |
 | `grep -rn` for MACs, disks, interface names, PCI addresses or board names hits only `tests/` and the example site's generated `hardware.nix` | `no-hardware-facts` | met |
 | Every platform unit passes `systemd-analyze security` at OK, or documents its exposure | `systemd-security`, against a fully enabled server and the desktop | met |
-| The control panel and the installer match the design file in all three finishes | `nix run .#demo-shots` (the panel's screens in graphite, umber and paper, from demo mode) and the gallery's panel and desktop shots | **partly**: the panel is photographed in all three, the installer and the host page in one. Comparing them with the design file is a person's judgement, not a check |
+| The control panel and the installer match the design file in all three finishes | `tokens-from-design` holds every token to the file's own `THEMES`; `tokens-agree` holds the hex copies to those tokens; `nix run .#demo-shots` photographs the panel's screens **and the design file itself** in all three finishes, into one folder | met for colour, which is the part a machine can hold: all 69 tokens are the file's, in all three finishes. The rest -- layout, type, depth -- is a person putting the pictures side by side, which is now a matter of opening one folder. The installer and the host page are still photographed in one finish |
 
 ## What a photograph of the host page found (2026-09-18)
 
@@ -2317,3 +2317,41 @@ file, and `design/Nixie_Front_Panel.html` is not in this repository.
 | `panel-declare` | pass: `Declare opened the host page for db`, and none offered with no host page or with site edits off |
 | `tokens-agree` | pass: 21 colours in 3 finishes, worst hue 16.8 of 25 degrees, worst lightness 0.085 of 0.12 |
 | the 47-check gate | pass |
+
+## The design file was here all along (2026-09-19, after that)
+
+Twice today this record and the message that went with it said the design
+file was not in the repository. It is: `design/Nixie Front Panel.html`,
+tracked, 407 KB, **with spaces in the name** rather than the underscores the
+brief writes -- which is why every search for it came back empty, and why
+`CLAUDE.md` still said to ask for it before touching any UI. That note is
+corrected, and the file is now used for what it is.
+
+**`tokens-from-design`.** The file carries the object its own screens render
+from, `THEMES`, with every token for every finish. The check reads it and
+holds `ui/src/tokens/tokens.json` to it: same finishes, every token the same
+value, nothing in the design's palette that the platform cannot name. All 69
+match today -- 23 tokens in each of three finishes -- so "extracted from the
+design file once" is now "still the design file's, every time the gate
+runs".
+
+One thing it must not read is the swatch cards beside that object: the Paper
+card prints `d6d2c9` for its third chip while `THEMES` says `#d9d5cc`.
+`docs/design-tokens.md` already recorded that and said to take the rendered
+value, which the platform does. Finding it again from the other direction is
+what made the distinction worth writing into the check.
+
+**The pictures.** `nix run .#demo-shots` now photographs the design file
+too, once per finish, into the same folder as the panel's own screens: 45
+shots where there were 42. The file renders headlessly with no errors, and
+its own finish switch is used rather than a guess at its internals -- the
+three come out blue-grey, brown and light, which is Graphite, Umber and
+Paper. Comparing layout and type with those screens is still a person's
+judgement. It is now a person opening one folder rather than a person
+looking for a file nobody could find.
+
+| check | result |
+|---|---|
+| `tokens-from-design` | pass: 23 tokens in each of graphite, umber and paper, every one the design file's |
+| `nix run .#demo-shots` | 45 screenshots: every panel screen in three finishes, and the design file in three |
+| the 48-check gate | pass |

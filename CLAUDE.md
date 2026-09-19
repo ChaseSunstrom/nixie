@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-Greenfield. The only file is `docs/NIXIE_PLATFORM_BRIEF.md`, the full spec for **Nixie**: a reusable NixOS platform with one installer ISO and two disjoint profiles (hardened Incus **server** host, Hyprland **desktop**). Read the whole brief before writing anything; it is the source of truth and this file only orients you within it.
+Built. `docs/NIXIE_PLATFORM_BRIEF.md` is the full spec for **Nixie**: a reusable NixOS platform with one installer ISO and two disjoint profiles (hardened Incus **server** host, Hyprland **desktop**). It is still the source of truth for what the platform must do, and this file only orients you within it. `ARCHITECTURE.md` says how it was built and every deviation; `VERIFICATION.md` is the record of what has actually been run, newest entry last.
 
-- No `flake.nix`, no git repo, and no `ARCHITECTURE.md` yet.
-- The brief references `design/Nixie_Front_Panel.html` as the visual source of truth for every web surface. It is not in the repo. Ask for it before starting UI or installer work.
+- The design file is `design/Nixie Front Panel.html` — **with spaces**, not the underscores the brief writes. It is in the repo and tracked. Its `THEMES` object is the authoritative palette (the swatch cards beside it print a different Paper `s2`; `docs/design-tokens.md` says which to take), and the `tokens-from-design` check holds `ui/src/tokens/tokens.json` to it.
 
 ## Required process (brief section 15)
 
@@ -17,7 +16,7 @@ Greenfield. The only file is `docs/NIXIE_PLATFORM_BRIEF.md`, the full spec for *
 4. A slice is done only when its VM tests have actually run here. Each slice commits a `VERIFICATION.md`: commands run, pass/fail per test, artifact links, anything unverifiable and why. If KVM is missing, run under TCG and say so.
 5. Conflicts between requirements, or with what nixpkgs can do: raise them with a proposed resolution, never pick silently.
 
-## Commands (as mandated by the brief; none exist until slice (a) lands)
+## Commands
 
 ```
 nix flake check -L                                        # gate before every commit; runs all checks incl. VM tests
