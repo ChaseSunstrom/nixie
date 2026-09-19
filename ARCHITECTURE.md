@@ -106,8 +106,21 @@ Hyprland 0.55.4 from the pin is used.
 ```
 nixosModules.nixie          modules/default.nix
 lib.mkSite                  lib/mk-site.nix
+lib.mkOption                the wizard's own mkOption: nixpkgs' refuses the nixieUi argument, so a
+                            site declaring an option the installer renders needs this one (D40)
 templates.site
 packages.x86_64-linux.{nixie-ui,nixie-setup,nixie-cli,nixie-iso,deploy,test-iso}
+packages.x86_64-linux.nixie-iso-kiosk
+                            the installer image with the kiosk's browser open to a debugger, so
+                            `test-iso --kiosk` can drive the page on the screen; the only image
+                            that sets nixie.kiosk.remoteDebugPort (D40)
+packages.x86_64-linux.demo-shots
+                            the panel's screens in three finishes from demo mode, which needs no
+                            daemon and no VM and is therefore what CI photographs (D40)
+packages.x86_64-linux.offline
+                            every input archived, then every output evaluated with the network
+                            refused: nothing fetches behind the lock file (D40)
+packages.x86_64-linux.media the gallery, from real runs
 checks.x86_64-linux.*       see section 12
 formatter.x86_64-linux      nixfmt (rfc style)
 ```
@@ -582,8 +595,6 @@ nixosConfigurations.<host>                the host
 packages.x86_64-linux.<host>-guest-<g>    NixOS guest tarball + metadata (kind = "nixos")
 packages.x86_64-linux.<host>-tofu         terranix JSON for the host
 packages.x86_64-linux.<host>-vm           quick VM of the host
-lib.mkOption                              the wizard's own `mkOption`, for an option a site declares (docs/extending.md)
-packages.x86_64-linux.demo-shots         `nix run .#demo-shots`: the panel's screens in three finishes from demo mode (what CI photographs)
 packages.x86_64-linux.apply               `nix run .#apply [<machine>]`: copy this checkout to a machine of the site and run its own `nixie apply` there; with no machine, this one
 checks.x86_64-linux.<host>-eval           the host evaluates and its guests build
 ```
@@ -1206,6 +1217,31 @@ and runs `nixie apply`.
   brief lists is implemented, but ones the design does not draw follow the
   same component recipes rather than a new design. `VERIFICATION.md` for the
   slice lists any feature that shipped in reduced form.
+- **D40 What is proved by a machine, and what by a picture.** The gate is
+  evaluation: option trees, closures, unit wiring, the text of a script.
+  Three things this cannot reach got outputs of their own rather
+  than being left unproven. `packages.offline` archives every input and
+  evaluates every output with the network refused, which is the clean-clone
+  criterion as far as it can honestly be taken -- literally, a store holding
+  only the archive must build the whole stdenv from a bootstrap seed that is
+  itself fetched, so no flake using nixpkgs can meet it. `packages.demo-
+  shots` photographs the panel in three finishes from demo mode, where the
+  page answers itself and needs no daemon, which is why CI can take those
+  pictures and not the ones that want a machine. And `packages.nixie-iso-
+  kiosk` is the installer image with the kiosk's browser open to a debugger,
+  so the wizard can be driven on the screen a person uses rather than
+  through the HTTP API behind it; the debug port is off in everything
+  shipped, and Chromium's refusal to bind anything but the loopback is why
+  that image relays it. `lib.mkOption` is exposed for the same reason the
+  wizard renders site options at all: nixpkgs' own refuses the metadata, so
+  a site could not declare one.
+  What none of them reach is a screen. Regenerating the gallery found the
+  host page showing shell errors where its history goes, and wearing
+  Cockpit's look rather than the site's finish since the day it was built,
+  because its rules were an inline style block and Cockpit serves packages
+  under a policy that refuses those. The page answered, its files installed,
+  its script held the right commands, and every check passed throughout. A
+  photograph is part of the gate, not a decoration on it.
 - **D39 One site, several machines: they follow the repository, and what
   they want to say is one file.** Asked for: a change applied on a laptop
   should reach a desktop, with auto, manual and off. The site repository is
