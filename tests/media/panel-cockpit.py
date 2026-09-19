@@ -18,7 +18,10 @@ async def main():
             raise
         await page.fill("#conversation-input", code); await page.click("#login-button"); await page.wait_for_timeout(5000)
         await page.screenshot(path=f"{OUT}/hostui-overview.png")
-        for path, name in [("/files", "files"), ("/system/terminal", "terminal"), ("/system/logs", "journal")]:
+        # nixie-history is the platform's own page: the generations, guest
+        # and data snapshots and backups, the notices above them and the
+        # three things it can run. Nothing pictured it before.
+        for path, name in [("/nixie-history", "history"), ("/files", "files"), ("/system/terminal", "terminal"), ("/system/logs", "journal")]:
             await page.goto("https://127.0.0.1:9090" + path); await page.wait_for_timeout(4000)
             await page.screenshot(path=f"{OUT}/hostui-{name}.png")
         await b.close()
