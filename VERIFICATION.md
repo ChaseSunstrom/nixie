@@ -1996,9 +1996,9 @@ above "OK" must be in the documented list and their module must carry an
 `# exposure:` comment. `no-secrets-in-store` greps the fully enabled server
 closure for private-key and age-identity markers.
 
-## Final run
+## The slices' final run (2026-09-11)
 
-Every check ran on 2026-09-11 on the rootless host described in
+Every check of the slices ran on 2026-09-11 on the rootless host described in
 `ARCHITECTURE.md` (KVM, `sandbox = false`, see the note under Slice (b) and
 in the test files for why).
 
@@ -2026,3 +2026,21 @@ the verification session; its summary is the table.
 | vm-rollback (132 s) | pass (change request, slice (n)) |
 | vm-hardware (25 s, five subtests) | pass (change request, slices (o) and (p)) |
 | vm-desktop (110 s, eight subtests) | pass (change request, slice (r)) |
+
+## Where the gate stands
+
+The run above is the slices', and its twenty-four checks are what the gate
+was then. It is forty-four now, and the dated entries above are the record:
+each one lists what ran for the work it describes, and the newest entry's
+table is the current state. The way it is run has not changed -- one `nix
+build` per check, because the evaluator still cannot hold them all in one
+process -- and the rootless host, KVM and `sandbox = false` are still as
+that section describes.
+
+Three things are run by hand rather than in the gate, because they want a
+machine or an image rather than an evaluation: `nix run .#test-iso` (the
+installer, end to end, with `--kiosk`, `--security`, `--tpm` and `--disk`
+for the shapes a real machine comes in), `nix run .#media` (the gallery,
+from real runs), and `nix run .#offline` (every input archived, every output
+evaluated with the network refused). Each entry above says when it last ran
+and what it showed.
