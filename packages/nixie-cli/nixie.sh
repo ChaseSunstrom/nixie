@@ -750,8 +750,8 @@ case "$cmd" in
     case "${1:-}" in
       --list)
         printf '%-4s %-17s %-40s %-14s %s\n' gen date label kernel marks
-        newest=0; for l in "$prof"-*-link; do n=${l##*system-}; n=${n%-link}; [ "$n" -gt "$newest" ] && newest=$n; done
-        for n in $(for m in "$prof"-*-link; do g=${m##*system-}; echo "${g%-link}"; done | sort -n); do
+        newest=0; for l in "$prof"-*-link; do [ -e "$l" ] || continue; n=${l##*system-}; n=${n%-link}; [ "$n" -gt "$newest" ] && newest=$n; done
+        for n in $(for m in "$prof"-*-link; do [ -e "$m" ] || continue; g=${m##*system-}; echo "${g%-link}"; done | sort -n); do
           l="$prof-$n-link"; marks=""
           [ "$(readlink -f "$l")" = "$(readlink -f /run/current-system)" ] && marks="$marks current"
           [ "$(readlink -f "$l")" = "$(readlink -f /run/booted-system 2>/dev/null)" ] && marks="$marks booted"
@@ -760,6 +760,10 @@ case "$cmd" in
         done ;;
       --json)
         gens=$(for m in "$prof"-*-link; do
+          # No generations at all: the glob stands unmatched, and stat, date
+          # and jq each fail on the literal "*" in turn, which reached the
+          # host page as a line of shell errors where its history goes.
+          [ -e "$m" ] || continue
           n=${m##*system-}; n=${n%-link}
           jq -n --arg gen "$n" --arg date "$(date -d "@$(stat -c %Y "$m")" -Is)" --arg label "$(cat "$m/nixos-version" 2>/dev/null || echo unknown)" \
             --arg kernel "$(basename "$(dirname "$(readlink -f "$m/kernel")")" 2>/dev/null | sed 's/^[a-z0-9]*-linux-//')" \

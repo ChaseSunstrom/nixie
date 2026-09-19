@@ -43,6 +43,12 @@ with subtest("the History screen is installed and the host can answer it"):
     assert m["menu"]["index"]["label"] == "History", m
     # It asks the CLI for JSON through the bridge; that is what the CLI prints.
     host.succeed("grep -q 'nixie\", \"rollback\", \"--json' /etc/cockpit/share/cockpit/nixie-history/history.js")
+    # A machine with no generations recorded yet. The page asked this of the
+    # host and got a line of shell errors back -- stat, date and jq each
+    # failing on an unmatched glob passed through as a path -- where its
+    # history belongs.
+    empty = _json.loads(host.succeed("nixie rollback --json"))
+    assert empty["generations"] == [], empty
     host.succeed("nix-env --profile /nix/var/nix/profiles/system --set \"$(readlink -f /run/current-system)\"")
     h = _json.loads(host.succeed("nixie rollback --json"))
     assert set(h) == {"generations", "guests", "data", "backups"}, h
