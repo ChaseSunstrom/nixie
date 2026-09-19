@@ -645,6 +645,32 @@ in
   # machine and hands over to the setup generation's own front end. The run
   # itself needs two machines (see VERIFICATION.md); this is the shape of the
   # script that does it.
+  # The kexec branch, which vm-deploy takes but cannot finish here: the
+  # image nixos-anywhere unpacks comes from a flake this platform does not
+  # have, and nixpkgs' own kexec tarball is a different shape (the entry of
+  # 2026-09-19 says what that cost). What is held here is the shape of the
+  # branch itself -- three things that were wrong until a test took it.
+  deploy-kexecs = pkgs.runCommand "deploy-kexecs" { } ''
+    s=${self.packages.x86_64-linux.deploy}/bin/nixie-deploy
+    # It asks the target what it is, and only kexecs a machine that is not
+    # already the ISO.
+    grep -q 'test -e /etc/nixie-iso' "$s"
+    # nixos-anywhere refuses to run at all without one of these, so the
+    # branch aborted the moment anyone took it.
+    grep -q 'nixos-anywhere --phases kexec --store-paths' "$s"
+    # Which means the system has to be built before the kexec, not after.
+    b=$(grep -n 'toplevel=''${NIXIE_TOPLEVEL' "$s" | head -1 | cut -d: -f1)
+    k=$(grep -n 'nixos-anywhere --phases kexec' "$s" | head -1 | cut -d: -f1)
+    [ "$b" -lt "$k" ] || { echo "the kexec comes before the system it hands over"; exit 1; }
+    # A kexec gives the machine a new host key, and `accept-new` takes a key
+    # it has never seen, not one that changed.
+    f=$(grep -n 'ssh-keygen -R' "$s" | head -1 | cut -d: -f1)
+    [ "$f" -gt "$k" ] || { echo "nothing forgets the host key the kexec replaced"; exit 1; }
+    # And an image can be handed in, for a deploy host with no way out.
+    grep -q 'NIXIE_KEXEC' "$s"
+    touch $out
+  '';
+
   deploy-continues = pkgs.runCommand "deploy-continues" { } ''
     s=${self.packages.x86_64-linux.deploy}/bin/nixie-deploy
     # In this order: reboot, forget the installer's host key, wait, hand over.

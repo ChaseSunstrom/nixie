@@ -1705,7 +1705,7 @@ not met, and say so.
 | Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk --security hardened` (one run, the first start photographed); `profile-server-has-no-desktop`, `profile-server-kiosk-only`; `panel-declare` for the click and `vm-guests` for what it runs | met, across the runs each part belongs to: the install with every feature on and the continuation screen are one run; Declare is proved where it lives -- the panel offers it for a scratch instance and opens the host page with the name (`panel-declare`), the host page carries that address (`vm-host-ui`), and the command writes the site and adopts the instance (`vm-guests`). The one thing not in a single run is the click happening on that installed machine, because the run stops where Secure Boot asks for the restart this firmware will not come back from |
 | Graphical path, LAN: the same install from a browser on another VM | `vm-installer-lan` drives it from a second node over HTTP; `mediaTests.installer` drives the same pages with Playwright | met |
 | Desktop: installed from the ISO into a working Hyprland session with the chosen finish, packages and user, encryption on; no Incus, tofu or monitoring in the closure; the finish changes after `apply` without a reboot | `nix run .#test-iso --profile desktop`; `vm-desktop`; `profile-desktop-has-no-server` | met in a VM. A HyDE session on real graphics is not verified here, as the 2026-09-16 entry says |
-| Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `vm-deploy`: one machine deploys another over SSH, phases 1 to 3 run on the target, it restarts, and the setup generation carries 4 to 8 to the end; `deploy-continues` checks the hand-over's shape | met from the ISO, which is what the test's target runs. From kexec is not: the deploy says `target runs the Nixie ISO; no kexec needed`, and the other branch wants a machine running something else to kexec out of |
+| Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `vm-deploy` runs the ISO path between two machines, end to end; `deploy-kexecs` holds the shape of the other branch, which a test took far enough to find three faults in it (entry of 2026-09-19, kexec) | met from the ISO. The kexec branch is fixed and checked by shape but not run to the end here: the image nixos-anywhere unpacks comes from a flake this platform does not have, and nixpkgs' own kexec tarball is a different shape |
 | Toggling a security feature in `site.nix` and applying takes effect without reinstalling, except encryption, which is refused clearly | `vm-hardware` and `vm-encryption` for the features that toggle; `vm-updates` flips `features.encryption` under a prebuilt system and checks `apply` refuses with "cannot be changed on an installed system; reinstall from the ISO" and leaves nothing pending | met |
 | Deleting `cache/` and fetching restores it; deleting a guest and applying recreates it; `restore` brings back `state/` | `vm-data` (both, and the registry's own directory with them); `vm-guests`; `vm-backup` | met |
 | An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone; `nixie export` writes the entry; `nixie declare` puts it in the site; `panel-declare` for the button that runs it; an apply whose state has never seen a running declared guest adopts it and then plans nothing) | met, in the two halves a single machine can show; the seam between them is in the entry of 2026-09-19 |
@@ -2380,3 +2380,50 @@ thing to remember, which is what the rule in CLAUDE.md asks for.
 | word-bounded search for a recovery key across `tests/artifacts/` | none |
 | `nix build .#test-iso` (shellcheck runs inside `writeShellApplication`) | pass |
 | fmt, statix, deadnix, no-secrets-in-store | pass |
+
+## The kexec branch, taken for the first time (2026-09-19, kexec)
+
+The brief asks the headless path to work "from both an existing Linux
+(kexec) and the ISO". `vm-deploy` proved the ISO. Nothing had ever taken the
+other branch, and a test that did found it broken in three ways before it
+got anywhere near a kernel:
+
+| what the run said | what it was |
+|---|---|
+| `aborted: --flake or --store-paths must be set` | `nixos-anywhere --phases kexec "$target"` -- what the deploy ran -- refuses to start without one of them, even for a kexec it will not install from. **Every kexec deploy ended here.** It is given `--store-paths "$disko" "$toplevel"` now, which the deploy already has, so nothing of its own is evaluated; the build moved above the branch to make them available |
+| the next `ssh` would have been refused | a kexec gives the machine a host key of its own, and `StrictHostKeyChecking=accept-new` takes a key it has never seen, not one that changed. The deploy already forgets the key after the install's restart; it does the same after the kexec now, and waits for the installer to answer before going on |
+| `HOME: unbound variable` | nixos-anywhere reads `HOME` for the throwaway key it logs in with. A person's shell has one; a service has not |
+
+A fourth thing the branch needed: `NIXIE_KEXEC`, so the image can be handed
+in. nixos-anywhere downloads one from the internet by default, which a
+deploy host behind a firewall -- or a test -- cannot do.
+
+**Where it stops.** With all of that fixed the deploy reaches the kexec
+itself, and the machine answers:
+
+```
+Downloading kexec tarball, this may take a moment...
+setsid: failed to execute /root/kexec/kexec/run: No such file or directory
+Kexec may have failed - check output above
+```
+
+nixos-anywhere unpacks an image laid out as `kexec/run`, which is
+nix-community/nixos-images' kexec-installer. nixpkgs builds a kexec tarball
+of its own (`system.build.kexecTarball`, from `netboot-minimal.nix`) and it
+is a different shape: `kexec_nixos` and a store beside it. Finishing this
+wants either that flake as an input -- a dependency the brief says to
+justify, and the platform has five -- or that image rebuilt from nixpkgs,
+including the part that carries the current host's keys into the new system
+so the deploy can log back in.
+
+So the branch is fixed, and `deploy-kexecs` holds its shape: that it only
+kexecs a machine which is not already the ISO, that the store paths are
+passed, that the system is built before the kexec rather than after, that
+something forgets the host key afterwards, and that an image can be handed
+in. The gate is forty-nine.
+
+| check | result |
+|---|---|
+| `deploy-kexecs` | pass |
+| `vm-deploy` | pass, re-run after the build moved above the branch |
+| the 49-check gate | pass |

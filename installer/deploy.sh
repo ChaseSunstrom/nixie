@@ -242,21 +242,42 @@ Before continuing, on the target's firmware:
 MSG
 [ "$yes" = 1 ] || gum confirm "Confirmed?" || exit 1
 
-if r test -e /etc/nixie-iso; then
-  say "target runs the Nixie ISO; no kexec needed"
-else
-  say "kexec into the installer"
-  nixos-anywhere --phases kexec "$target"
-  # After kexec the target is a plain NixOS installer; give it the phase engine.
-  nix copy --to "ssh://$target" "$(dirname "$(dirname "$(command -v nixie-phase)")")"
-fi
-
 say "building $host from $site"
 # Built here and copied over, unless a system is handed in: `nixie apply`
 # takes NIXIE_TOPLEVEL the same way, and for the same reason -- a test has a
 # system already and no business building another inside a VM.
 toplevel=${NIXIE_TOPLEVEL:-$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.toplevel")}
 disko=${NIXIE_DISKO:-$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.diskoScript")}
+
+if r test -e /etc/nixie-iso; then
+  say "target runs the Nixie ISO; no kexec needed"
+else
+  say "kexec into the installer"
+  # A kexec image handed in rather than fetched: nixos-anywhere downloads
+  # one from the internet by default, and a machine that has no way out --
+  # a test, or a deploy host behind a firewall -- has to bring its own.
+  kexec_image=()
+  [ -z "${NIXIE_KEXEC:-}" ] || kexec_image=(--kexec "$NIXIE_KEXEC")
+  # The two store paths rather than the flake: nixos-anywhere insists on one
+  # or the other even for a kexec it will not install from, and these are
+  # already built above -- so it evaluates nothing of its own.
+  nixos-anywhere --phases kexec --store-paths "$disko" "$toplevel" "${kexec_image[@]}" "$target"
+  # The machine that comes back from a kexec is a different NixOS with a
+  # host key of its own, and the entry left from a moment ago now reads as
+  # an impostor -- `accept-new` accepts a key it has never seen, not one
+  # that changed. The same forgetting the restart after the install needs.
+  ssh-keygen -R "${target#*@}" >/dev/null 2>&1 || true
+  say "waiting for the installer to come up"
+  up=0
+  for _ in $(seq 60); do
+    if r true 2>/dev/null; then up=1; break; fi
+    sleep 5
+  done
+  [ "$up" = 1 ] || { say "the target did not come back from the kexec"; exit 1; }
+  # After kexec the target is a plain NixOS installer; give it the phase engine.
+  nix copy --to "ssh://$target" "$(dirname "$(dirname "$(command -v nixie-phase)")")"
+fi
+
 nix copy --to "ssh://$target" "$toplevel" "$disko"
 rsync -a --delete "$site/" "$target:/tmp/nixie-site/"
 r mkdir -p /var/lib/nixie/setup /run/nixie/keys "&&" chmod 700 /run/nixie/keys
