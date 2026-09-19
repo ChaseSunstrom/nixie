@@ -1290,7 +1290,7 @@ single-process `nix flake check` does not fit in this host's memory; see
 | check | result |
 |---|---|
 | boot-and-setup, deadnix, deploy-continues, desktop-motion, eval-matrix, exporters, fmt, hardware-keys, iso-config, iso-grub-theme, no-hardware-facts, no-secrets-in-store, option-docs, option-reference, profile-desktop-has-no-server, profile-server-has-no-desktop, profile-server-kiosk-only, readme, registry, secure-boot-report, secure-boot-states, setup-devices, setup-qr, site-machines, splash-theme, statix, systemd-security, updates | pass |
-| vm-backup (54s), vm-boot-plain (66s), vm-console (263s), vm-data (56s), vm-desktop (131s), vm-egress (96s), vm-encryption (378s), vm-guests (98s), vm-hardware (54s), vm-host-ui (46s), vm-installer-lan (236s), vm-monitoring (104s), vm-rollback (151s), vm-splash (1s), vm-ui (42s), vm-updates (41s) | pass |
+| vm-backup (53s), vm-boot-plain (1s), vm-console (249s), vm-data (54s), vm-desktop (176s), vm-egress (102s), vm-encryption (379s), vm-guests (86s), vm-hardware (56s), vm-host-ui (48s), vm-installer-lan (250s), vm-monitoring (87s), vm-rollback (153s), vm-splash (554s), vm-ui (19s), vm-updates (41s) | pass |
 
 Beyond the checks:
 
@@ -1895,6 +1895,16 @@ sitting at the passphrase prompt in the initrd, where there is no backdoor
 to answer, which hung the whole run past forty minutes and held the disk the
 later starts share; it is stopped through the QEMU monitor now. And the run
 was started without `-L`, so none of the test output was there to read.
+
+The report also says what the start is still waiting for, not only what
+failed. `systemctl --failed` lists nothing when a boot is stuck rather than
+failed -- a device that never appears is waited on until its timeout --
+which is the shape of the report this was written for, so the thing meant to
+explain it would have explained nothing. The outstanding jobs name it. A
+separate data disk was checked for the same reason, since a server install
+plausibly has one and no reproduction here did: it is not in that path
+either, because `dataContent` sets `initrdUnlock = false` and the data disk
+is opened after the root with a key kept on it.
 
 | `vm-boot-plain` (extended) | pass; a node told to go straight to the initrd's emergency target shows the report on its console, before the panic that a failed start triggers there |
 | `nix run .#test-iso --security hardened` (now the wizard's preset) | pass, keys staged |
