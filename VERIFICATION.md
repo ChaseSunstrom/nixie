@@ -1702,7 +1702,7 @@ not met, and say so.
 |---|---|---|
 | Clean clone: every check passes with the VM tests actually run; every package builds; the site builds offline after `nix flake archive` | the 44-check loop, one `nix build` per check (the evaluator cannot hold them in one process; see the closing section); `nix build` of every package; `nix run .#offline` | met, with the reading of "offline" that the entry above sets out: no flake using nixpkgs can build from an archive alone, so what is proved is that nothing fetches behind the lock file |
 | The platform evaluates for no GPU, one NIC, no TPM, no data disk, and a VM | `eval-matrix`, over the throwaway sites in `tests/sites/` (`no-gpu.nix`, `one-nic.nix`, `no-tpm.nix`, `no-data-disk.nix`, `vm.nix`) | met |
-| Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk` (the wizard driven in the kiosk's own browser to a finished install); `--security hardened` (every feature the wizard turns on, to Finish); `profile-server-has-no-desktop`, `profile-server-kiosk-only`; `vm-guests` for what Declare runs | **partly**: the install, the security stack and the closures are proved, and Declare now exists -- the panel hands the name to the host page, which runs `nixie declare` (D16, rewritten 2026-09-19). What no run shows is the click itself ending in a declared guest, and the kiosk run and the hardened run are still two runs rather than one |
+| Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk --security hardened`: one run, the wizard driven in the kiosk's own browser, Hardened chosen on its first step, and the first start photographed; `profile-server-has-no-desktop`, `profile-server-kiosk-only`; `vm-guests` for what Declare runs | **partly**: the install with every feature on, and the continuation screen after the restart, are now one run (entry of 2026-09-19, later). What is still not shown is the click that declares a guest: the run stops where the Secure Boot step asks for the restart this firmware will not come back from |
 | Graphical path, LAN: the same install from a browser on another VM | `vm-installer-lan` drives it from a second node over HTTP; `mediaTests.installer` drives the same pages with Playwright | met |
 | Desktop: installed from the ISO into a working Hyprland session with the chosen finish, packages and user, encryption on; no Incus, tofu or monitoring in the closure; the finish changes after `apply` without a reboot | `nix run .#test-iso --profile desktop`; `vm-desktop`; `profile-desktop-has-no-server` | met in a VM. A HyDE session on real graphics is not verified here, as the 2026-09-16 entry says |
 | Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `vm-deploy`: one machine deploys another over SSH, phases 1 to 3 run on the target, it restarts, and the setup generation carries 4 to 8 to the end; `deploy-continues` checks the hand-over's shape | met from the ISO, which is what the test's target runs. From kexec is not: the deploy says `target runs the Nixie ISO; no kexec needed`, and the other branch wants a machine running something else to kexec out of |
@@ -2215,3 +2215,60 @@ Not proved here: the kexec branch. The target runs the Nixie ISO, so the
 deploy says so and skips it; proving the other branch wants a machine
 running some other Linux to kexec out of, which is a second image this test
 does not build.
+
+## Hardened, from the kiosk, in one run (2026-09-19, later still)
+
+The criterion above asked for the kiosk install and every security feature in
+one run, and the record said they were two. They were, and for a reason worth
+writing down: `--security` was read only by the HTTP path. Passing
+`--kiosk --security hardened` chose nothing, silently, and installed the
+standard machine while the log said hardened.
+
+The kiosk driver now makes that choice the way a person does, and the run
+found three things by failing at them:
+
+| it ran into | what that was |
+|---|---|
+| no card to click | the two cards, Standard and Hardened, are on the wizard's **first** step beside Server and Desktop, not on the Security step that carries the answer out. The driver was clicking past them |
+| Next disabled with every box filled | a hardened setup puts a second factor on the host page, and the step will not advance until it is enrolled -- the one thing on it that is not a box. The driver reads the secret the wizard prints beside the QR code and computes the code itself (RFC 6238, checked against the specification's own test vector) |
+| the step count no longer matched | a hardened setup walks through every feature it turns on, so the steps to Review are walked now, not counted, answering whatever each one asks for by the label above the box |
+
+The run: Hardened chosen, then the Security step asked for the administrator,
+the disk passphrase, **the TPM PIN and the duress passphrase**, the second
+factor enrolled, and Review passed. The install took 317 s.
+
+**And then the first start, which no run here had ever photographed.** A
+machine the wizard configured has no serial console -- the HTTP path adds
+`console=ttyS0` to its settings and a person does not -- so the script takes
+pictures instead, which is what someone whose machine will not start has to
+send anyway. What they show, at 60 s: the splash, `Passphrase or recovery
+key`, and the attestation code under it. At 280 s, with the passphrase typed
+at the machine's own keyboard through the monitor: **Setting up server** --
+Install done, First start done, Secure Boot asking for the restart that
+enrols the keys, with Disk unlock, Checks and Apply the site still to come.
+That is the continuation, from the kiosk, with every feature on.
+
+**The first run of this failed, and that is the other result.** The blind
+typing sent the PIN to a box asking for the passphrase, three times, and the
+machine went to emergency -- where the reporter added earlier today printed,
+on a real install rather than in a test:
+
+```
+Nixie could not finish starting. What failed:
+systemd-cryptsetup@rpool\x2douter.service  loaded failed failed Cryptography Setup for rpool-outer
+zfs-import-rpool.service                   loaded failed failed Import ZFS pool "rpool"
+Still waiting for: emergency.target, emergency.service, nixie-emergency.service, panic-on-fail.service
+The disk is still locked and nothing has been changed.
+Take a photo of this screen: it says which part gave up.
+Starting again and holding Space offers the previous system.
+```
+
+So the screen a person sees when a hardened install will not start now names
+the unit that gave up, and the first thing it names for a disk that did not
+open is `systemd-cryptsetup`. `tests/artifacts/kiosk-restart-*.png` holds
+both runs' pictures.
+
+| check | result |
+|---|---|
+| `nix run .#test-iso -- --kiosk --security hardened` | pass, twice: once to emergency with a wrong passphrase, once through to the continuation screen |
+| the 45-check gate | pass |

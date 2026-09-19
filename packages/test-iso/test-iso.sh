@@ -64,6 +64,13 @@ boot() {
 # see it; with -no-reboot a guest reboot ends the process.
 stopped() { while kill -0 "$1" 2>/dev/null; do sleep 1; done; }
 console() { printf '%s\n' "$1" | socat - UNIX-CONNECT:"$out/serial.sock" >/dev/null 2>&1 || true; }
+# The same, typed at the machine's own keyboard: a machine installed by the
+# wizard has no serial console to send anything to.
+mon() { printf '%s\n' "$1" | socat - UNIX-CONNECT:"$out/monitor.sock" >/dev/null 2>&1 || true; }
+keys() {
+  for c in $(printf '%s' "$1" | grep -o .); do mon "sendkey $c"; sleep 0.1; done
+  mon "sendkey ret"
+}
 shot() {
   printf 'screendump %s\n' "$out/$1.ppm" | socat - UNIX-CONNECT:"$out/monitor.sock" >/dev/null 2>&1 || true
   sleep 1; magick "$out/$1.ppm" "$out/$1.png" 2>/dev/null && rm -f "$out/$1.ppm" || true
@@ -144,17 +151,29 @@ if [ "$kiosk" = 1 ]; then
   # the browser refusing the connection, not the wizard misbehaving.
   for _ in $(seq 60); do curl -sS --max-time 5 http://127.0.0.1:9222/json/version >>"$out/run.log" 2>&1 && break; sleep 5; done
   tail -3 "$out/run.log"
-  @kioskDriver@ "http://127.0.0.1:9222" "$out" 2>&1 | tee -a "$out/run.log"
+  @kioskDriver@ "http://127.0.0.1:9222" "$out" "$security" 2>&1 | tee -a "$out/run.log"
   echo "install took $(( $(date +%s) - start )) s" | tee -a "$out/run.log"
   shot install-done
   api -X POST https://127.0.0.1:9443/api/reboot >/dev/null; stopped "$pid"
-  # This run ends here. What it is for is the brief's "at least one full
-  # run via the kiosk": a person at the machine driving the wizard through
-  # a whole install, on the screen, in the browser the image starts. What
-  # follows the restart is the setup generation, which the HTTP path above
-  # drives to Finish -- and cannot be driven here anyway, because a machine
-  # the wizard configured has no serial console for the script to read: the
-  # HTTP path adds console=ttyS0 to its settings, and a person does not.
+  # What follows the restart is the setup generation, which the HTTP path
+  # drives to Finish and this one cannot: a machine the wizard configured
+  # has no serial console for the script to read, because the HTTP path adds
+  # console=ttyS0 to its settings and a person does not. So the first start
+  # is photographed instead -- which is what someone whose machine will not
+  # start has to send anyway, and this is the install they send it about.
+  echo "== the first start after a kiosk install, in pictures" | tee -a "$out/run.log"
+  pid=$(boot)
+  at=0
+  for n in 30 60 100 140 200 280; do
+    sleep $((n - at)); at=$n
+    shot "kiosk-restart-$n"
+    # Blind, because there is nothing to read. The first start asks for the
+    # passphrase whatever else is turned on: the TPM is not enrolled until
+    # phase 6, which is after this. Twice, in case the first was early --
+    # the box takes the second as a fresh attempt.
+    { [ "$n" = 60 ] || [ "$n" = 100 ]; } && keys hunter2
+  done
+  kill "$pid" 2>/dev/null || true
   echo "test-iso: PASS, the kiosk drove a whole install (artifacts in $out)" | tee -a "$out/run.log"
   exit 0
 else
