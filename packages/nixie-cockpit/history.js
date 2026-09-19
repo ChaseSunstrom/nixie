@@ -72,17 +72,33 @@ const RUNNABLE = [
   { id: "doctor", label: "Run the checks", argv: ["nixie", "doctor"], superuser: "try" },
 ];
 
+// The control panel's Declare arrives here, as a name in the address: incusd
+// serves that panel and runs nothing on this host, and this page already
+// has the person signed in. An instance name and nothing else.
+function declaring() {
+  const m = /^#declare=([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(decodeURIComponent(location.hash));
+  return m ? m[1] : null;
+}
+
 function actions() {
   const box = document.getElementById("actions");
+  const name = declaring();
+  const runnable = (name
+    ? [{ id: "declare", label: "Declare " + name, argv: ["nixie", "declare", name], superuser: "require" }]
+    : []
+  ).concat(RUNNABLE);
   box.innerHTML =
     '<div class="card"><h2>Run</h2>' +
+    (name
+      ? '<p>Declaring <span class="mono">' + esc(name) + "</span> writes it into the site's guests.nix and applies. It keeps running; applying adopts it rather than making a second one.</p>"
+      : "") +
     '<p class="muted">Each prints as it goes. Applying switches this machine and brings the guests the site declares with it.</p>' +
-    RUNNABLE.map((r) => '<button id="run-' + r.id + '">' + esc(r.label) + "</button> ").join("") +
+    runnable.map((r) => '<button id="run-' + r.id + '">' + esc(r.label) + "</button> ").join("") +
     '<pre id="output" class="mono out" hidden></pre></div>';
   const out = document.getElementById("output");
-  const buttons = RUNNABLE.map((r) => document.getElementById("run-" + r.id));
+  const buttons = runnable.map((r) => document.getElementById("run-" + r.id));
   const idle = (on) => buttons.forEach((b) => (b.disabled = !on));
-  for (const r of RUNNABLE) {
+  for (const r of runnable) {
     document.getElementById("run-" + r.id).onclick = () => {
       idle(false);
       out.hidden = false;
@@ -98,7 +114,7 @@ function actions() {
           idle(true);
           // What it did shows in the history and the notices below.
           actions();
-load();
+          load();
         })
         .catch((e) => {
           out.textContent += "\n— it stopped: " + (e.message || e) + "\n";

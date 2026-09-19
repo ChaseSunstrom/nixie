@@ -45,6 +45,9 @@ with subtest("the History screen is installed and the host can answer it"):
     host.succeed("test -s /etc/cockpit/share/cockpit/nixie-history/history.css")
     host.succeed("grep -q 'href=\"history.css\"' /etc/cockpit/share/cockpit/nixie-history/index.html")
     host.fail("grep -q '<style>' /etc/cockpit/share/cockpit/nixie-history/index.html")
+    # The control panel's Declare arrives here as a name in the address,
+    # because incusd serves that panel and runs nothing on this host.
+    host.succeed("grep -q 'declare=' /etc/cockpit/share/cockpit/nixie-history/history.js")
     import json as _json
     m = _json.loads(host.succeed("cat /etc/cockpit/share/cockpit/nixie-history/manifest.json"))
     assert m["menu"]["index"]["label"] == "History", m

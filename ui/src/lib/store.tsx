@@ -15,7 +15,6 @@ export type SiteConfig = {
   links: { label: string; url: string }[];
   declared: Record<string, { kind: string; ip: string; image: string }>;
   allowSiteEdits: boolean;
-  declareUrl: string | null;
   hostUiUrl: string | null;
   prometheusPath: string | null;
   grafanaPath: string | null;
@@ -23,7 +22,7 @@ export type SiteConfig = {
   grafanaUrl: string | null;
   gpuPowerCap: number | null;
 };
-const defaultSite: SiteConfig = { theme: "graphite", host: "", machines: [], tokens: {}, links: [], declared: {}, allowSiteEdits: false, declareUrl: null, hostUiUrl: null, prometheusPath: null, grafanaPath: null, prometheusUrl: null, grafanaUrl: null, gpuPowerCap: null };
+const defaultSite: SiteConfig = { theme: "graphite", host: "", machines: [], tokens: {}, links: [], declared: {}, allowSiteEdits: false, hostUiUrl: null, prometheusPath: null, grafanaPath: null, prometheusUrl: null, grafanaUrl: null, gpuPowerCap: null };
 
 // Services published by tailscale serve live under paths on the tailnet
 // name the panel was opened on; the host page is a port on the same host.

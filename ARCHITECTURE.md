@@ -1022,10 +1022,18 @@ and runs `nixie apply`.
   (`/prometheus`, `/grafana` on the host's tailnet name) rather than by
   exposing plain-HTTP ports next to the TLS control panel; without Tailscale
   the panel keeps its in-browser rolling history.
-- **D16 Declare from the control panel is wired to `nixie.json.declareUrl`**
-  but no endpoint provides it yet: incusd cannot run host commands and the
-  brief defers a host agent. Export works everywhere; Declare stays disabled
-  until an agent exists. `nixie.ui.allowSiteEdits` is honoured by the UI.
+- **D16 Declare from the control panel opens the host page**, which is
+  Cockpit, rather than posting to an endpoint of its own. incusd serves the
+  panel and runs no host commands, and the brief defers a host agent -- but
+  the host page is already here, already signed in, and already runs `nixie
+  apply` through the Cockpit bridge. So the panel's Declare carries the
+  instance name to `/nixie-history#declare=<name>`, and the page offers
+  `nixie declare <name>`: the entry `nixie export` prints, written into the
+  site's `guests.nix`, then an apply. `nixie.ui.allowSiteEdits` still gates
+  the button, and with no host page there is none. Nothing new listens.
+  That apply adopts the instance -- `tofu import` for any declared guest
+  that is running but absent from the state -- so declaring keeps the
+  instance rather than replacing it.
 - **D17 The kiosk lock page checks the password with `unix_chkpwd`** (the
   pam_unix helper, which reads it from stdin; `su` needs a terminal) and the
   TOTP code against the same secret the host page uses; it binds to loopback

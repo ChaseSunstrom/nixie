@@ -104,7 +104,6 @@ let
       # any one of them; this host is marked by its own name.
       inherit (config.nixie.ui) machines;
       host = config.nixie.host.name;
-      declareUrl = null;
       hostUiUrl = if config.nixie.hostUi.enable then ":${toString config.nixie.hostUi.port}" else null;
       # Long history and Grafana are published on the tailnet by tailscale
       # serve; the panel fills in the tailnet name it was opened on.

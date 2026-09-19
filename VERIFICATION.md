@@ -1702,13 +1702,13 @@ not met, and say so.
 |---|---|---|
 | Clean clone: every check passes with the VM tests actually run; every package builds; the site builds offline after `nix flake archive` | the 44-check loop, one `nix build` per check (the evaluator cannot hold them in one process; see the closing section); `nix build` of every package; `nix run .#offline` | met, with the reading of "offline" that the entry above sets out: no flake using nixpkgs can build from an archive alone, so what is proved is that nothing fetches behind the lock file |
 | The platform evaluates for no GPU, one NIC, no TPM, no data disk, and a VM | `eval-matrix`, over the throwaway sites in `tests/sites/` (`no-gpu.nix`, `one-nic.nix`, `no-tpm.nix`, `no-data-disk.nix`, `vm.nix`) | met |
-| Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk` (the wizard driven in the kiosk's own browser to a finished install); `--security hardened` (every feature the wizard turns on, to Finish); `profile-server-has-no-desktop`, `profile-server-kiosk-only` | **partly**: the install, the security stack and the closures are proved; declaring a guest from the panel is not, because the panel has no Declare (D16), and the kiosk run and the hardened run are two runs rather than one |
+| Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk` (the wizard driven in the kiosk's own browser to a finished install); `--security hardened` (every feature the wizard turns on, to Finish); `profile-server-has-no-desktop`, `profile-server-kiosk-only`; `vm-guests` for what Declare runs | **partly**: the install, the security stack and the closures are proved, and Declare now exists -- the panel hands the name to the host page, which runs `nixie declare` (D16, rewritten 2026-09-19). What no run shows is the click itself ending in a declared guest, and the kiosk run and the hardened run are still two runs rather than one |
 | Graphical path, LAN: the same install from a browser on another VM | `vm-installer-lan` drives it from a second node over HTTP; `mediaTests.installer` drives the same pages with Playwright | met |
 | Desktop: installed from the ISO into a working Hyprland session with the chosen finish, packages and user, encryption on; no Incus, tofu or monitoring in the closure; the finish changes after `apply` without a reboot | `nix run .#test-iso --profile desktop`; `vm-desktop`; `profile-desktop-has-no-server` | met in a VM. A HyDE session on real graphics is not verified here, as the 2026-09-16 entry says |
 | Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `deploy-continues` checks the script reboots, forgets the installer's host key and hands over, in that order | **not met**: no entry records a remote deploy reaching Finish. A harness for it exists and does not run -- `tests/vm/deploy.nix`, unregistered, with the entry of 2026-09-19 for where it stops |
 | Toggling a security feature in `site.nix` and applying takes effect without reinstalling, except encryption, which is refused clearly | `vm-hardware` and `vm-encryption` for the features that toggle; `vm-updates` flips `features.encryption` under a prebuilt system and checks `apply` refuses with "cannot be changed on an installed system; reinstall from the ISO" and leaves nothing pending | met |
 | Deleting `cache/` and fetching restores it; deleting a guest and applying recreates it; `restore` brings back `state/` | `vm-data` (both, and the registry's own directory with them); `vm-guests`; `vm-backup` | met |
-| An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone, `nixie export` writes the entry) | **partly**: Export and the round-trip through the file are proved; Declare from the panel does not exist (D16) |
+| An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone; `nixie export` writes the entry; `nixie declare` puts it in the site; an apply whose state has never seen a running declared guest adopts it and then plans nothing) | met, in the two halves a single machine can show; the seam between them is in the entry of 2026-09-19 |
 | `grep -rn` for MACs, disks, interface names, PCI addresses or board names hits only `tests/` and the example site's generated `hardware.nix` | `no-hardware-facts` | met |
 | Every platform unit passes `systemd-analyze security` at OK, or documents its exposure | `systemd-security`, against a fully enabled server and the desktop | met |
 | The control panel and the installer match the design file in all three finishes | `nix run .#demo-shots` (the panel's screens in graphite, umber and paper, from demo mode) and the gallery's panel and desktop shots | **partly**: the panel is photographed in all three, the installer and the host page in one. Comparing them with the design file is a person's judgement, not a check |
@@ -2117,3 +2117,55 @@ without building a system inside the machine under test.
 |---|---|
 | fmt, statix, deadnix | pass |
 | the 44-check gate | pass |
+
+## Declare, and the instance it must not destroy (2026-09-19)
+
+Two acceptance criteria stood at **partly** for one reason: the control
+panel's Declare was wired to an endpoint nothing provided. D16 said incusd
+cannot run host commands and the brief defers a host agent -- but the host
+page is Cockpit, it is already signed in, and it already runs `nixie apply`
+through the bridge. So the panel's Declare now opens
+`/nixie-history#declare=<name>` there, and the page offers one more command
+beside Apply, Fetch and Run the checks. Nothing new listens; the field
+`declareUrl`, which was always `null`, is gone from the site JSON and from
+the panel's state.
+
+`nixie declare <instance>` is what that button runs: the entry `nixie
+export` prints, written into the site's `guests.nix`, then the apply that
+follows it (and whatever flags came with it, so a person can still say
+`--confirm-within`). It refuses a name the site already declares, a name no
+instance has, a name already written into the file and waiting for an apply,
+and a `guests.nix` that does not end in a line with only `}` -- where it
+prints the entry for a person to place by hand rather than editing a shape
+it cannot read.
+
+**The part that would have destroyed a guest.** Declaring an instance that
+is already running means tofu has never seen it, so the plan wants to create
+a name that exists. `tofu import` adopts it -- and the plan right after the
+import *still* replaces it, because the incus provider cannot read back
+which image an instance came from, and `image` forces replacement. Measured
+in `vm-guests`: `Plan: 1 to add, 0 to change, 1 to destroy`, and the
+instance's uuid changed, which is a scratch instance deleted and rebuilt by
+the act of declaring it. Incus remembers the image in
+`volatile.base_image`; adoption now compares it with the one the site names
+(resolving a local alias to its fingerprint) and, when they are the same,
+records it in the state. When they are not, the replacement is the right
+answer and it stands, which is what D14 asks for.
+
+This lives in `apply`, not in `declare`, because every route to that state
+is the same one: any declared guest that is running and absent from the
+state is adopted before the plan.
+
+| check | result |
+|---|---|
+| `vm-guests`, subtest "declare writes that entry into the site" | pass: the entry lands in `guests.nix`, nix still reads the file, the instance keeps running, and both refusals fire |
+| `vm-guests`, subtest "an instance the state has never seen is adopted, not made again" | pass: `adopting web, which is on this host but not in the state`, the uuid is the one from before, and the plan that follows says `No changes. Your infrastructure matches the configuration.` |
+| `vm-host-ui` | pass; the page carries the address the panel sends it to |
+| the 44-check gate | pass |
+
+What a single machine cannot join: `nixie declare` ends in an apply that
+rebuilds the host, and the guest only becomes declared once that rebuild has
+happened. The test runs the two halves either side of that seam -- the write
+with `--skip-host`, the adoption against a guest the site already declares
+-- because building a NixOS inside a test VM is what `NIXIE_TOPLEVEL` exists
+to avoid.

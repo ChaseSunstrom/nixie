@@ -14,11 +14,12 @@ export function Instances() {
     return c;
   });
   const bulk = (action: "start" | "stop" | "restart" | "freeze" | "unfreeze") => Promise.all([...sel].map((n) => run(`${action} ${n}`, api.instanceAction(n, action, action === "stop"))));
-  const declare = async (i: Instance) => {
-    if (!site.declareUrl) return;
-    const entry = exportEntry(i);
-    const r = await fetch(site.declareUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: i.name, entry }) });
-    toast(r.ok ? `${i.name} declared; apply is running` : `declare failed: ${await r.text()}`, !r.ok);
+  // Declaring writes the site and applies, and incusd -- which serves this
+  // panel -- runs nothing on the host. The host page does, with the person
+  // already signed in to it, so Declare opens it there.
+  const declare = (i: Instance) => {
+    window.open(`${site.hostUiUrl}/nixie-history#declare=${encodeURIComponent(i.name)}`, "_blank", "noopener");
+    toast(`${i.name}: finish on the host page`);
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -64,7 +65,7 @@ export function Instances() {
                 <span className="muted">{fmtAge(i.created_at)}</span>
                 <span style={{ display: "flex", gap: 4 }}>
                   <button className="btn" style={{ height: 24, padding: "0 8px" }} onClick={() => setExporting(i)}>Export</button>
-                  {t === "scratch" && site.allowSiteEdits && site.declareUrl && <button className="btn" style={{ height: 24, padding: "0 8px" }} onClick={() => declare(i)}>Declare</button>}
+                  {t === "scratch" && site.allowSiteEdits && site.hostUiUrl && <button className="btn" style={{ height: 24, padding: "0 8px" }} onClick={() => declare(i)}>Declare</button>}
                 </span>
               </span>
             );

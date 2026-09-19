@@ -47,6 +47,7 @@ usage() {
   if [ "$guests" = 1 ]; then
     h "Guests"
     c "export <instance>" "a guests.nix entry for a scratch instance"
+    c "declare <instance>" "write that entry into the site and apply"
   fi
   h "Security and hardware"
   c "reseal" "reseal attestation to this boot chain"
@@ -147,6 +148,34 @@ case "$cmd" in
     mkdir -p /var/lib/nixie/tofu && cd /var/lib/nixie/tofu
     cp -f /run/current-system/etc/nixie/tofu/config.tf.json config.tf.json
     tofu init -input=false >/dev/null
+    # A declared guest that is already running was made here and declared
+    # afterwards, so the state has never seen it. Adopting it is the
+    # difference between a plan that changes nothing and one that stops on a
+    # name that exists.
+    state=$(tofu state list 2>/dev/null || true)
+    for g in $(jq -r '.declared | keys[]' /run/current-system/etc/nixie/guests.json); do
+      incus info "$g" >/dev/null 2>&1 || continue
+      if printf '%s\n' "$state" | grep -qx "incus_instance.$g"; then continue; fi
+      echo "adopting $g, which is on this host but not in the state"
+      tofu import -input=false "incus_instance.$g" "$g"
+      # The provider cannot read back which image an instance came from, and
+      # the image is what forces a replacement, so the plan right after an
+      # import would destroy the very instance just adopted. Incus remembers
+      # it: when it is the image the site names, the state is told so and
+      # the plan comes out empty; when it is another one, the replacement is
+      # the right answer and it stands.
+      want=$(jq -r --arg g "$g" '.declared[$g].image' /run/current-system/etc/nixie/guests.json)
+      base=$(incus config get "$g" volatile.base_image)
+      case "$want" in
+        *:*) wantfp=${want#*:} ;;
+        *) wantfp=$(incus image info "$want" 2>/dev/null | sed -n 's/^Fingerprint: *//p' | head -1) ;;
+      esac
+      if [ -n "$base" ] && [ "$base" = "$wantfp" ]; then
+        tofu state pull | jq --arg g "$g" --arg img "$want" \
+          '(.resources[] | select(.type == "incus_instance" and .name == $g) | .instances[0].attributes.image) = $img | .serial += 1' >state.adopted
+        tofu state push state.adopted && rm -f state.adopted
+      fi
+    done
     set +e; tofu plan -input=false -detailed-exitcode -out=plan.bin; prc=$?; set -e
     [ "$prc" != 1 ] || exit 1
     if [ "$prc" = 2 ]; then
@@ -325,6 +354,40 @@ case "$cmd" in
     mounts=$(printf '%s' "$c" | yq '.devices[] | select(.type == "disk" and .source != null) | "      \"" + .source + "\" = \"" + .path + "\";"')
     [ -n "$mounts" ] && { echo "    mounts = {"; echo "$mounts"; echo "    };"; }
     echo "  };" ;;
+  declare)
+    # The other half of export: the entry it prints, written into the site
+    # and applied. The instance keeps running -- apply adopts it above
+    # rather than making a second one.
+    need_guests
+    name=${1:?instance name}; shift
+    if jq -e --arg n "$name" '.declared | has($n)' /run/current-system/etc/nixie/guests.json >/dev/null; then
+      echo "nixie: $name is already declared in the site" >&2; exit 3
+    fi
+    incus info "$name" >/dev/null 2>&1 || { echo "nixie: there is no instance called $name on this host" >&2; exit 3; }
+    f=$site/guests.nix
+    # Declared a moment ago and not applied yet: guests.json is still the one
+    # this system was built with, and a second entry of the same name is a
+    # file that does not evaluate.
+    if grep -q "^  $name = {" "$f" 2>/dev/null; then
+      echo "nixie: $f already has an entry for $name; run nixie apply" >&2; exit 3
+    fi
+    [ -w "$f" ] || { echo "nixie: $f is not writable; declare it by hand and run nixie apply" >&2; exit 2; }
+    entry=$("$self" export "$name")
+    # Into the attrset the file is, which ends on its own line. Anything
+    # else is a shape this cannot edit blind.
+    [ "$(tail -n1 "$f")" = "}" ] || {
+      echo "nixie: $f does not end in a line with only }; add this entry by hand:" >&2
+      printf '%s\n' "$entry" >&2; exit 3
+    }
+    # Written back through the file rather than moved over it: the site is a
+    # git checkout and a moved temporary file arrives with its own mode.
+    tmp=$(mktemp)
+    { head -n -1 "$f"; printf '%s\n' "$entry"; echo '}'; } >"$tmp"
+    cat "$tmp" >"$f" && rm -f "$tmp"
+    echo "declared $name in $f"
+    # Whatever else was asked for goes to the apply: --confirm-within from a
+    # person, --skip-host from a test.
+    exec "$self" apply --yes "$@" ;;
   doctor)
     rc=0
     if feature encryption; then

@@ -269,6 +269,7 @@ grep -q 'gpu = true' guests.nix
 | `nixie usb [--json]`, `nixie usb allow <vendor:product[/serial]>` | blocked USB devices; allow one in `hosts/<name>/usb.nix` and commit, then `nixie apply` |
 | `nixie doctor` | TPM, attestation, Secure Boot, key slots, whether the last unlock needed the recovery key, blocked USB devices, guests, backup check, disk space |
 | `nixie export <instance>` | a `guests.nix` entry for a scratch instance |
+| `nixie declare <instance>` | write that entry into the site's `guests.nix` and apply; the instance keeps running, and the apply adopts it instead of making a second one. The control panel's Declare opens the host page to run this |
 | `nixie menu` | the desktop menu: finish, wallpaper, packages, update, keybinds |
 
 ## One site, several machines

@@ -41,3 +41,36 @@ with subtest("export emits a guests.nix entry"):
     out = host.succeed("nixie export scratch")
     print(out)
     assert "scratch = {" in out and 'kind = "nixos"' in out, out
+
+with subtest("declare writes that entry into the site"):
+    # A writable copy: the site is mounted from the store here.
+    host.succeed("cp -r /etc/nixie/site /tmp/site && chmod -R u+w /tmp/site")
+    # --skip-host reaches the apply that declare ends with, because
+    # rebuilding a NixOS inside this machine is the subject of no test.
+    host.succeed("NIXIE_SITE=/tmp/site nixie declare scratch --skip-host >&2")
+    out = host.succeed("cat /tmp/site/guests.nix")
+    print(out[-400:])
+    assert "scratch = {" in out, out
+    # Still an attrset, and still one nix can read.
+    host.succeed("nix-instantiate --eval -E 'builtins.attrNames (import /tmp/site/guests.nix)' | grep -q scratch")
+    host.succeed("incus list scratch -c s -f csv | grep -q RUNNING")
+    # A name the site already carries, and a name no instance has.
+    host.fail("NIXIE_SITE=/tmp/site nixie declare web --skip-host")
+    host.fail("NIXIE_SITE=/tmp/site nixie declare nosuchthing --skip-host")
+
+with subtest("an instance the state has never seen is adopted, not made again"):
+    # What a declare leaves behind once the host has rebuilt with it: a guest
+    # the site declares that is already running. Incus gives each instance a
+    # uuid of its own, so it tells this one from a replacement -- and unlike
+    # a config key set by hand it is not drift for the next apply to undo.
+    uuid = host.succeed("incus config get web volatile.uuid").strip()
+    assert uuid, "the instance has no uuid to recognise it by"
+    host.succeed("cd /var/lib/nixie/tofu && tofu state rm incus_instance.web >&2")
+    host.succeed("nixie apply --yes --skip-host >&2")
+    host.succeed("cd /var/lib/nixie/tofu && tofu state list | grep -qx incus_instance.web")
+    assert host.succeed("incus config get web volatile.uuid").strip() == uuid, "it was replaced, not adopted"
+    # And the plan that follows the adoption changes nothing, which is the
+    # whole point: an import alone leaves the image unset, and the next plan
+    # replaces the instance it has just taken over.
+    print(host.succeed("cd /var/lib/nixie/tofu && tofu plan -input=false -no-color 2>&1 || true"))
+    host.succeed("cd /var/lib/nixie/tofu && tofu plan -input=false -detailed-exitcode >&2")
