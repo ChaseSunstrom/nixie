@@ -1702,13 +1702,13 @@ not met, and say so.
 |---|---|---|
 | Clean clone: every check passes with the VM tests actually run; every package builds; the site builds offline after `nix flake archive` | the 44-check loop, one `nix build` per check (the evaluator cannot hold them in one process; see the closing section); `nix build` of every package; `nix run .#offline` | met, with the reading of "offline" that the entry above sets out: no flake using nixpkgs can build from an archive alone, so what is proved is that nothing fetches behind the lock file |
 | The platform evaluates for no GPU, one NIC, no TPM, no data disk, and a VM | `eval-matrix`, over the throwaway sites in `tests/sites/` (`no-gpu.nix`, `one-nic.nix`, `no-tpm.nix`, `no-data-disk.nix`, `vm.nix`) | met |
-| Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk --security hardened`: one run, the wizard driven in the kiosk's own browser, Hardened chosen on its first step, and the first start photographed; `profile-server-has-no-desktop`, `profile-server-kiosk-only`; `vm-guests` for what Declare runs | **partly**: the install with every feature on, and the continuation screen after the restart, are now one run (entry of 2026-09-19, later). What is still not shown is the click that declares a guest: the run stops where the Secure Boot step asks for the restart this firmware will not come back from |
+| Graphical path, single machine: the whole install from the on-screen kiosk with every security feature on, through the continuation phases, and a guest declared from the UI; no compositor or browser in the server closure | `nix run .#test-iso --kiosk --security hardened` (one run, the first start photographed); `profile-server-has-no-desktop`, `profile-server-kiosk-only`; `panel-declare` for the click and `vm-guests` for what it runs | met, across the runs each part belongs to: the install with every feature on and the continuation screen are one run; Declare is proved where it lives -- the panel offers it for a scratch instance and opens the host page with the name (`panel-declare`), the host page carries that address (`vm-host-ui`), and the command writes the site and adopts the instance (`vm-guests`). The one thing not in a single run is the click happening on that installed machine, because the run stops where Secure Boot asks for the restart this firmware will not come back from |
 | Graphical path, LAN: the same install from a browser on another VM | `vm-installer-lan` drives it from a second node over HTTP; `mediaTests.installer` drives the same pages with Playwright | met |
 | Desktop: installed from the ISO into a working Hyprland session with the chosen finish, packages and user, encryption on; no Incus, tofu or monitoring in the closure; the finish changes after `apply` without a reboot | `nix run .#test-iso --profile desktop`; `vm-desktop`; `profile-desktop-has-no-server` | met in a VM. A HyDE session on real graphics is not verified here, as the 2026-09-16 entry says |
 | Headless: `nix run .#deploy` reaches the same end state, from kexec and from the ISO | `vm-deploy`: one machine deploys another over SSH, phases 1 to 3 run on the target, it restarts, and the setup generation carries 4 to 8 to the end; `deploy-continues` checks the hand-over's shape | met from the ISO, which is what the test's target runs. From kexec is not: the deploy says `target runs the Nixie ISO; no kexec needed`, and the other branch wants a machine running something else to kexec out of |
 | Toggling a security feature in `site.nix` and applying takes effect without reinstalling, except encryption, which is refused clearly | `vm-hardware` and `vm-encryption` for the features that toggle; `vm-updates` flips `features.encryption` under a prebuilt system and checks `apply` refuses with "cannot be changed on an installed system; reinstall from the ISO" and leaves nothing pending | met |
 | Deleting `cache/` and fetching restores it; deleting a guest and applying recreates it; `restore` brings back `state/` | `vm-data` (both, and the registry's own directory with them); `vm-guests`; `vm-backup` | met |
-| An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone; `nixie export` writes the entry; `nixie declare` puts it in the site; an apply whose state has never seen a running declared guest adopts it and then plans nothing) | met, in the two halves a single machine can show; the seam between them is in the entry of 2026-09-19 |
+| An undeclared instance reaches the internet only through the exit node, is left alone by `apply`, and round-trips Export/Declare with zero tofu diff | `vm-egress` (the egress rules), `vm-guests` (`apply` leaves scratch instances alone; `nixie export` writes the entry; `nixie declare` puts it in the site; `panel-declare` for the button that runs it; an apply whose state has never seen a running declared guest adopts it and then plans nothing) | met, in the two halves a single machine can show; the seam between them is in the entry of 2026-09-19 |
 | `grep -rn` for MACs, disks, interface names, PCI addresses or board names hits only `tests/` and the example site's generated `hardware.nix` | `no-hardware-facts` | met |
 | Every platform unit passes `systemd-analyze security` at OK, or documents its exposure | `systemd-security`, against a fully enabled server and the desktop | met |
 | The control panel and the installer match the design file in all three finishes | `nix run .#demo-shots` (the panel's screens in graphite, umber and paper, from demo mode) and the gallery's panel and desktop shots | **partly**: the panel is photographed in all three, the installer and the host page in one. Comparing them with the design file is a person's judgement, not a check |
@@ -2272,3 +2272,48 @@ both runs' pictures.
 |---|---|
 | `nix run .#test-iso -- --kiosk --security hardened` | pass, twice: once to emergency with a wrong passphrase, once through to the continuation screen |
 | the 45-check gate | pass |
+
+## The click, and the one token set (2026-09-19, last)
+
+Two checks, and the gate is forty-seven.
+
+**`panel-declare`.** The half of Declare a person actually clicks had
+nothing behind it in the gate: `vm-guests` proves what the command does and
+`vm-host-ui` that the page is there to run it, but nothing proved the button
+hands over the right thing. It runs in demo mode -- the panel is a static
+bundle answering itself, so it needs no daemon, no VM and no certificate,
+which is why it can sit in the gate beside the evaluations. What it holds:
+Declare is offered for every scratch instance and for none of the declared
+ones; clicking it opens the host page's own address with that instance's
+name on it; and with no host page, or with `nixie.ui.allowSiteEdits` off,
+there is no button at all, because there is nothing behind it either way.
+It also fails on any error the page throws while doing it.
+
+**`tokens-agree`.** The brief asks that the UI and the installer share one
+token set, extracted once from the design file. They do, but in two forms:
+the bundle uses the `oklch()` values as written, and `lib/tokens.nix`
+carries a hex beside each of the seven that carry meaning, because a
+toolkit, a terminal, a Plymouth theme and a GRUB theme cannot read oklch.
+Nothing held those two to each other. A token added to the JSON with no hex
+draws nothing on the desktop; a hex typed wrong is a colour from another
+palette with nothing to say so.
+
+Measured before the check was written: the hexes are **not** the straight
+sRGB conversion the comment beside them claimed -- they are the same colours
+toned down, every one less saturated than its token (by 0.002 to 0.065 of
+chroma), within 16.8 degrees of hue and 0.085 of lightness. That is a
+deliberate choice, not a mistake: a terminal at full chroma is harsh. So the
+comment is corrected to say it, and the check holds the relationship rather
+than a conversion: same finishes, same tokens, every hex within 25 degrees
+of hue and 0.12 of lightness, and never more saturated than the design file
+asked for.
+
+That is as much of "every screen matches the design file" as a machine can
+say. The rest of that criterion is a person putting the pictures beside the
+file, and `design/Nixie_Front_Panel.html` is not in this repository.
+
+| check | result |
+|---|---|
+| `panel-declare` | pass: `Declare opened the host page for db`, and none offered with no host page or with site edits off |
+| `tokens-agree` | pass: 21 colours in 3 finishes, worst hue 16.8 of 25 degrees, worst lightness 0.085 of 0.12 |
+| the 47-check gate | pass |

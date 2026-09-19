@@ -284,6 +284,33 @@ in
   # The attestation code has to scan. tpm2-totp draws its own in ANSI colour,
   # which a browser prints as escape codes, so the page shows a QR made from
   # the URI tpm2-totp prints under it; this decodes that image again.
+  # One token set: what the design file gave, and the hex beside each one
+  # that a toolkit, a terminal or a boot theme can read.
+  tokens-agree =
+    let
+      tokens = import ../lib/tokens.nix { inherit lib; };
+      resolved = pkgs.writeText "resolved-tokens.json" (
+        builtins.toJSON (lib.genAttrs tokens.finishes tokens.forFinish)
+      );
+    in
+    pkgs.runCommand "tokens-agree" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+      python3 ${./tokens-agree.py} ${../ui/src/tokens/tokens.json} ${resolved} | tee $out
+    '';
+
+  # The panel's own half of Declare, in demo mode: a page on a port, no
+  # daemon and no VM, so it can run in the gate beside the evaluations.
+  panel-declare =
+    pkgs.runCommand "panel-declare"
+      {
+        nativeBuildInputs = [ (pkgs.python3.withPackages (p: [ p.playwright ])) ];
+        PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
+      }
+      ''
+        cp -r ${self.packages.x86_64-linux.nixie-ui} bundle
+        chmod -R u+w bundle
+        python3 ${./panel-declare.py} bundle | tee $out
+      '';
+
   setup-qr =
     pkgs.runCommand "setup-qr"
       {

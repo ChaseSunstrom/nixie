@@ -4,7 +4,11 @@
 let
   raw = builtins.fromJSON (builtins.readFile ../ui/src/tokens/tokens.json);
   # oklch() values are fine for browsers; toolkits and terminals want hex.
-  # These are the same colours resolved to sRGB.
+  # The same colours, quieter: same hue and lightness, chroma pulled in,
+  # because a terminal or a GTK theme at the full value is harsh. The
+  # tokens-agree check holds each one to its token -- within 25 degrees of
+  # hue and 0.12 of lightness, and never more saturated than the design
+  # file asked for.
   hex = {
     graphite = {
       mem = "#c4a8f0";
