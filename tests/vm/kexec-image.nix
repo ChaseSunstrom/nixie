@@ -212,9 +212,12 @@ pkgs.runCommand "nixie-test-kexec-image.tar.gz"
 #   carrying 192.168.1.9/24 on eth1 (52:54:00:12:01:03) across the kexec
 #   nixie: carried 192.168.1.9/24 to eth1
 #
-# What is left is one layer further in: the machine answers on that address
-# and refuses port 22 -- `ssh: connect ... Connection refused`, where before
-# the address was carried it was `No route to host` -- so the deploy waits
-# where it reconnects. Something between the installer's sshd and that
-# address is not up, and finding it wants another run of vm-deploy with the
-# kexec subtest restored from the entry of 2026-09-19 (kexec III).
+# What is left is not this file's doing. The machine answers, sshd is up,
+# and the deploy reconnects -- a run's own log shows the host key accepted
+# after the kexec. What follows is the part that has never finished here:
+# the store of a kexeced machine is a tmpfs with nothing in it, so the whole
+# system has to cross the wire, where the ISO path already had every path in
+# place ("copying 0 paths"). Two runs sat in that copy for fifty and fifty-five
+# minutes without printing, the second one until the test process was
+# terminated. Finishing it wants a machine that can hold a nested VM busy for
+# longer than that, or a deploy that seeds the target's store some other way.

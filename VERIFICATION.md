@@ -2524,3 +2524,41 @@ waiting for udev -- is written at the bottom of it.
 | the deploy reconnecting after it | not yet: the port is refused |
 | `vm-deploy` (the ISO path) | pass, unchanged |
 | fmt, deadnix, statix | pass |
+
+## Where the kexec run stops, for good this time (2026-09-19, kexec IV)
+
+The entry above says the address is carried and the port was refused. It is
+not refused any more -- that was the machine still booting. With the address
+carried and the wait for udev in place, a run gets all the way to:
+
+- the kexec fires and nixos-anywhere accepts it;
+- the machine comes up as the installer, with `nixie: carried 192.168.1.9/24
+  to eth1` on its own console and `Started SSH Daemon` after it;
+- the deploy reconnects -- the host key is accepted again, after the kexec;
+- the test's own probe reaches it in 0.22 s.
+
+Then the deploy goes quiet, and stays quiet. What it is doing is the part
+this path cannot avoid: a kexeced machine's store is a tmpfs with nothing in
+it, so the whole system has to cross the wire. The ISO path never pays that
+-- `copying 0 paths`, because the image already had every path. Two runs sat
+in that copy, one for fifty minutes to the test's budget and one for
+fifty-five until the test process was terminated (exit 143, not an
+assertion). No error, no out-of-memory, the unit active throughout.
+
+So the ceiling here is the machine this runs on, not the branch. What is
+proved: every step of the kexec path up to and including the reconnect, and
+the three faults fixed two entries ago that stopped it before any of that.
+What is not: the copy and the phases after it, inside a nested VM on this
+host.
+
+`vm-deploy` stays the ISO path and `deploy-kexecs` keeps the branch's shape.
+`tests/vm/kexec-image.nix` is in the tree unreferenced, and everything four
+entries of runs taught it is written at the bottom of it -- the
+nixos-anywhere contract, the layout, reading the interface from the session,
+waiting for udev, and now what happens after.
+
+| check | result |
+|---|---|
+| kexec, address carried, sshd up, deploy reconnects | all four, in one run |
+| the closure copy that follows | not finished here: 50 and 55 minutes, then terminated |
+| `vm-deploy` (the ISO path) | pass, unchanged |
