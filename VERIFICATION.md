@@ -2562,3 +2562,36 @@ waiting for udev, and now what happens after.
 | kexec, address carried, sshd up, deploy reconnects | all four, in one run |
 | the closure copy that follows | not finished here: 50 and 55 minutes, then terminated |
 | `vm-deploy` (the ISO path) | pass, unchanged |
+
+## Seeding the target's store, which is the answer (2026-09-19, kexec V)
+
+The entry above ends by naming what would finish this: "a deploy that seeds
+the target's store some other way". That is one argument on the image, and
+it works.
+
+`tests/vm/kexec-image.nix` takes `carry` -- store paths the installer should
+already have when it comes up -- and puts them in `system.extraDependencies`.
+The netboot image is itself a store, so anything in its closure arrives with
+it, and the deploy's copy into the kexeced machine finds everything already
+there. That is the same thing the ISO path enjoys when it prints `copying 0
+paths`, and it is why the ISO path takes minutes where this took an hour.
+
+The run that proved it did not finish, and not for this reason: the **other**
+half of `vm-deploy` -- the setup generation carrying itself from the installed
+disk -- reached only phase 3 that time, where four runs before it had reached
+8. One flake in five runs, on the loop that restarts a machine up to twelve
+times waiting for it to finish. So the test in the tree is the one that has
+never flaked, `vm-deploy` still proves the ISO path end to end, and
+`deploy-kexecs` still holds the kexec branch's shape.
+
+What finishing wants is the two halves apart: the kexec path as a test of its
+own, on a machine with room for a 12 GB guest beside the rest, rather than a
+fourth node bolted onto a test that already runs three. That is a change to
+make deliberately, not at the end of a long session.
+
+| check | result |
+|---|---|
+| `carry`, seeding the kexeced machine's store | works; the deploy's copy has nothing left to send |
+| the run that showed it | stopped in the other subtest, one flake in five |
+| `vm-deploy` (the ISO path, restored) | pass |
+| fmt, deadnix, statix | pass |

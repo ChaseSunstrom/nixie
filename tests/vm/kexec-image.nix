@@ -22,6 +22,12 @@
   pkgs,
   inputs,
   authorizedKey,
+  # Paths the installer should already have when it comes up. A kexeced
+  # machine's store is a tmpfs with nothing in it, so without these the
+  # deploy pushes a whole system across the wire before it can do anything;
+  # the netboot image is itself a store, and anything in its closure arrives
+  # with it.
+  carry ? [ ],
 }:
 let
   inherit (pkgs) lib;
@@ -94,6 +100,7 @@ let
           };
           boot.kernelParams = [ "console=ttyS0" ];
           documentation.enable = false;
+          system.extraDependencies = carry;
         }
       )
     ];
@@ -212,12 +219,17 @@ pkgs.runCommand "nixie-test-kexec-image.tar.gz"
 #   carrying 192.168.1.9/24 on eth1 (52:54:00:12:01:03) across the kexec
 #   nixie: carried 192.168.1.9/24 to eth1
 #
-# What is left is not this file's doing. The machine answers, sshd is up,
-# and the deploy reconnects -- a run's own log shows the host key accepted
-# after the kexec. What follows is the part that has never finished here:
-# the store of a kexeced machine is a tmpfs with nothing in it, so the whole
-# system has to cross the wire, where the ISO path already had every path in
-# place ("copying 0 paths"). Two runs sat in that copy for fifty and fifty-five
-# minutes without printing, the second one until the test process was
-# terminated. Finishing it wants a machine that can hold a nested VM busy for
-# longer than that, or a deploy that seeds the target's store some other way.
+# What is left is not this file's doing. The machine answers, sshd is up and
+# the deploy reconnects -- a run's log shows the host key accepted after the
+# kexec. What follows is the copy: the store of a kexeced machine is a tmpfs
+# with nothing in it, and two runs sat in that copy for fifty and fifty-five
+# minutes, the second until the test process was terminated.
+#
+# `carry` is the answer to that, and it works: the netboot image is itself a
+# store, so the system being installed rides along in it and the deploy's
+# copy finds everything already there. What stopped the run that proved it
+# was the other half of vm-deploy -- the setup generation reached only phase
+# 3 that time, where four runs before it had reached 8 -- so the test in the
+# tree is the one that has never flaked, and finishing this wants the two
+# halves apart: a test of its own, on a machine with room for a 12 GB guest
+# beside the rest.
