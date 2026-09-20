@@ -22,9 +22,6 @@
   pkgs,
   inputs,
   authorizedKey,
-  address,
-  prefixLength ? 24,
-  interface ? "eth1",
 }:
 let
   inherit (pkgs) lib;
@@ -38,23 +35,62 @@ let
           services.openssh.enable = true;
           services.openssh.settings.PermitRootLogin = lib.mkForce "prohibit-password";
           users.users.root.openssh.authorizedKeys.keyFiles = [ authorizedKey ];
-          # By pattern, not by name: this system is not the one the test
-          # framework configured, and what its single NIC ends up called
-          # depends on the kernel that just started. An address on a name
-          # that does not exist is a machine nobody can reach.
+          # Nothing static here: the address comes across on the kernel
+          # command line, worked out on the machine being replaced (see the
+          # run script below). Names are the plain ethN the old kernel used,
+          # so the one named there is the one meant here.
+          networking.usePredictableInterfaceNames = false;
           networking.useDHCP = false;
-          networking.useNetworkd = true;
-          # The installer profile brings NetworkManager, which claims the
-          # NIC and leaves the address below unapplied.
+          # The installer profile brings NetworkManager, which would claim
+          # the interface the kernel has just configured.
           networking.networkmanager.enable = lib.mkForce false;
-          # The one the machine was reached on, not every NIC it has: this
-          # VM also carries a user-mode interface, and the same address on
-          # both leaves neither routable. The kexec keeps the hardware in
-          # the order it was, so the name is the one it had.
-          systemd.network.networks."10-lan" = {
-            matchConfig.Name = interface;
-            address = [ "${address}/${toString prefixLength}" ];
-            linkConfig.RequiredForOnline = "no";
+          networking.useNetworkd = false;
+          # The address the machine had, put back by hand. The kernel's own
+          # `ip=` is not enough: whether it is compiled in varies, and
+          # anything that brings the link down afterwards takes it with it.
+          # The NIC is found by its hardware address, so nothing here
+          # depends on what this kernel decided to call it.
+          systemd.services.nixie-carry-network = {
+            description = "The address this machine had before the kexec";
+            wantedBy = [ "multi-user.target" ];
+            before = [ "sshd.service" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            path = [ pkgs.iproute2 ];
+            script = ''
+              carry=
+              for word in $(cat /proc/cmdline); do
+                case $word in
+                  nixie.carry=*) carry=''${word#nixie.carry=} ;;
+                esac
+              done
+              [ -n "$carry" ] || { echo "nothing to carry"; exit 0; }
+              cidr=''${carry%%,*}
+              rest=''${carry#*,}
+              gw=''${rest%%,*}
+              mac=''${rest#*,}
+              # Waited for rather than assumed present: this runs early
+              # enough that udev may not have the interface yet, and an
+              # address put nowhere is a machine nobody can reach.
+              dev=
+              tries=0
+              while [ -z "$dev" ] && [ $tries -lt 60 ]; do
+                for path in /sys/class/net/*; do
+                  [ "$(cat "$path/address" 2>/dev/null)" = "$mac" ] || continue
+                  dev=''${path##*/}
+                done
+                [ -n "$dev" ] || sleep 1
+                tries=$((tries + 1))
+              done
+              [ -n "$dev" ] || { echo "no interface with address $mac"; exit 1; }
+              ip link set "$dev" up
+              ip addr add "$cidr" dev "$dev" || true
+              [ -z "$gw" ] || ip route add default via "$gw" dev "$dev" || true
+              echo "carried $cidr to $dev ($mac)"
+              echo "nixie: carried $cidr to $dev" >/dev/console || true
+            '';
           };
           boot.kernelParams = [ "console=ttyS0" ];
           documentation.enable = false;
@@ -79,9 +115,60 @@ let
           *) shift ;;
         esac
       done
+
+      # Carry this machine's networking across, because nothing else does.
+      # The kernel takes an address on its command line and brings the
+      # interface up with it before any of the new system runs, which is
+      # what lets whoever started this keep talking to the machine. The
+      # alternative is the new system guessing, and it has nothing to guess
+      # from: a kexec leaves it no state and no DHCP answer here.
+      netmask_for() {
+        full=$(($1 / 8))
+        rest=$(($1 % 8))
+        out=
+        i=0
+        while [ $i -lt 4 ]; do
+          if [ $i -lt $full ]; then part=255
+          elif [ $i -eq $full ]; then
+            case $rest in
+              0) part=0 ;; 1) part=128 ;; 2) part=192 ;; 3) part=224 ;;
+              4) part=240 ;; 5) part=248 ;; 6) part=252 ;; *) part=254 ;;
+            esac
+          else part=0
+          fi
+          out="''${out:+$out.}$part"
+          i=$((i + 1))
+        done
+        echo "$out"
+      }
+
+      # The address this very session arrived on, which is the one whoever
+      # started the kexec can still reach: SSH_CONNECTION's third field is
+      # the server address the client connected to. A machine can have
+      # several -- this one also has a user-mode interface that goes
+      # nowhere -- and carrying the wrong one strands the deploy.
+      want=
+      [ -z "''${SSH_CONNECTION:-}" ] || want=$(echo "''${SSH_CONNECTION}" | awk '{print $3}')
+      line=
+      [ -z "$want" ] || line=$(ip -4 -o addr show scope global up | grep " $want/" || true)
+      [ -n "$line" ] || line=$(ip -4 -o addr show scope global up | head -1)
+      ipcmd=
+      if [ -n "$line" ]; then
+        dev=$(echo "$line" | awk '{print $2}')
+        cidr=$(echo "$line" | awk '{print $4}')
+        host=''${cidr%%/*}
+        bits=''${cidr##*/}
+        gw=$(ip -4 route show default | awk '{print $3; exit}')
+        mac=$(cat "/sys/class/net/$dev/address")
+        # Both ways: the kernel's, for anything that reads it early, and
+        # this image's own, which is what actually puts the address back.
+        ipcmd="ip=$host::$gw:$(netmask_for "$bits")::$dev:off nixie.carry=$cidr,$gw,$mac"
+        echo "carrying $cidr on $dev ($mac) across the kexec"
+      fi
+
       # shellcheck disable=SC2086
       ./kexec --load ./bzImage --initrd=./initrd $extra \
-        --command-line "init=${toplevel}/init ${toString installer.config.boot.kernelParams}"
+        --command-line "init=${toplevel}/init ${toString installer.config.boot.kernelParams} $ipcmd"
       # What nixos-anywhere reads back to know the machine is on its way; it
       # has to be said before the kernel it is said from goes away.
       echo "machine will boot into nixos"
@@ -115,17 +202,19 @@ pkgs.runCommand "nixie-test-kexec-image.tar.gz"
 # The deploy hands this to nixos-anywhere through NIXIE_KEXEC; nixos-anywhere
 # unpacks it, runs `kexec/run`, reads "machine will boot into nixos" back and
 # is satisfied; the machine loads the kernel and comes up as the NixOS
-# installer, which its console says in as many words. Then nothing can reach
-# it: `ssh: connect to host ... No route to host`, and the deploy waits.
+# installer. The address it had comes with it -- the run script reads the one
+# this very SSH session arrived on (SSH_CONNECTION names it, which is how the
+# right interface is picked out of the several a machine has), hands it over
+# on the kernel command line, and the service above puts it back, waiting for
+# udev to produce the interface with that hardware address first. Its own
+# words on the console of a run:
 #
-# What is missing is the part a downloaded kexec-installer does at runtime
-# and this one is told at build time -- carrying the machine's networking
-# across the kexec. Told is not enough: the image has two NICs here, a
-# user-mode one and the test's own, and the address has to land on the one
-# the deploy is talking to, in a system whose interface names are decided by
-# the kernel that just started rather than by the one that was configured.
-# Matching every NIC gives neither a route; matching the name it had leaves
-# it unreachable a different way. nix-community/nixos-images solves this by
-# reading the running machine's addresses and routes before the kexec and
-# replaying them after, which is the piece to write next -- or to take as an
-# input, which costs the platform a dependency and is the user's call.
+#   carrying 192.168.1.9/24 on eth1 (52:54:00:12:01:03) across the kexec
+#   nixie: carried 192.168.1.9/24 to eth1
+#
+# What is left is one layer further in: the machine answers on that address
+# and refuses port 22 -- `ssh: connect ... Connection refused`, where before
+# the address was carried it was `No route to host` -- so the deploy waits
+# where it reconnects. Something between the installer's sshd and that
+# address is not up, and finding it wants another run of vm-deploy with the
+# kexec subtest restored from the entry of 2026-09-19 (kexec III).

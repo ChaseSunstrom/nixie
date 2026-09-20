@@ -2477,3 +2477,50 @@ runs bought is in the entry above: the branch is no longer broken.
 | the kexec itself, by hand through `vm-deploy` | fires; the machine boots the installer; it is then unreachable |
 | `vm-deploy` (the ISO path) | pass, unchanged |
 | fmt, deadnix, statix | pass |
+
+## Carrying the networking across the kexec (2026-09-19, kexec III)
+
+The entry before this one named the missing piece: the machine's networking
+does not survive a kexec, and a downloaded kexec-installer works it out at
+runtime. That piece is written now, and it works.
+
+`tests/vm/kexec-image.nix` does it in two halves. Before the kexec, the run
+script reads the address **this very SSH session arrived on** --
+`SSH_CONNECTION`'s third field -- which is how the right interface is picked
+out of the several a machine has; a first attempt took the first global
+address and carried the VM's user-mode interface, which goes nowhere. It
+hands the address, gateway and hardware address over on the kernel command
+line. After the kexec, a service in the image reads them back and puts the
+address on the interface with that MAC, so nothing depends on what the new
+kernel decided to call it.
+
+It also waits for that interface. Without the wait it ran before udev had
+produced the NIC, reported no interface with that address, and the machine
+came up unreachable -- which is what had been read as "the address is not
+carried" for two runs before this.
+
+From a run, on the machine's own console:
+
+```
+carrying 192.168.1.9/24 on eth1 (52:54:00:12:01:03) across the kexec
+nixie: carried 192.168.1.9/24 to eth1
+```
+
+**What is still not green, and it is one layer further in.** The machine now
+answers on that address and refuses the port: `ssh: connect to host
+192.168.1.9 port 22: Connection refused`, where every run before the address
+was carried said `No route to host`. So the deploy waits where it
+reconnects. Something between the installer's sshd and that address is not
+up; the symptom is specific and the next run starts there.
+
+So `vm-deploy` remains the ISO path and `deploy-kexecs` keeps the branch's
+shape. The image is in the tree unreferenced, and what it knows -- the
+nixos-anywhere contract, the layout, picking the interface from the session,
+waiting for udev -- is written at the bottom of it.
+
+| check | result |
+|---|---|
+| the address carried across a kexec | works, on the console of a run |
+| the deploy reconnecting after it | not yet: the port is refused |
+| `vm-deploy` (the ISO path) | pass, unchanged |
+| fmt, deadnix, statix | pass |
