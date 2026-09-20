@@ -2595,3 +2595,39 @@ make deliberately, not at the end of a long session.
 | the run that showed it | stopped in the other subtest, one flake in five |
 | `vm-deploy` (the ISO path, restored) | pass |
 | fmt, deadnix, statix | pass |
+
+## The kexec path as a test of its own (2026-09-20)
+
+The entry above says what finishing wants: the two halves apart. They are
+apart now. `tests/vm/deploy-common.nix` holds what both need -- the system
+they install, the site they install it from, every source that site's lock
+names -- and `vm-deploy` takes it from there instead of defining it. That
+refactor is the part that landed: `vm-deploy` passes with it, unchanged in
+what it proves.
+
+`tests/vm/deploy-kexec.nix` is the other half: two nodes rather than four,
+the runner and a plain NixOS machine with twelve gigabytes of its own,
+because it holds the image, then the installer unpacked from it, then that
+installer's store. It carries every piece the path needs -- `carry` seeding
+the target's store, the address crossing the kexec, the fifo answering the
+one question, the PATH and HOME a transient unit lacks.
+
+It is **not registered**, because on this host it does not finish. How far it
+gets: the deploy takes the kexec branch, `kexec/run` says "machine will boot
+into nixos", the machine comes up as the installer and puts its old address
+back -- `nixie: carried 192.168.1.9/24 to eth1` on its own console. Then
+nixos-anywhere's reconnect did not complete inside forty minutes on that run,
+where inside `vm-deploy` the same steps had reconnected and stalled in the
+copy instead. Two different stalls, two runs, neither reproduced twice, both
+on a host already holding a 6 GB and a 12 GB guest.
+
+That is where this stops, and it stops on a machine rather than on the code.
+What is in the gate is the honest set: `vm-deploy` for the ISO path end to
+end, `deploy-kexecs` for the shape of the other branch, and four faults fixed
+in it that no user could have got past.
+
+| check | result |
+|---|---|
+| `vm-deploy`, on the shared module | pass |
+| `vm-deploy-kexec` | written, unregistered, does not finish here |
+| the 49-check gate | pass |
