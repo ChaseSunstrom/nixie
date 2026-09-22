@@ -114,7 +114,13 @@ fun setNote(text) {
 }
 
 fun status(text) {
-  if (text.SubString(0, 13) == "nixie-prompt:") label = text.SubString(13, 400);
+  # The agent keeps one question open across prompts, since Plymouth cannot
+  # withdraw one; after a prompt answered elsewhere it is not asked again,
+  # so the field comes back here rather than from the password callback.
+  if (text.SubString(0, 13) == "nixie-prompt:") {
+    label = text.SubString(13, 400);
+    password(label, 0);
+  }
   else if (text == "nixie-idle") normal();
 }
 Plymouth.SetUpdateStatusFunction(status);

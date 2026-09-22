@@ -2698,6 +2698,7 @@ from the last ISO run's screenshots.
 | the console footer broke mid-word ("TPM a / nd attestation") | the hints wrap between hints, never inside one |
 | the wizard's Standard card centred its text while Hardened beside it did not | cards lay out top down; a stretched `<button>` centres by default |
 | every evaluation of the installer warned about `boot.zfs.forceImportRoot` | set false there too: the installer's root is RAM and never imports a pool at boot |
+| **after a prompt answered over SSH, the next prompt drew no field on the splash** (the gallery's "passphrase prompt" still showed only the logo, before today too) | the agent keeps one Plymouth question open across prompts and the theme showed the field only from Plymouth's password callback, which a reused question never calls again; the theme now draws the field when a prompt's label arrives. `vm-splash`, `vm-encryption` and the boot media run pass, and the still shows the field |
 
 **The gate outgrew this host.** `nix flake check`'s single evaluator reached
 58 GB and the kernel killed it; under a 40 GB cap it was killed at 41 GB.
@@ -2709,3 +2710,4 @@ of one at a time.
 |---|---|
 | all 49 checks, one process each | pass |
 | panel pages, three finishes, demo mode | no page errors, read by eye |
+| `nix run .#media` | every run passes; the boot run's labels were one release behind the numbered prompts |
