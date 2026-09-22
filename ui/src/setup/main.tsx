@@ -134,13 +134,29 @@ function Wizard() {
   const profile = (values["nixie.profile"] as string) ?? "server";
   const steps = STEPS.filter((s) => s.id !== "desktop" || profile === "desktop");
   const set = (k: string, v: unknown) => setValues((x) => ({ ...x, [k]: v }));
-  const offered = (o: Opt) => !NOT_FIELDS.includes(o.path) && !(profile === "desktop" && SERVER_ONLY.test(o.path)) && !(hw && !hw.tpm && TPM_ONLY.test(o.path));
+  // What this machine can be asked for, by path: a desktop is not asked the
+  // server questions, and a machine with no TPM is not asked the TPM ones.
+  const offeredPath = (path: string) =>
+    !NOT_FIELDS.includes(path)
+    && !(profile === "desktop" && SERVER_ONLY.test(path))
+    && !(hw && !hw.tpm && TPM_ONLY.test(path));
+  const offered = (o: Opt) => offeredPath(o.path);
   // A hardened setup turns these on and keeps them on; without a TPM the two
   // that need one are not offered at all, so they cannot be locked either.
   const lockedByHardening = (o: Opt) => hardened && o.path in HARDENED && offered(o);
   const setHardening = (on: boolean) => {
     setHardened(on);
-    if (on) setValues((v) => ({ ...v, ...HARDENED }));
+    // Only what this machine can actually do. Applying the whole set turned
+    // the TPM on where there is none -- which the card above says is not
+    // part of the setup, while the values said otherwise -- and a TPM that
+    // is enabled adds a second LUKS layer bound to a device that never
+    // answers. The install succeeds and the machine stops at its first
+    // start in emergency mode, with systemd-cryptsetup@rpool-outer failed.
+    if (on)
+      setValues((v) => ({
+        ...v,
+        ...Object.fromEntries(Object.entries(HARDENED).filter(([path]) => offeredPath(path))),
+      }));
   };
   const stepOpts = useMemo(() => {
     const m: Record<string, Opt[]> = {};
@@ -287,6 +303,13 @@ function Wizard() {
         if (needs.length) out.push(`These need disk encryption: ${needs.join(", ")}. Turn encryption on, or these off.`);
       }
       if (["root", "nobody"].includes(String(values["nixie.auth.admin.name"]))) out.push("The administrator cannot be root or nobody: it is a normal account of its own that uses sudo.");
+      // However it got turned on: a TPM that is not there opens nothing.
+      // The disk would be given a layer bound to it and the machine would
+      // stop at its first start instead of asking for the passphrase.
+      if (hw && !hw.tpm) {
+        const absent = ["tpm", "attestation"].filter((f) => on(`nixie.security.${f}.enable`));
+        if (absent.length) out.push(`This machine has no TPM, so these cannot work: ${absent.join(", ")}. Turn them off to carry on.`);
+      }
       // Remote unlock is an SSH login, so it needs a key to log in with.
       const keys = values["nixie.auth.sshKeys"];
       if (on("nixie.security.remoteUnlock.enable") && !(Array.isArray(keys) && keys.length > 0)) out.push("Unlock over SSH is on: add the SSH public key you will unlock with.");

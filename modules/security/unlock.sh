@@ -92,9 +92,15 @@ while true; do
     if splash; then
       # systemd asks every token's PIN alike; the TPM's is the outer
       # layer's, a security key's the passphrase layer's.
+      # A machine with a TPM layer is asked twice at every start once that
+      # layer is bound: the PIN opens the outer one, and the inner one has
+      # no answer to reuse, so it asks for its own. Saying which of the two
+      # is being asked for is the difference between a second lock and the
+      # same question apparently asked twice.
+      two=""; [ ! -e /dev/mapper/rpool-outer ] || two=" (2 of 2)"
       case $msg in
-        *PIN*) if [[ $name == *-outer ]]; then label="PIN"; else label="Security key PIN"; fi ;;
-        *) if [[ $name == *-outer ]]; then label="Passphrase or recovery key"; else label="Disk passphrase"; fi ;;
+        *PIN*) if [[ $name == *-outer ]]; then label="PIN (1 of 2)"; else label="Security key PIN$two"; fi ;;
+        *) if [[ $name == *-outer ]]; then label="Passphrase or recovery key"; else label="Disk passphrase$two"; fi ;;
       esac
       say "$again"
       # For the journal: nothing on the screen says what was asked.

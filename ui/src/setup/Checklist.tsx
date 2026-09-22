@@ -92,7 +92,7 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
   const phases = [
     { n: 4, title: "First start", blurb: "The identity and the site are in place.", used: true },
     { n: 5, title: "Secure Boot", blurb: "Turn Secure Boot on with this machine's own keys.", used: Boolean(features.secureBoot) },
-    { n: 6, title: features.tpm || features.fido2 ? "Disk unlock" : "Header backup", blurb: features.tpm ? `Bind the disk to this machine's TPM with a PIN, and test that they open it${features.fido2 ? "; enrol your security key" : ""}.` : features.fido2 ? "Enrol your security key, so it opens the disk at start." : "Save a backup of the disk's encryption headers.", used: Boolean(features.encryption) },
+    { n: 6, title: features.tpm || features.fido2 ? "Disk unlock" : "Header backup", blurb: features.tpm ? `Bind the disk to this machine's TPM with a PIN, and test that they open it${features.fido2 ? "; enrol your security key" : ""}. From then on every start asks twice: the PIN for the outer layer, then ${features.fido2 ? "your security key" : "the disk passphrase"} for the one inside it.` : features.fido2 ? "Enrol your security key, so it opens the disk at start." : "Save a backup of the disk's encryption headers.", used: Boolean(features.encryption) },
     { n: 7, title: "Checks", blurb: "Confirm each security feature works on this start.", used: true },
     { n: 8, title: "Apply the site", blurb: "Create the guests, data and services the site declares.", used: true },
   ];

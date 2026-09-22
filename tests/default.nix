@@ -134,6 +134,15 @@ let
     )
   );
   unknownHardened = lib.filter (p: !(lib.elem p wizardPaths)) hardenedPaths;
+  # That list names the TPM, so it must only be applied to a machine that has
+  # one. Applying it whole turned the TPM on where there is none, which gives
+  # the disk a layer nothing can open: the install finishes and the machine
+  # stops in emergency mode at its first start. Two things keep that shut --
+  # the setup filters the list by what this machine is offered, and the
+  # Security step refuses the combination however else it was reached.
+  wizardSource = builtins.readFile ../ui/src/setup/main.tsx;
+  filtersHardened = lib.hasInfix "Object.entries(HARDENED).filter(([path]) => offeredPath(path))" wizardSource;
+  refusesAbsentTpm = lib.hasInfix "This machine has no TPM, so these cannot work" wizardSource;
 in
 {
   fmt = pkgs.runCommand "fmt" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
@@ -199,6 +208,10 @@ in
     assert lib.assertMsg (
       lib.length hardenedPaths > 5
     ) "the wizard's hardened setup list could not be read from main.tsx";
+    assert lib.assertMsg filtersHardened
+      "the wizard's hardened setup is applied unfiltered: on a machine with no TPM it would turn the TPM on, and the disk would get a layer nothing can open";
+    assert lib.assertMsg refusesAbsentTpm
+      "the wizard's Security step no longer refuses a TPM that is not there";
     pkgs.writeText "option-docs" (toString (lib.length (lib.collect lib.isOption nixieOptions)));
 
   # Every fenced block tagged `sh test` in the README runs against the

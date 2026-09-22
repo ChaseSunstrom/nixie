@@ -46,14 +46,33 @@ in
         assertion = config.nixie.security.encryption.enable;
         message = "nixie.security.tpm.enable needs nixie.security.encryption.enable";
       }
+      {
+        # Caught here rather than at the first start. Without a TPM this adds
+        # an outer layer whose crypttab tells the initrd to look for a device
+        # that is not there; the install succeeds and the machine stops in
+        # emergency mode instead of asking for the passphrase.
+        assertion = config.nixie.hardware.tpm;
+        message = ''
+          nixie.security.tpm.enable is on, but this machine has no TPM:
+          hosts/<name>/hardware.nix says nixie.hardware.tpm = false, which is
+          what the installer found. Binding the disk to a TPM that is not
+          there gives it a layer nothing can open, and the machine stops at
+          its first start. Turn nixie.security.tpm.enable (and
+          nixie.security.attestation.enable, which needs it too) off, or
+          install on a machine with a TPM.
+        '';
+      }
     ];
     boot.initrd.systemd.tpm2.enable = true;
     boot.initrd.availableKernelModules = [
       "tpm_tis"
       "tpm_crb"
     ];
-    # The outer layer is enrolled by setup (phase 6) with a PIN; until then its
-    # passphrase slot is used, so first boot asks twice.
+    # The outer layer is enrolled by setup (phase 6) with a PIN; until then
+    # its passphrase slot is what opens it, and systemd offers the inner
+    # layer the same passphrase, so a person still types it once (vm-splash
+    # holds that). This option is also why the TPM must actually exist: it
+    # tells the initrd to look for one.
     boot.initrd.luks.devices.rpool-outer.crypttabExtraOpts = [ "tpm2-device=auto" ];
     security.tpm2.enable = true;
     environment.systemPackages = [ pkgs.tpm2-tools ];

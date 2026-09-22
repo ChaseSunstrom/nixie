@@ -374,14 +374,25 @@ def apply_config(b):
     web wizard posts them to /api/config; the terminal wizard pipes the same
     JSON to --configure, so both write the site the same way."""
     host = b["host"]
+    found = {}
+    try:
+        r = sh(["nixie-discover"])
+        if not r.returncode:
+            found = json.loads(r.stdout)
+    except Exception:
+        pass
     write_state({
         "host": host,
         "profile": b["profile"],
         "systemDisk": b["systemDisk"],
         "dataDisk": b.get("dataDisk"),
         "uplinks": b.get("uplinks", []),
-        "gpu": b.get("gpu", "none"),
-        "tpm": b.get("tpm", False),
+        # From the machine, not from whoever posted. The wizard sends neither,
+        # so every install through it recorded "no TPM" -- which `nixie
+        # doctor` then reported as drift, and which is what hardware.nix
+        # carries into the built system.
+        "gpu": b.get("gpu", found.get("gpu", "none")),
+        "tpm": b.get("tpm", found.get("tpm", False)),
         "hostId": b.get("hostId"),
         "options": {
             "secureBoot": bool(b.get("settings", {}).get("nixie.security.secureBoot.enable")),

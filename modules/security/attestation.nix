@@ -51,6 +51,15 @@ in
         assertion = config.nixie.security.encryption.enable;
         message = "nixie.security.attestation.enable needs nixie.security.encryption.enable";
       }
+      {
+        assertion = config.nixie.hardware.tpm;
+        message = ''
+          nixie.security.attestation.enable is on, but this machine has no
+          TPM: hosts/<name>/hardware.nix says nixie.hardware.tpm = false. The
+          code it shows before the passphrase comes from the TPM, so there
+          would be none to show.
+        '';
+      }
     ];
     boot.initrd.availableKernelModules = [
       "tpm_tis"

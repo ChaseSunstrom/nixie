@@ -13,6 +13,9 @@ def on_console(pattern, timeout=600):
         assert time.time() < deadline, f"not on the console: {pattern}"
         time.sleep(1)
 
+# A hardened machine asks twice once the TPM is bound -- the PIN opens the
+# outer layer and the inner one has no answer to reuse -- so the prompts say
+# which of the two they are.
 def asked(label, again=False):
     # The agent notes each question in the kernel log; the splash itself
     # is read off the screen.
@@ -120,19 +123,19 @@ with subtest("a machine with no TPM still asks for the passphrase, and soon"):
 with subtest("the code and the PINs on the splash, a wrong PIN said so"):
     target.start()
     on_console("nixie-attestation: code shown")
-    asked("PIN")
+    asked("PIN (1 of 2)")
     target.screenshot("splash-code-and-pin")
     # The code, drawn large as two groups of three digits (OCR does not
     # always see the gap), under its caption.
     text = screen()
     assert "Attestation code" in text and re.search(r"\d{3} ?\d{3}", text), "no code on the splash"
     type_in("9999")
-    asked("PIN", again=True)
+    asked("PIN (1 of 2)", again=True)
     target.screenshot("splash-wrong-pin")
     assert "did not open" in screen(), "no word of the wrong PIN"
     type_in("1234")
     # The passphrase layer asks for the security key's PIN instead.
-    asked("Security key PIN")
+    asked("Security key PIN (2 of 2)")
     target.screenshot("splash-security-key")
     type_in("123456")
     target.wait_for_unit("multi-user.target")
@@ -207,7 +210,7 @@ with subtest("another machine opens the disk with the recovery key and the passp
 
 with subtest("the duress passphrase typed at the PIN prompt wipes both layers"):
     target.start()
-    asked("PIN")
+    asked("PIN (1 of 2)")
     type_in("wipe-me")
     target.wait_for_shutdown()
     installer.start()

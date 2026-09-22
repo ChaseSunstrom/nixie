@@ -2631,3 +2631,46 @@ in it that no user could have got past.
 | `vm-deploy`, on the shared module | pass |
 | `vm-deploy-kexec` | written, unregistered, does not finish here |
 | the 49-check gate | pass |
+
+## A hardened install, in VirtualBox, start to finish (2026-09-22)
+
+A person reported an install that ended in emergency mode on a VirtualBox
+machine with a TPM and Secure Boot, and asked whether the disk was being
+encrypted twice because the passphrase is asked for again. VirtualBox is on
+this host, so the answer came from running it rather than from reading.
+
+**What the reported machine's own disk says.** Its ESP is not encrypted, so
+it can be read: the install wrote it at 22:34 and `loader/keys/` -- what
+phase 5 stages -- appeared at 22:40, which only happens after a first boot
+that worked. `loader.conf` carries `secure-boot-enroll force`. The outer
+LUKS layer has a passphrase slot and the unbound duress slot, and **no
+`systemd-tpm2` token**, so phase 6 never ran there. The failure is the boot
+after the Secure Boot enrolment, not the one after the install.
+
+**The run here.** A VM matching it -- EFI, TPM 2.0, one SATA disk, 8 GB --
+took the whole hardened path: `check ok=True`, phases 1 to 3, first boot,
+the passphrase, the setup generation, Secure Boot staged and enrolled, the
+restart, the TPM bound with a PIN (PCRs 7), the recovery key printed, Apply,
+and Finish. Both restarts came up; neither reached emergency mode. **The
+reported failure did not reproduce.**
+
+**What did come out of it, and is fixed:**
+
+| found | why it matters |
+|---|---|
+| the wizard applied its Hardened list whole | `setHardening` wrote every path in `HARDENED`, TPM included, while `offered` right above it hides the TPM options on a machine without one and the card says they "are not part of this setup". On such a machine the disk gets an outer layer bound to a device that never answers. Now filtered by what the machine is offered, refused by the Security step, and asserted against in `tpm.nix` and `attestation.nix` so the wizard's own Review step catches it |
+| the installer never recorded the TPM it found | `apply_config` took `tpm` from the request body with `False` as the default, and no front end sends it, so **every** wizard install wrote `nixie.hardware.tpm = false` however much TPM the machine had. It now asks `nixie-discover`. This is how the assertion above was caught: the live scan said `tpm: true` and the written fact said false |
+| nothing said a hardened start asks twice | Once the TPM is bound, the PIN opens the outer layer and the inner one has no answer to reuse, so it asks for the disk passphrase after it -- at every start, not only the first. That is the design (`vm-splash` drives exactly that sequence), but the step that turns it on said only "bind the disk to this machine's TPM with a PIN, and test that they open it". It now says what every start will ask for, and the prompts say which of the two they are |
+
+**One rough edge, left as it is.** `Checks` fails once after Apply, with
+`attestation code does not compute`; `tpm2-totp` says "The system state has
+changed" because the boot chain did. The step says so and names the remedy,
+`nixie reseal` ran in a second, and Checks passed. Resealing without being
+asked is what attestation exists to prevent, so this stays a person's
+decision.
+
+| check | result |
+|---|---|
+| `nix run` of the hardened path in VirtualBox, phases 1-8 | pass, both restarts, TPM+PIN and Secure Boot both live |
+| the reported emergency mode | not reproduced |
+| the 49-check gate | pass |
