@@ -64,8 +64,8 @@ os.makedirs("frames", exist_ok=True)
 # agent's notes on the serial console.
 stills = [
     ("nixie-attestation: code shown", "boot-attestation-code"),
-    (r"asking for PIN on the splash", "boot-pin-prompt"),
-    (r"asking for Disk passphrase on the splash", "boot-passphrase-prompt"),
+    (r"asking for PIN \(1 of 2\) on the splash", "boot-pin-prompt"),
+    (r"asking for Disk passphrase \(2 of 2\) on the splash", "boot-passphrase-prompt"),
 ]
 i = 0
 t0 = time.time()
