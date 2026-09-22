@@ -71,7 +71,18 @@ draw() {
   qy=3; qx=$(( cols - ${#ql[0]} - 4 )); [ "$qx" -lt 60 ] && qx=60
   for l in "${ql[@]}"; do printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$INK"; printf '%s' "$l"; r; qy=$((qy+1)); done
   printf '\033[%d;%dH' "$qy" "$qx"; b "$BG"; c "$MUTED"; printf '%s' "$url"; r
-  printf '\033[%d;1H' "$((rows-1))"; b "$BG"; c "$MUTED"; printf '  any key: log in · u: apply the waiting site update · r: roll back to the previous system · b: boot the previous one next time · e: re-enrol Secure Boot, TPM and attestation · Ctrl+Alt+F3: plain console'; r
+  # Key hints wrap between hints, never inside one, and end a line above the
+  # bottom so the terminal does not scroll.
+  local hints=("any key: log in" "u: apply the waiting site update" "r: roll back to the previous system" "b: boot the previous one next time" "e: re-enrol Secure Boot, TPM and attestation" "Ctrl+Alt+F3: plain console")
+  local lines=() line="" h y
+  for h in "${hints[@]}"; do
+    if [ -z "$line" ]; then line="  $h"
+    elif [ $(( ${#line} + ${#h} + 3 )) -ge "$cols" ]; then lines+=("$line"); line="  $h"
+    else line+=" · $h"; fi
+  done
+  lines+=("$line")
+  y=$(( rows - ${#lines[@]} ))
+  for line in "${lines[@]}"; do printf '\033[%d;1H' "$y"; b "$BG"; c "$MUTED"; printf '%s' "$line"; r; y=$((y+1)); done
 }
 stty -echo 2>/dev/null || true
 while true; do

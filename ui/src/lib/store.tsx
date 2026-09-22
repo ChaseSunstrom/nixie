@@ -2,7 +2,7 @@
 // chart cursor, the rolling metrics history and the site's declared guests.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { incus, parseMetrics, type Backend, type Instance, type Op } from "./api";
-import { demo, demoSeries } from "./demo";
+import { demo, demoDeclared, demoSeries } from "./demo";
 import { applyFinish, type Finish, type Tokens } from "../tokens";
 import { NOTICES_KEY, UI_KEY, type Notice, type UiConfig } from "./ui-config";
 
@@ -205,15 +205,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (a.length > HISTORY) a.shift();
     };
     if (api.demo) {
-      const n = (h["_n"]?.[0] ?? 0) + 1;
-      h["_n"] = [n];
-      const idx = (i: number) => (n * 3 + i * 17) % 1440;
-      push("host.cpu", demoSeries.hostCpu[idx(0)]);
-      push("host.mem", demoSeries.mem[idx(1)]);
-      for (const [name, s] of Object.entries(demoSeries.cpu)) push(`cpu.${name}`, s[idx(2)]);
-      demoSeries.gpuUtil.forEach((s, i) => push(`gpu.util.${i}`, s[idx(3 + i)]));
-      demoSeries.gpuPower.forEach((s, i) => push(`gpu.power.${i}`, s[idx(5 + i)]));
-      demoSeries.gpuTemp.forEach((s, i) => push(`gpu.temp.${i}`, s[idx(7 + i)]));
+      // A fresh demo page starts with a full history, so its charts look like
+      // a machine that has been running rather than one sample per chart.
+      const first = !h["_n"];
+      for (let k = first ? HISTORY : 1; k > 0; k--) {
+        const n = (h["_n"]?.[0] ?? 0) + 1;
+        h["_n"] = [n];
+        const idx = (i: number) => (n * 3 + i * 17) % 1440;
+        push("host.cpu", demoSeries.hostCpu[idx(0)]);
+        push("host.mem", demoSeries.mem[idx(1)]);
+        for (const [name, s] of Object.entries(demoSeries.cpu)) push(`cpu.${name}`, s[idx(2)]);
+        demoSeries.gpuUtil.forEach((s, i) => push(`gpu.util.${i}`, s[idx(3 + i)]));
+        demoSeries.gpuPower.forEach((s, i) => push(`gpu.power.${i}`, s[idx(5 + i)]));
+        demoSeries.gpuTemp.forEach((s, i) => push(`gpu.temp.${i}`, s[idx(7 + i)]));
+      }
       tick((x) => x + 1);
       return;
     }
@@ -280,7 +285,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<Store>(
-    () => ({ api, demo: api.demo, site, finish, setFinish, ui, saveUi, range, setRange, cursor, setCursor, instances, operations, events, history: history.current, refresh, toast, toasts, auth, notices, run }),
+    () => ({ api, demo: api.demo, site: api.demo && !Object.keys(site.declared).length ? { ...site, declared: demoDeclared } : site, finish, setFinish, ui, saveUi, range, setRange, cursor, setCursor, instances, operations, events, history: history.current, refresh, toast, toasts, auth, notices, run }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [api, site, finish, ui, range, cursor, instances, operations, events, toasts, auth, notices],
   );

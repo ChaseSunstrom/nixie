@@ -150,7 +150,9 @@ export function Dashboards({ uid, guest }: { uid?: string; guest?: string }) {
       out[p.id] = fr;
     }
     return out;
-  }, [dash.uid, minutes, selGuest, prom, tick], 15000);
+    // Again once the first sample lands, or a page opened straight onto a
+    // dashboard stays empty until the next poll.
+  }, [dash.uid, minutes, selGuest, prom, tick, (history["host.cpu"]?.length ?? 0) > 0], 15000);
   const guests = useMemo(() => Object.keys(history).filter((k) => k.startsWith("cpu.")).map((k) => k.slice(4)), [history]);
 
   return (
@@ -181,7 +183,9 @@ export function Dashboards({ uid, guest }: { uid?: string; guest?: string }) {
           const unit = p.fieldConfig?.defaults?.unit ?? "short";
           return (
             <Panel key={p.id} title={p.title} dense style={{ gridColumn: `${p.gridPos.x / 2 + 1} / span ${p.gridPos.w / 2}`, gridRow: `${p.gridPos.y + 1} / span ${p.gridPos.h}` }}>
-              {p.type === "timeseries" ? <TimeSeries frames={frames?.[p.id] ?? []} unit={unit} threshold={th ?? undefined} sync={dash.uid} /> : <Stat frames={frames?.[p.id] ?? []} unit={unit} kind={p.type} />}
+              {frames && !frames[p.id]?.length ? (
+                <div className="empty">{prom && !demo ? "Prometheus has no data for this panel yet." : "This browser keeps CPU, memory and GPU history only. Set a Prometheus URL in Settings for the rest."}</div>
+              ) : p.type === "timeseries" ? <TimeSeries frames={frames?.[p.id] ?? []} unit={unit} threshold={th ?? undefined} sync={dash.uid} /> : <Stat frames={frames?.[p.id] ?? []} unit={unit} kind={p.type} />}
             </Panel>
           );
         })}

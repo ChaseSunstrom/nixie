@@ -41,6 +41,7 @@ export function bursty(seed: number, lo: number, hi: number, n = 1440): number[]
 
 const names = ["web", "db", "worker", "compute", "builder", "vm1", "legacy", "scratch"];
 const now = () => new Date().toISOString();
+const ago = (s: number) => new Date(Date.now() - s * 1000).toISOString();
 const inst = (name: string, i: number): Instance => ({
   name,
   type: name === "vm1" ? "virtual-machine" : "container",
@@ -52,8 +53,13 @@ const inst = (name: string, i: number): Instance => ({
   state: { status: "Running", pid: 1000 + i, cpu: { usage: 1e9 * (i + 1) }, memory: { usage: 2 ** 28 * (i + 1), usage_peak: 2 ** 29, total: 2 ** 33 }, disk: { root: { usage: 2 ** 30 * (i + 1) } }, network: { uplink: { addresses: [{ family: "inet", address: `192.0.2.${10 + i}`, scope: "global" }], counters: { bytes_received: 1e9, bytes_sent: 5e8 } } } },
 });
 let instances = names.map(inst);
+// Demo mode has no site file: every guest but the scratch one is declared.
+export const demoDeclared = Object.fromEntries(
+  names.filter((n) => n !== "scratch").map((n, i) => [n, { kind: n === "vm1" ? "vm" : "container", ip: `192.0.2.${10 + i}`, image: `nixie/${n}` }]),
+);
 export const demoSeries = {
-  cpu: Object.fromEntries(names.map((n, i) => [n, walk(i + 1, 12 + i * 6, 6, 0, 100, 1440, 0.01)])),
+  // Stopped and frozen guests use no CPU, and the metrics endpoint leaves them out.
+  cpu: Object.fromEntries(names.map((n, i) => [n, walk(i + 1, 12 + i * 6, 6, 0, 100, 1440, 0.01)] as const).filter(([n]) => n !== "legacy" && n !== "builder")),
   hostCpu: walk(99, 20, 5, 0, 100),
   mem: walk(7, 55, 2, 0, 100),
   gpuUtil: [bursty(11, 2, 92), bursty(12, 3, 70)],
@@ -61,9 +67,9 @@ export const demoSeries = {
   gpuTemp: [walk(31, 62, 3, 30, 95), walk(32, 55, 3, 30, 95)],
 };
 let ops: Op[] = [
-  { id: "op-1", status: "Running", class: "task", description: "Creating snapshot", created_at: now(), may_cancel: true, resources: { instances: ["/1.0/instances/db"] } },
-  { id: "op-2", status: "Running", class: "task", description: "Pulling image debian/12", created_at: now(), may_cancel: true, metadata: { download_progress: "42%" } },
-  { id: "op-3", status: "Success", class: "task", description: "Starting instance", created_at: now(), may_cancel: false, resources: { instances: ["/1.0/instances/web"] } },
+  { id: "op-1", status: "Running", class: "task", description: "Creating snapshot", created_at: ago(40), may_cancel: true, resources: { instances: ["/1.0/instances/db"] } },
+  { id: "op-2", status: "Running", class: "task", description: "Pulling image debian/12", created_at: ago(95), may_cancel: true, metadata: { download_progress: "42%" } },
+  { id: "op-3", status: "Success", class: "task", description: "Starting instance", created_at: ago(300), may_cancel: false, resources: { instances: ["/1.0/instances/web"] } },
 ];
 const finished = (description: string, instance?: string): Op => ({ id: `op-${Math.random().toString(36).slice(2, 8)}`, status: "Success", class: "task", description, created_at: now(), may_cancel: false, resources: instance ? { instances: [`/1.0/instances/${instance}`] } : undefined });
 const snaps: Record<string, Snapshot[]> = Object.fromEntries(names.map((n) => [n, [1, 2, 3].map((i) => ({ name: `daily-${i}`, created_at: new Date(Date.now() - 86400000 * i).toISOString(), stateful: false, size: 2 ** 27 * i }))]));
@@ -118,7 +124,7 @@ export const demo: Backend = {
   profiles: async (): Promise<Profile[]> => [
     { name: "default", description: "Default profile", config: {}, devices: { root: { type: "disk", path: "/", pool: "default" } }, used_by: names.map((n) => `/1.0/instances/${n}`) },
     { name: "gpu", description: "All host GPUs", config: {}, devices: { gpu: { type: "gpu" } }, used_by: ["/1.0/instances/compute"] },
-    { name: "killswitch", description: "Exit-node only egress", config: {}, devices: {}, used_by: [] },
+    { name: "killswitch", description: "Exit-node only egress", config: {}, devices: {}, used_by: instances.filter((x) => x.profiles.includes("killswitch")).map((x) => `/1.0/instances/${x.name}`) },
   ],
   saveProfile: async () => undefined,
   deleteProfile: async () => undefined,
@@ -133,7 +139,7 @@ export const demo: Backend = {
     { name: "media", driver: "dir", config: { source: "/data/media" }, used_by: [] },
   ],
   poolResources: async (n) => ({ space: { used: n === "default" ? 1.3e12 : 6e11, total: 2e12 } }),
-  volumes: async () => names.slice(0, 5).map((n) => ({ name: n, type: "container", content_type: "filesystem", used_by: [`/1.0/instances/${n}`], config: {} })),
+  volumes: async (pool) => (pool === "default" ? names : []).map((n) => ({ name: n, type: "container", content_type: "filesystem", used_by: [`/1.0/instances/${n}`], config: {} })),
   operations: async () => ops,
   cancelOperation: async (id) => {
     ops = ops.map((o) => (o.id === id ? { ...o, status: "Cancelled" } : o));

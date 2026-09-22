@@ -99,7 +99,7 @@ export function Networks() {
     <PageHead title="Networks" count={nets?.length} sub="The bridge guests share, and what is attached to it." />
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       <Panel title="Interfaces" dense>
-        <div className="table" style={{ gridTemplateColumns: "120px 80px 1fr 80px 60px 1fr" }}>
+        <div className="table" style={{ gridTemplateColumns: "100px 150px 1fr 56px 40px 1fr" }}>
           <span className="h">name</span><span className="h">type</span><span className="h">addresses</span><span className="h">state</span><span className="h">used</span><span className="h">traffic</span>
           {(nets ?? []).map((n) => (
             <span key={n.name} style={{ display: "contents" }}>

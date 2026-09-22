@@ -33,7 +33,7 @@ export function Topology({ instances, networks }: { instances: Instance[]; netwo
               <line x1={x} x2={x} y1={H / 2} y2={y} stroke="var(--net)" strokeWidth="1.5" strokeDasharray={frozen || stopped ? "3 3" : undefined} />
               {ks && <circle cx={x} cy={y} r="10" fill="none" stroke="var(--err)" strokeWidth="2" />}
               <circle cx={x} cy={y} r="6" fill={stopped ? "var(--muted)" : frozen ? "var(--ice)" : "var(--ok)"} />
-              <text x={x} y={up ? y - 12 : y + 18} fontSize="12" fontWeight="500" fill={frozen || stopped ? "var(--muted)" : "var(--ink)"} textAnchor="middle">
+              <text x={x} y={up ? y - 12 : y + (ks ? 26 : 20)} fontSize="12" fontWeight="500" fill={frozen || stopped ? "var(--muted)" : "var(--ink)"} textAnchor="middle">
                 {i.name}
               </text>
             </g>

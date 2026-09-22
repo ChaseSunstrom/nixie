@@ -75,6 +75,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .panel.dense { padding: 10px 14px 12px; }
 .panel > header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .panel > header .t { font-weight: 500; }
+/* A panel whose lanes run edge to edge keeps its title in line with them. */
+.panel > header:has(+ .lane-head) { padding: 10px 14px 0; }
 .panel > header .sub { color: var(--muted); font-weight: 400; }
 .panel > header .v { font-family: "JetBrains Mono", monospace; }
 .well { background: var(--s2); border-radius: 6px; box-shadow: inset 0 1px 3px var(--shadow); overflow: hidden; position: relative; }
@@ -96,7 +98,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .dot.frozen { background: var(--ice); border-color: var(--ice); }
 .dot.live { width: 8px; height: 8px; background: var(--ok); border: 0; box-shadow: 0 0 8px var(--ok); }
 .strip { display: grid; grid-template-columns: repeat(96, 1fr); gap: 1px; height: 11px; border-radius: 2px; overflow: hidden; }
-.strip.row { border-radius: 3px; }
+/* .row centres items, which collapses these empty cells to nothing. */
+.strip.row { border-radius: 3px; align-items: stretch; }
 .bar { height: 5px; border-radius: 2px; background: var(--s2); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 2px; background: var(--mem); }
 

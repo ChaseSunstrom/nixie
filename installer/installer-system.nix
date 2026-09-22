@@ -74,6 +74,8 @@ in
     };
 
     boot.supportedFilesystems.zfs = true;
+    # The installer's root is RAM, so no pool is ever imported at boot.
+    boot.zfs.forceImportRoot = false;
     networking.hostId = lib.mkDefault "8425e349";
     networking.useDHCP = lib.mkDefault true;
     networking.firewall.allowedTCPPorts = [ 22 ] ++ lib.optional web 9443;

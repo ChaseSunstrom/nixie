@@ -2674,3 +2674,38 @@ decision.
 | `nix run` of the hardened path in VirtualBox, phases 1-8 | pass, both restarts, TPM+PIN and Secure Boot both live |
 | the reported emergency mode | not reproduced |
 | the 49-check gate | pass |
+
+## The panel in demo mode, the console footer, and a gate that fits (2026-09-22)
+
+Every panel page was photographed in all three finishes from the packaged
+bundle in demo mode, with Playwright from the pinned nixpkgs, and read
+screen by screen. The console footer and the wizard's first step were read
+from the last ISO run's screenshots.
+
+| found | fixed by |
+|---|---|
+| the GPU heatmap and a dashboard heatmap drew nothing | the strip's `row` modifier also matched the global `.row` layout, whose centred items collapse empty cells to no height; the strip now stretches them |
+| a fresh demo page had one sample per chart and per-guest strip | demo mode fills the history on its first sample |
+| demo mode labelled every guest scratch | with no site file, demo mode declares every guest but the scratch one, as the fixture's own comment says |
+| demo mode showed CPU use for the stopped and the frozen guest | their series are left out, as the metrics endpoint leaves them out |
+| a dashboard opened straight from its link stayed empty for 15 s | it polls again once the first sample lands |
+| network, disk and load panels were blank boxes without Prometheus | they say that this browser keeps CPU, memory and GPU only, and where to set Prometheus |
+| the Overview's Operations rows packed into one grid cell each | the row is `display: contents`, as its events list already was |
+| the Instances panel title sat on the panel's edge | a title above edge-to-edge lanes takes the lanes' padding |
+| Networks' type column ran into the addresses | wider type column |
+| topology labels touched the killswitch ring | labels below a ring sit further down |
+| demo fixture contradicted itself: killswitch "used by 0", guest volumes in the media pool, every operation "0s" old | derived from the instances, the default pool only, and ages in the past |
+| the console footer broke mid-word ("TPM a / nd attestation") | the hints wrap between hints, never inside one |
+| the wizard's Standard card centred its text while Hardened beside it did not | cards lay out top down; a stretched `<button>` centres by default |
+| every evaluation of the installer warned about `boot.zfs.forceImportRoot` | set false there too: the installer's root is RAM and never imports a pool at boot |
+
+**The gate outgrew this host.** `nix flake check`'s single evaluator reached
+58 GB and the kernel killed it; under a 40 GB cap it was killed at 41 GB.
+The gate was run as one capped `nix build .#checks.x86_64-linux.<name>`
+per check, in sequence, which evaluates the same 49 checks with the memory
+of one at a time.
+
+| check | result |
+|---|---|
+| all 49 checks, one process each | pass |
+| panel pages, three finishes, demo mode | no page errors, read by eye |

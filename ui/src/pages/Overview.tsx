@@ -132,7 +132,7 @@ export function Overview() {
       <Panel title="Operations" sub={`${running.length} running`} span={span} dense style={{ height }}>
         <div className="table" style={{ gridTemplateColumns: "1fr 48px 32px" }}>
           {running.slice(0, 4).map((o) => (
-            <a key={o.id} href="#/operations">
+            <a key={o.id} href="#/operations" style={{ display: "contents" }}>
               <span>{o.description}</span>
               <Bar pct={Number(String((o.metadata as { download_progress?: string })?.download_progress ?? "50%").replace("%", "")) || 50} color="var(--brand2)" />
               <span className="mono muted">{fmtAge(o.created_at)}</span>
