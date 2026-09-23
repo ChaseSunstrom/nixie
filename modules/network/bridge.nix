@@ -111,7 +111,12 @@ in
         lib.imap0 (i: mac: {
           name = "10-nixie-uplink${toString i}";
           value = {
-            matchConfig.MACAddress = mac;
+            # In LAN mode the bridge wears the first uplink's MAC, so a match
+            # on the address alone let the bridge race the card for this name.
+            matchConfig = {
+              MACAddress = mac;
+              Type = "!bridge";
+            };
             linkConfig.Name = "uplink${toString i}";
           };
         }) cfg.bridge.uplinks
