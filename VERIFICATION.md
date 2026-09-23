@@ -2741,3 +2741,13 @@ eight modhex characters. They remain in the history that was pushed.
 | `vm-deploy-kexec` | pass |
 | `vm-deploy` (the ISO path, tar instead of rsync) | pass |
 | all 50 checks, one process each | pass |
+
+**Two more screens, read from the regenerated gallery.** The desktop's bar and
+control centre drew the Wi-Fi glyph for a wired connection, and the tile would
+have switched the Wi-Fi radio off when pressed; the shell now reads the
+connection's type, draws `lan` (checked in the shipped font: U+EB2F) for
+Ethernet, and the tile opens the network panel instead. The host page's
+Health card was an empty box on a machine with nothing to report; it is
+hidden only while its list is empty, so a failed unit or a pending restart
+still shows. `vm-desktop`, `vm-host-ui` and every non-VM check pass, and the
+desktop and panel media runs show both.

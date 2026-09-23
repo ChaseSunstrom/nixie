@@ -231,3 +231,8 @@ body,
     animation: none !important;
   }
 }
+
+/* The overview's Health card lists what needs attention: updates, failed
+   units, a pending restart. With nothing to list it is an empty box, which
+   reads as broken rather than as healthy. */
+.system-health:not(:has(.system-health-events > li)) { display: none; }

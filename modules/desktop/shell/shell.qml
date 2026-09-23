@@ -80,7 +80,7 @@ ShellRoot {
 
   // Material Symbols Rounded glyphs, by name (codepoints, so the file stays ASCII).
   readonly property var ic: ({
-    search: "\ue8b6", wifi: "\ue63e", wifiOff: "\ue648", bt: "\ue1a7",
+    search: "\ue8b6", wifi: "\ue63e", wifiOff: "\ue648", wired: "\ueb2f", bt: "\ue1a7",
     volume: "\ue050", volumeOff: "\ue04f", bright: "\ue1ac", moon: "\ue51c",
     battery: "\ue1a4", bell: "\ue7f4", bellOff: "\ue7f6", power: "\ue8ac",
     lock: "\ue897", logout: "\ue9ba", restart: "\uf053", sleep: "\uef44",
@@ -243,13 +243,16 @@ ShellRoot {
   // Network and Bluetooth status, polled with the everyday tools.
   property string netLabel: ""
   property bool netUp: false
+  // A cable, not a radio: its own glyph, and the tile must not switch Wi-Fi off.
+  property bool netWired: false
+  readonly property string netGlyph: netWired ? ic.wired : netUp ? ic.wifi : ic.wifiOff
   property string btLabel: ""
-  Process { id: netProc; stdout: StdioCollector { onStreamFinished: { var l = text.trim(); root.netUp = l !== ""; root.netLabel = l || "offline" } } }
+  Process { id: netProc; stdout: StdioCollector { onStreamFinished: { var l = text.trim(); var i = l.lastIndexOf(":"); root.netUp = l !== ""; root.netWired = l.slice(i + 1) === "802-3-ethernet"; root.netLabel = l ? l.slice(0, i).replace(/\\:/g, ":") : "offline" } } }
   Process { id: btProc; stdout: StdioCollector { onStreamFinished: root.btLabel = text.trim() } }
   Timer {
     interval: 5000; running: true; repeat: true; triggeredOnStart: true
     onTriggered: {
-      netProc.command = ["sh", "-c", "nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | grep -v loopback | head -1 | cut -d: -f1"]; netProc.running = true
+      netProc.command = ["sh", "-c", "nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | grep -v loopback | head -1"]; netProc.running = true
       btProc.command = ["sh", "-c", "bluetoothctl devices Connected 2>/dev/null | head -1 | cut -d' ' -f3-"]; btProc.running = true
     }
   }
@@ -421,7 +424,7 @@ ShellRoot {
             onClicked: { root.loadWallpapers(); root.toggle("control") }
             Row {
               id: pills; anchors.centerIn: parent; spacing: 12; height: 28
-              IconText { glyph: root.netUp ? root.ic.wifi : root.ic.wifiOff; color2: root.netUp ? root.cInk : root.cMuted }
+              IconText { glyph: root.netGlyph; color2: root.netUp ? root.cInk : root.cMuted }
               IconText { visible: root.btLabel !== ""; glyph: root.ic.bt }
               IconText { visible: root.caffeine; glyph: root.ic.coffee; color2: root.accent }
               IconText { glyph: (Pipewire.defaultAudioSink && Pipewire.defaultAudioSink.audio && Pipewire.defaultAudioSink.audio.muted) ? root.ic.volumeOff : root.ic.volume }
@@ -625,8 +628,8 @@ ShellRoot {
         SliderRow { label: root.ic.bright; value: 0.7; onMoved: v => root.sh("brightnessctl -q set " + Math.round(v * 100) + "%") }
         Grid {
           columns: 2; spacing: 8; width: parent.width
-          Toggle { glyph: root.netUp ? root.ic.wifi : root.ic.wifiOff; label: root.netUp ? root.netLabel : "Wi-Fi"; on: root.netUp; width: (parent.width - 8) / 2
-            onToggled: root.sh("nmcli radio wifi " + (root.netUp ? "off" : "on")) }
+          Toggle { glyph: root.netGlyph; label: root.netUp ? root.netLabel : "Wi-Fi"; on: root.netUp; width: (parent.width - 8) / 2
+            onToggled: root.netWired ? root.open("network") : root.sh("nmcli radio wifi " + (root.netUp ? "off" : "on")) }
           Toggle { glyph: root.ic.bt; label: root.btLabel !== "" ? root.btLabel : "Bluetooth"; on: root.btLabel !== ""; width: (parent.width - 8) / 2
             onToggled: root.sh("rfkill toggle bluetooth") }
           Toggle { glyph: root.ic.dnd; label: "Do not disturb"; on: root.dnd; width: (parent.width - 8) / 2; onToggled: root.dnd = !root.dnd }
@@ -636,7 +639,7 @@ ShellRoot {
         }
         Row {
           spacing: 8; width: parent.width
-          PanelBtn { glyph: root.ic.wifi; label: root.netUp ? root.netLabel : "Networks"; width: (parent.width - 16) / 3; onClicked: { root.loadNets(); root.sh("nixie-shell net scan"); root.open("network") } }
+          PanelBtn { glyph: root.netWired ? root.ic.wired : root.ic.wifi; label: root.netUp ? root.netLabel : "Networks"; width: (parent.width - 16) / 3; onClicked: { root.loadNets(); root.sh("nixie-shell net scan"); root.open("network") } }
           PanelBtn { glyph: root.ic.devices; label: "Devices"; width: (parent.width - 16) / 3; onClicked: { root.loadBts(); root.sh("nixie-shell bt scan"); root.open("bluetooth") } }
           PanelBtn { glyph: root.ic.tune; label: "Mixer"; width: (parent.width - 16) / 3; onClicked: { root.loadMixers(); root.open("mixer") } }
         }
