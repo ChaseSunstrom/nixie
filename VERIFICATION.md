@@ -2712,3 +2712,32 @@ of one at a time.
 | all 49 checks, one process each, on the final tree | pass (`vm-console` and `vm-data` re-run after a binary-cache timeout) |
 | panel pages, three finishes, demo mode | no page errors, read by eye |
 | `nix run .#media` | every run passes; the boot run's labels were one release behind the numbered prompts |
+
+## The kexec path, end to end (2026-09-22)
+
+`vm-deploy-kexec` is registered and passes. The deploy kexecs a plain NixOS
+machine into an installer, reconnects, and runs phases 1 to 3 to
+"installation finished", pulls the generated files back into the site, and
+restarts the target. What comes after that restart is the same continuation
+`vm-deploy` proves from the ISO. The entries of 2026-09-19 and 2026-09-20 put
+the stalls down to this host; they were the path's own, three of them, each
+found by reading the run rather than waiting it out.
+
+| found | fixed by |
+|---|---|
+| after the kexec, nixos-anywhere's reconnect sat at `(root@…) Password:` forever | it reconnects with a key of its own that it installs before the kexec, and the test image trusted one fixed key. The image now carries every key that could log in as root across on the kernel command line, as it already did the address; the image nixos-anywhere downloads does the same through an extra initrd |
+| `rsync: command not found` on the target, then the protocol error | the deploy sent the site with rsync, which a minimal installer does not have (the downloaded one included). It sends and fetches with tar over the same ssh and options as every other step; the fetch-back had also skipped those options |
+| `nixie-phase: command not found` | the phase engine was copied into the kexeced machine's store but called by name. It is called by its store path there; the hardware scan had the same fault and fell back to `{}` without a word |
+
+**A committed log held recovery keys.** `tests/artifacts/test-iso-hardened/phases.log`
+(committed 2026-09-15) carried two outer-layer recovery keys of test disks that no
+longer exist. `test-iso` already redacted "anything shaped like" a key on the way
+out, but its pattern was a different shape and never matched. The keys are
+redacted in the tree and the pattern is systemd-cryptenroll's own: eight groups of
+eight modhex characters. They remain in the history that was pushed.
+
+| check | result |
+|---|---|
+| `vm-deploy-kexec` | pass |
+| `vm-deploy` (the ISO path, tar instead of rsync) | pass |
+| all 50 checks, one process each | pass |

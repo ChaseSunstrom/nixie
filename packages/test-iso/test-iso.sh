@@ -40,11 +40,12 @@ vars="$out/efi-vars.fd"; cp @ovmf@/FV/OVMF_VARS.fd "$vars"; chmod +w "$vars"
 # empty. But these files are what VERIFICATION.md links to and what a person
 # attaches to a bug report, and the key is the one secret among them that
 # opens the disk -- so anything shaped like one is redacted on the way out,
-# whatever ends the run. Word-bounded, because a nix store hash can carry
+# whatever ends the run. The shape is systemd-cryptenroll's: eight groups of
+# eight modhex characters. Word-bounded, because a nix store hash can carry
 # that shape inside it and those are not secrets.
 redact() {
   find "$out" -type f \( -name '*.log' -o -name '*.txt' -o -name '*.json' \) -print0 2>/dev/null \
-    | xargs -0 -r sed -i -E 's/\b[0-9a-z]{8}(-[0-9a-z]{5}){4}\b/<recovery key redacted>/g' || true
+    | xargs -0 -r sed -i -E 's/\b[cbdefghijklnrtuv]{8}(-[cbdefghijklnrtuv]{8}){7}\b/<recovery key redacted>/g' || true
 }
 trap 'pkill -f "$out/serial.sock" || true; pkill -f "tpmstate dir=$out/tpm" || true; redact' EXIT
 mkdir -p "$out/tpm"

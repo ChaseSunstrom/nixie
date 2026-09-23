@@ -98,8 +98,37 @@ let
               echo "nixie: carried $cidr to $dev" >/dev/console || true
             '';
           };
+          # The keys that could log in before the kexec, put back after it.
+          # nixos-anywhere installs a key of its own on the machine and
+          # reconnects with only that one; an image that trusts a fixed key
+          # leaves it at a password prompt forever. The image nixos-anywhere
+          # downloads carries them in an extra initrd; this one uses the
+          # command line, as it does for the address.
+          systemd.services.nixie-carry-keys = {
+            description = "The SSH keys that could log in before the kexec";
+            wantedBy = [ "multi-user.target" ];
+            before = [ "sshd.service" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            script = ''
+              keys=
+              for word in $(cat /proc/cmdline); do
+                case $word in
+                  nixie.keys=*) keys=''${word#nixie.keys=} ;;
+                esac
+              done
+              [ -n "$keys" ] || { echo "no keys to carry"; exit 0; }
+              mkdir -m 700 -p /root/.ssh
+              echo "$keys" | base64 -d >>/root/.ssh/authorized_keys
+              chmod 600 /root/.ssh/authorized_keys
+              echo "carried $(wc -l </root/.ssh/authorized_keys) keys"
+            '';
+          };
           boot.kernelParams = [ "console=ttyS0" ];
           documentation.enable = false;
+          system.stateVersion = lib.trivial.release;
           system.extraDependencies = carry;
         }
       )
@@ -172,6 +201,12 @@ let
         ipcmd="ip=$host::$gw:$(netmask_for "$bits")::$dev:off nixie.carry=$cidr,$gw,$mac"
         echo "carrying $cidr on $dev ($mac) across the kexec"
       fi
+
+      # Every key that can log in as root now, the one nixos-anywhere just
+      # installed included; type and key only, so the line stays short.
+      keys=$(cat /root/.ssh/authorized_keys /etc/ssh/authorized_keys.d/root 2>/dev/null \
+        | awk '/^(ssh-|ecdsa-|sk-)/ {print $1" "$2}' | sort -u | base64 -w0 || true)
+      [ -z "$keys" ] || ipcmd="$ipcmd nixie.keys=$keys"
 
       # shellcheck disable=SC2086
       ./kexec --load ./bzImage --initrd=./initrd $extra \

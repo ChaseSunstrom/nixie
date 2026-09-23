@@ -9,12 +9,12 @@ pkgs.writeShellApplication {
     git
     gnused
     gum
+    gnutar
     jq
     nano
     nix
     nixos-anywhere
     openssh
-    rsync
     (import ./nixie-installer.nix { inherit pkgs; })
   ];
   # The phase commands are meant to expand on the client before they travel.

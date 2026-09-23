@@ -249,6 +249,9 @@ say "building $host from $site"
 toplevel=${NIXIE_TOPLEVEL:-$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.toplevel")}
 disko=${NIXIE_DISKO:-$(nix build --no-link --print-out-paths "$site#nixosConfigurations.$host.config.system.build.diskoScript")}
 
+# Where the phase commands are on the target: on its PATH on the ISO, and
+# only in the store on an installer a kexec brought up.
+bin=""
 if r test -e /etc/nixie-iso; then
   say "target runs the Nixie ISO; no kexec needed"
 else
@@ -275,14 +278,18 @@ else
   done
   [ "$up" = 1 ] || { say "the target did not come back from the kexec"; exit 1; }
   # After kexec the target is a plain NixOS installer; give it the phase engine.
-  nix copy --to "ssh://$target" "$(dirname "$(dirname "$(command -v nixie-phase)")")"
+  engine=$(dirname "$(dirname "$(command -v nixie-phase)")")
+  nix copy --to "ssh://$target" "$engine"
+  bin="$engine/bin/"
 fi
 
 nix copy --to "ssh://$target" "$toplevel" "$disko"
-rsync -a --delete "$site/" "$target:/tmp/nixie-site/"
+# tar over the same ssh as everything else: the installer a kexec brings up
+# is a minimal NixOS with no rsync on it.
+tar -C "$site" -cf - . | r "rm -rf /tmp/nixie-site && mkdir -p /tmp/nixie-site && tar -C /tmp/nixie-site -xf -"
 r mkdir -p /var/lib/nixie/setup /run/nixie/keys "&&" chmod 700 /run/nixie/keys
 
-hw=$(r nixie-discover 2>/dev/null || echo '{}')
+hw=$(r "${bin}nixie-discover" 2>/dev/null || echo '{}')
 disk=$(nix eval --raw "$site#nixosConfigurations.$host.config.nixie.disks.system")
 data=$(nix eval --raw "$site#nixosConfigurations.$host.config.nixie.disks.data" 2>/dev/null || echo null)
 enc=$(nix eval "$site#nixosConfigurations.$host.config.nixie.security.encryption.enable")
@@ -306,11 +313,11 @@ else
   secret "administrator password" | r "cat >/run/nixie/keys/admin-password"
 fi
 env="NIXIE_SITE=/tmp/nixie-site NIXIE_TOPLEVEL=$toplevel NIXIE_DISKO=$disko"
-r "$env nixie-phase 1 && $env nixie-phase 2 && $env nixie-phase 3"
+r "$env ${bin}nixie-phase 1 && $env ${bin}nixie-phase 2 && $env ${bin}nixie-phase 3"
 say "pulling the generated files back into the site"
-rsync -a "$target:/tmp/nixie-site/hosts/" "$site/hosts/"
-rsync -a "$target:/tmp/nixie-site/secrets/" "$site/secrets/"
-rsync -a "$target:/tmp/nixie-site/.sops.yaml" "$site/.sops.yaml"
+# The list is worked out on the target, where the files are.
+# shellcheck disable=SC2016
+r 'cd /tmp/nixie-site && tar -cf - $(ls -d hosts secrets .sops.yaml 2>/dev/null)' | tar -C "$site" -xf -
 say "installed; rebooting the target"
 r systemctl reboot || true
 # Phases 4 to 8 and Finish belong to the setup generation, whose own terminal

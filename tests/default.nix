@@ -658,11 +658,8 @@ in
   # machine and hands over to the setup generation's own front end. The run
   # itself needs two machines (see VERIFICATION.md); this is the shape of the
   # script that does it.
-  # The kexec branch, which vm-deploy takes but cannot finish here: the
-  # image nixos-anywhere unpacks comes from a flake this platform does not
-  # have, and nixpkgs' own kexec tarball is a different shape (the entry of
-  # 2026-09-19 says what that cost). What is held here is the shape of the
-  # branch itself -- three things that were wrong until a test took it.
+  # The kexec branch's shape, cheaply: vm-deploy-kexec takes the branch end
+  # to end, and this holds three things that were wrong until a test took it.
   deploy-kexecs = pkgs.runCommand "deploy-kexecs" { } ''
     s=${self.packages.x86_64-linux.deploy}/bin/nixie-deploy
     # It asks the target what it is, and only kexecs a machine that is not
@@ -1035,6 +1032,16 @@ in
   vm-desktop = import ./vm/desktop.nix { inherit pkgs nixieLib desktopSite; };
 
   vm-deploy = import ./vm/deploy.nix {
+    inherit
+      pkgs
+      inputs
+      self
+      nixieLib
+      exampleSite
+      ;
+  };
+
+  vm-deploy-kexec = import ./vm/deploy-kexec.nix {
     inherit
       pkgs
       inputs

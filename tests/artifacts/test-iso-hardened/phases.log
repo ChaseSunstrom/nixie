@@ -6509,7 +6509,7 @@ data: "Wiped slot 0."
 
 data: "[nixie 6] outer layer bound to TPM (PCRs 7) with PIN"
 
-data: "[nixie 6] recovery key (shown once, write it down): fbkthkju-cjuvrkth-fftfrukk-nhlrrlrl-uigeejnv-kdevrnku-unhllvin-ntkjbclg"
+data: "[nixie 6] recovery key (shown once, write it down): <recovery key redacted>"
 
 data: "[nixie 6] TPM lockout password set"
 
@@ -13047,7 +13047,7 @@ data: "Wiped slot 0."
 
 data: "[nixie 6] outer layer bound to TPM (PCRs 7) with PIN"
 
-data: "[nixie 6] recovery key (shown once, write it down): vejfhegl-lgihbinh-ghnndvut-rnfuiunc-bvngrvrd-gdnnfiil-vheldjvf-tlkfvudc"
+data: "[nixie 6] recovery key (shown once, write it down): <recovery key redacted>"
 
 data: "WARNING:esys:src/tss2-esys/api/Esys_HierarchyChangeAuth.c:298:Esys_HierarchyChangeAuth_Finish() Received TPM Error"
 
