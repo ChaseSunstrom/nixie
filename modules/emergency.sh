@@ -23,6 +23,13 @@ report() {
     echo
   fi
   echo "The disk is still locked and nothing has been changed."
+  # The outer layer is the TPM's: when it refuses, only the recovery key
+  # setup showed opens it, not the disk passphrase.
+  if [[ $(systemctl --failed --no-legend --plain 2>/dev/null) == *x2douter* ]]; then
+    echo "The outer layer did not open. If the PIN was not accepted, the TPM refused:"
+    echo "start again and type the recovery key from setup at the Recovery key prompt,"
+    echo "then run 'nixie security reenroll' to bind the TPM again."
+  fi
   echo "Take a photo of this screen: it says which part gave up."
   echo "Starting again and holding Space offers the previous system."
   echo

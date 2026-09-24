@@ -130,7 +130,7 @@ with subtest("the code and the PINs on the splash, a wrong PIN said so"):
     text = screen()
     assert "Attestation code" in text and re.search(r"\d{3} ?\d{3}", text), "no code on the splash"
     type_in("9999")
-    asked("PIN (1 of 2)", again=True)
+    asked("PIN not accepted (wrong PIN, or Secure Boot changed). PIN", again=True)
     target.screenshot("splash-wrong-pin")
     assert "did not open" in screen(), "no word of the wrong PIN"
     type_in("1234")

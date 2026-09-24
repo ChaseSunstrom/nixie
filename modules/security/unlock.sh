@@ -98,9 +98,25 @@ while true; do
       # is being asked for is the difference between a second lock and the
       # same question apparently asked twice.
       two=""; [ ! -e /dev/mapper/rpool-outer ] || two=" (2 of 2)"
+      # Once the outer layer has asked for the TPM's PIN, its passphrase
+      # slot is gone (phase 6) and only the recovery key opens it; the
+      # TPM refuses a right PIN too when Secure Boot or the firmware
+      # changed since setup. Only the label reaches a text console.
       case $msg in
-        *PIN*) if [[ $name == *-outer ]]; then label="PIN (1 of 2)"; else label="Security key PIN$two"; fi ;;
-        *) if [[ $name == *-outer ]]; then label="Passphrase or recovery key"; else label="Disk passphrase$two"; fi ;;
+        *PIN*)
+          if [[ $name == *-outer ]]; then
+            # A second request is a refusal; systemd rewords its retry, so
+            # $again does not catch it.
+            label="PIN (1 of 2)"
+            [ -z "${outer_pin:-}" ] || label="PIN not accepted (wrong PIN, or Secure Boot changed). PIN"
+            outer_pin=1
+          else label="Security key PIN$two"; fi
+          ;;
+        *)
+          if [[ $name != *-outer ]]; then label="Disk passphrase$two"
+          elif [ -n "${outer_pin:-}" ]; then label="The TPM did not open the disk. Recovery key"
+          else label="Passphrase or recovery key"; fi
+          ;;
       esac
       say "$again"
       # For the journal: nothing on the screen says what was asked.

@@ -2808,3 +2808,30 @@ VM down cleanly.
 | `fmt`, `statix`, `deadnix`, `secure-boot-states`, `secure-boot-report`, `boot-and-setup`, `systemd-security`, `eval-matrix`, `option-docs`, `option-reference`, `readme`, `no-hardware-facts`, `iso-config`, `setup-devices` | pass |
 | `vm-splash` (735 s): attestation code at boot, reseal unit, TPM + PIN, duress | pass |
 | `vm-encryption` (486 s), `vm-installer-lan` (194 s), `vm-deploy` (356 s) | pass |
+
+## "Could not finish starting" after entering both codes (2026-09-24)
+
+Reported with a photo: after a full install with Secure Boot on, the PIN
+and the passphrase were typed and the machine stopped with
+`systemd-cryptsetup@rpool\x2douter.service failed` and `zfs-import-rpool`
+failed. Reproduced in VirtualBox on a finished hardened install by making
+the TPM refuse (Secure Boot unticked, which changes PCR 7): "PIN (1 of 2)"
+came back with no reason given, the second try fell back to "Passphrase or
+recovery key", and the disk passphrase typed there ended the start, because
+after phase 6 only the recovery key opens the outer layer and the default
+three tries had been spent on the PIN. Typing on the VM's own keyboard and
+waiting four minutes at either prompt both worked, so neither was the cause.
+
+Changes: the outer layer asks until answered (`tries=0`; the TPM's lockout
+still limits PIN guessing); a second PIN request reads "PIN not accepted
+(wrong PIN, or Secure Boot changed)"; the fallback reads "The TPM did not
+open the disk. Recovery key"; the emergency screen, when the outer layer
+failed, says to start again with the recovery key and then run
+`nixie security reenroll`.
+
+| check | result |
+|---|---|
+| `final.sh` again on the rebuilt ISO: every step of the 2026-09-23 run, cold start code 427605, restart code 157782 | pass |
+| refused TPM (Secure Boot unticked): the fallback says "The TPM did not open the disk. Recovery key"; the disk passphrase typed there is asked again instead of failing; the recovery key opens the disk and the machine starts | pass |
+| `vm-splash` (586 s), wrong PIN shows the new label; `vm-encryption` (409 s) | pass |
+| `fmt`, `statix`, `deadnix`, `boot-and-setup`, `systemd-security`, `eval-matrix`, `option-reference` | pass |

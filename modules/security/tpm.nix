@@ -73,7 +73,14 @@ in
     # layer the same passphrase, so a person still types it once (vm-splash
     # holds that). This option is also why the TPM must actually exist: it
     # tells the initrd to look for one.
-    boot.initrd.luks.devices.rpool-outer.crypttabExtraOpts = [ "tpm2-device=auto" ];
+    boot.initrd.luks.devices.rpool-outer.crypttabExtraOpts = [
+      "tpm2-device=auto"
+      # Asked until answered: the default three tries counted the TPM PIN
+      # attempts too, so when the TPM refused (Secure Boot changed) one
+      # wrong answer at the recovery key prompt ended in emergency mode.
+      # The TPM's own lockout still limits PIN guessing.
+      "tries=0"
+    ];
     security.tpm2.enable = true;
     environment.systemPackages = [ pkgs.tpm2-tools ];
   };
