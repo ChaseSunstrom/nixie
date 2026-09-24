@@ -58,6 +58,12 @@ usage() {
   c "disk close" "unmount and lock what disk open opened"
   c "usb [--json] | usb allow <vendor:product>" "blocked USB devices, or allow one"
   c "hardware scan | refresh | add-disk <by-id>" "compare with hardware.nix, rewrite it, add a disk"
+  if [ -e /etc/nixie/egress.json ]; then
+    h "Egress"
+    c "egress [status] [--json]" "which exit each scope uses, and which exits are up"
+    c "egress use <exit|direct> [--guest g | --guests | --host]" "pin a scope to one exit until 'egress auto'"
+    c "egress auto [--guest g | --guests | --host]" "back to the first working exit in the list"
+  fi
   h "Site"
   c "site key" "the key a site repository needs to receive pushes"
   if command -v nixie-menu >/dev/null; then
@@ -480,7 +486,7 @@ case "$cmd" in
   reseal)
     feature attestation || { echo "attestation is off; nothing to reseal"; exit 0; }
     tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery 2>/dev/null)" -p 4,7,8 </dev/null \
-      && { mkdir -p /boot/nixie; readlink -f /run/booted-system | tr -d '\n' >/boot/nixie/attestation-generation; echo "attestation resealed to the running boot chain"; } ;;
+      && { mkdir -p /boot/nixie; readlink -f /run/booted-system | tr -d '\n' >/boot/nixie/attestation-generation; echo "attestation resealed to the running boot chain"; "$self" notices --write >/dev/null; } ;;
   menu)
     command -v nixie-menu >/dev/null || { echo "the menu is part of the desktop profile" >&2; exit 2; }
     exec nixie-menu "$@" ;;
@@ -780,6 +786,50 @@ case "$cmd" in
         echo "$dev is now $name, mounted at $root/$name"
         echo "declare it in hosts/$host/hardware.nix as nixie.disks.data, or leave it as an extra pool" ;;
       *) echo "usage: nixie hardware [scan | refresh | add-disk <by-id> [name]]" >&2; exit 2 ;;
+    esac ;;
+  egress)
+    # nixie-egress (modules/network/exits.nix) reads a pin per scope and
+    # wakes on SIGUSR1; this writes the pins and shows its state.
+    cfg=/etc/nixie/egress.json
+    [ -e "$cfg" ] || { echo "no exits are configured on this host (nixie.network.exits)" >&2; exit 2; }
+    sub=${1:-status}; [ $# -eq 0 ] || shift
+    scope=""; want=""
+    [ "$sub" != use ] || { want=${1:?usage: nixie egress use <exit|direct> [--guest g | --guests | --host]}; shift; }
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --guest)
+          scope="guest-${2:?}"
+          jq -e --arg s "$scope" '.scopes | map(.name) | index($s)' "$cfg" >/dev/null ||
+            { echo "guest $2 has no egress list of its own and follows the guests' one: use --guests, or give it nixie.guests.$2.egress" >&2; exit 2; }
+          shift ;;
+        --guests) scope=guests ;;
+        --host) scope=host ;;
+        --json) json=1 ;;
+        *) echo "nixie egress: unknown option $1" >&2; exit 2 ;;
+      esac
+      shift
+    done
+    # The guests' scope where there are guests, else the machine's own.
+    [ -n "$scope" ] || { if jq -e '.scopes | map(.name) | index("guests")' "$cfg" >/dev/null; then scope=guests; else scope=host; fi; }
+    case $sub in
+      status)
+        st=/run/nixie/egress.json
+        [ -e "$st" ] || { echo "nixie-egress has not reported yet: systemctl status nixie-egress" >&2; exit 1; }
+        if [ "${json:-}" = 1 ]; then cat "$st"; exit 0; fi
+        jq -r '.exits | to_entries[] | "exit  \(.key)\t\(if .value.up then "up" else "down" end)"' "$st" | column -t -s $'\t'
+        jq -r '.servers // {} | to_entries[] | select(.value != "") | "      \(.key) via \(.value)"' "$st"
+        jq -r '.scopes | to_entries[] | select(.key | startswith("tor-") | not) | "\(.key)\t\(.value.using)\t\(if .value.pinned then "(pinned)" else "(from " + ((.value.list | join(", ")) // "") + ")" end)"' "$st" \
+          | sed 's/(from )/(direct)/' | column -t -s $'\t' ;;
+      use)
+        [ "$want" = direct ] || jq -e --arg e "$want" '.exits | has($e)' "$cfg" >/dev/null || { echo "no exit named $want; the exits are: $(jq -r '.exits | keys | join(", ")' "$cfg")" >&2; exit 2; }
+        printf '%s\n' "$want" >"/var/lib/nixie/egress/$scope"
+        # Without root the watcher cannot be woken; it looks again within 15 s.
+        systemctl kill -s USR1 nixie-egress.service 2>/dev/null || true
+        echo "$scope now uses $want until 'nixie egress auto'" ;;
+      auto)
+        rm -f "/var/lib/nixie/egress/$scope"; systemctl kill -s USR1 nixie-egress.service 2>/dev/null || true
+        echo "$scope follows its list again" ;;
+      *) echo "usage: nixie egress [status] | use <exit|direct> [--guest g | --guests | --host] | auto" >&2; exit 2 ;;
     esac ;;
   usb)
     f="$site/hosts/$host/usb.nix"

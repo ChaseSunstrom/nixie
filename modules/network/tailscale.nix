@@ -76,10 +76,8 @@ in
       enable = true;
       inherit (cfg) authKeyFile;
       useRoutingFeatures = "both";
-      extraUpFlags = lib.optionals (net.egress == "exit-node") [
-        "--exit-node=${net.exitNode}"
-        "--exit-node-allow-lan-access=${lib.boolToString net.exitNodeAllowLan}"
-      ];
+      # The exit node in use is set at run time by nixie-egress
+      # (modules/network/exits.nix), which moves it when one goes down.
     };
     # `tailscale serve` state is imperative; this rewrites it from the site on
     # every activation so the set of published services is always what git says.

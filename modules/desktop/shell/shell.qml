@@ -66,6 +66,19 @@ ShellRoot {
     } catch (e) {}
   }
   FileView { id: accentFile; path: Quickshell.env("HOME") + "/.config/nixie/accent" }
+  // Which exit this machine uses (modules/network/exits.nix); absent on a
+  // machine with no exits, and so is the tile that shows it.
+  FileView { id: egressFile; path: "/run/nixie/egress.json"; watchChanges: true; onFileChanged: reload() }
+  // The watcher replaces the file whole, which a watch can lose track of.
+  Timer { interval: 5000; repeat: true; running: root.mode === "control"; onTriggered: egressFile.reload() }
+  property var egress: { try { var e = JSON.parse(egressFile.text()); return e.scopes && e.scopes.host ? e : null } catch (err) { return null } }
+  // The tile steps through: the list, each exit pinned, then direct.
+  function nextExit() {
+    var h = root.egress.scopes.host
+    var opts = ["auto"].concat(Object.keys(root.egress.exits)).concat(["direct"])
+    var next = opts[(opts.indexOf(h.pinned ? h.using : "auto") + 1) % opts.length]
+    root.sh(next === "auto" ? "nixie egress auto --host" : "nixie egress use " + next + " --host")
+  }
   // When `nixie-shell finish` switches, it points this at the new finish dir.
   FileView {
     id: activeFinish
@@ -85,7 +98,7 @@ ShellRoot {
     battery: "\ue1a4", bell: "\ue7f4", bellOff: "\ue7f6", power: "\ue8ac",
     lock: "\ue897", logout: "\ue9ba", restart: "\uf053", sleep: "\uef44",
     play: "\ue037", pause: "\ue034", next: "\ue044", prev: "\ue045",
-    wallpaper: "\ue1bc", dnd: "\ue644", coffee: "\uefF0", camera: "\ue3b0", tune: "\ue429", devices: "\ue1b1"
+    wallpaper: "\ue1bc", dnd: "\ue644", coffee: "\uefF0", camera: "\ue3b0", tune: "\ue429", devices: "\ue1b1", vpn: "\ue62f"
   })
 
   // ---- state -------------------------------------------------------------
@@ -636,6 +649,10 @@ ShellRoot {
           Toggle { glyph: root.ic.moon; label: "Night light"; on: false; width: (parent.width - 8) / 2; onToggled: root.sh("pgrep -x hyprsunset >/dev/null && pkill -x hyprsunset || (hyprsunset -t 4500 &)") }
           Toggle { glyph: root.ic.coffee; label: "Keep awake"; on: root.caffeine; width: (parent.width - 8) / 2; onToggled: root.sh("nixie-shell caffeine") }
           Toggle { glyph: root.ic.camera; label: "Screenshot"; on: false; width: (parent.width - 8) / 2; onToggled: root.open("screenshot") }
+          Toggle { visible: root.egress !== null; glyph: root.ic.vpn; width: (parent.width - 8) / 2
+            label: root.egress ? (root.egress.scopes.host.using === "none" ? "Exit: cut off" : "Exit: " + root.egress.scopes.host.using + (root.egress.scopes.host.pinned ? "" : " (auto)")) : ""
+            on: root.egress !== null && root.egress.scopes.host.using !== "direct"
+            onToggled: root.nextExit() }
         }
         Row {
           spacing: 8; width: parent.width

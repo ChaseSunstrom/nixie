@@ -890,6 +890,13 @@ The tailnet name of the exit node used when egress is "exit-node".
 
 Under exit-node egress, still let guests reach your local network directly.
 
+## `nixie.network.exits`
+
+*attribute set of (submodule)*, default: `{}`.
+
+Ways out to the internet other than your own connection, each with a
+name the lists below use. Nothing uses an exit until a list names it.
+
 ## `nixie.network.firewall.extraForwardRules`
 
 *strings concatenated with "\n"*, default: `""`.
@@ -907,6 +914,37 @@ Extra nftables rules for the host's input chain, for a site's own needs.
 *null or string*, default: `null`. Wizard section: network.
 
 The router's address, needed only with a fixed address.
+
+## `nixie.network.guestEgress`
+
+*list of string*, default: `[]`. Wizard section: network.
+
+The exits guests use, in order: the first that works carries their
+traffic, and the next takes over when it stops. If none works, guests
+are cut off rather than sent out directly. Guests created outside the
+site follow this list too. Empty means your own connection.
+
+## `nixie.network.hostEgress`
+
+*list of string*, default: `[]`. Wizard section: network.
+
+The same for this machine's own traffic -- on a desktop, everything you
+do. Your local network and tailnet stay reachable. Empty means your own
+connection.
+
+## `nixie.network.nordApi`
+
+*string*, default: `"https://api.nordvpn.com"`.
+
+Internal: where NordVPN's server list and credentials are asked for (tests point it elsewhere).
+
+## `nixie.network.tailscale.advertiseExit`
+
+*null or string*, default: `null`.
+
+Offer this machine as an exit node to the other devices on your
+tailnet, with what they send leaving through the named exit -- NordVPN,
+for example. Approve it as an exit node in the Tailscale admin console.
 
 ## `nixie.network.tailscale.authKeyFile`
 

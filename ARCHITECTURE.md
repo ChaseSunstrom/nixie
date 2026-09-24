@@ -572,6 +572,71 @@ Hardware refresh (section 11):
 
 Pages (section 10): see section 10 below and D22.
 
+### 4.12 egress through several exits, NordVPN and Tor (change request, 2026-09-24)
+
+Asked for: several exit nodes, "tailnord" (a Tailscale exit node whose
+traffic leaves through NordVPN, as the tailscale-nordvpn projects do with
+two containers), and Tor after a VPN, on servers and desktops; per guest,
+as an ordered failover list, and switchable at runtime. The existing
+`egress = "exit-node"` / `exitNode` keep their meaning (one tailnet exit
+for every guest) and become shorthand for a one-entry list.
+
+```
+nixie.network.exits.<name>.type     enum "tailnet" | "wireguard" | "nordvpn" | "tor"
+  What this exit is. "tailnet": a node on your tailnet that offers itself as
+  an exit. "wireguard": any provider's WireGuard config (Mullvad, Proton, your
+  own server). "nordvpn": NordVPN over NordLynx, with the server picked from
+  Nord's list at start. "tor": the Tor network, reached through another exit.
+nixie.network.exits.<name>.node     str (tailnet)       the exit node's tailnet name or address
+nixie.network.exits.<name>.configFile  nullOr path (wireguard, sops)  a wg-quick style file
+nixie.network.exits.<name>.tokenFile   nullOr path (nordvpn, sops)   a NordVPN access token
+nixie.network.exits.<name>.country  nullOr str (nordvpn) country code, e.g. "ch"; null lets Nord pick
+nixie.network.exits.<name>.via      nullOr str (tor)    the exit Tor's own traffic leaves through
+  (so the chain is VPN -> Tor); null means Tor connects directly.
+nixie.network.guestEgress           listOf str, default [ ]
+  The exits guests use, in order: the first one that is up carries their
+  traffic, the next takes over when it goes down. Empty keeps "direct"
+  (or the old exit-node setting). Undeclared guests follow this list too.
+nixie.guests.<g>.egress             nullOr (either "direct" (listOf str)), default null
+  This guest's own list; null follows guestEgress.
+nixie.network.hostEgress            listOf str, default [ ]
+  The same for the machine's own traffic: on a desktop, everything you do.
+nixie.network.tailscale.advertiseExit  nullOr str, default null
+  Offer this machine as an exit node on your tailnet, with what other
+  devices send through it leaving by the named exit ("tailnord").
+```
+
+Mechanics. Each exit has a routing table and, for WireGuard and Nord, its own
+interface (`wg-<name>`, fwmarked so the tunnel's own packets go direct). Each
+scope -- the site default, each guest with its own list, the host, tailnet
+clients when advertising -- has a fwmark, set in the bridge family on the
+`veth-<name>` port (the undeclared catch-all on any other veth) or on
+`tailscale0`, and an `ip rule` from that mark to the table of the exit it
+currently uses. Every scope's rule falls through to a `blackhole` table,
+so a scope whose exits are all down loses its connection instead of leaking
+out directly: the kill switch holds for every exit type. A small unit,
+`nixie-egress`, checks each exit every 15 s (WireGuard handshake age, Nord
+the same, tailnet `tailscale status`, Tor bootstrap), points each scope at
+the first healthy exit in its list, and writes the state to
+`/run/nixie/egress.json`; `nixie egress status|use <exit> [--guest g|--host]
+|auto` reads and overrides it (override kept in `/var/lib/nixie/egress/`),
+and the control panel and the desktop bar call the same verb. Tor exits run
+one `tor` instance each with TransPort/DNSPort; a scope on Tor has its TCP
+and DNS redirected there and everything else dropped. Tor's own traffic is
+marked into the `via` exit's table, which is what makes it VPN -> Tor.
+
+The Nord exit asks Nord's public API at start for a recommended NordLynx
+server (country filter) and, with the token, for this account's NordLynx
+private key; nothing of either is in the store, and a new server is picked
+when the watcher marks the exit down.
+
+Limit (D42): tailscaled carries one exit node at a time, so tailnet exits
+share one slot: scopes whose first healthy exit is a tailnet node all use
+the same one (the first such in the host's list, else the default list).
+WireGuard, Nord and Tor exits have no such limit and can differ per guest.
+Running a tailscaled per tailnet exit would lift it, at the cost of one
+tailnet device and auth key per exit; not done until someone needs it.
+
 ## 5. The site contract
 
 `site.nix` is data:
@@ -1225,6 +1290,12 @@ and runs `nixie apply`.
   brief lists is implemented, but ones the design does not draw follow the
   same component recipes rather than a new design. `VERIFICATION.md` for the
   slice lists any feature that shipped in reduced form.
+- **D42 One tailnet exit node at a time.** Asked for: several exit nodes,
+  per guest. tailscaled routes through one exit node per instance, so the
+  tailnet exits of section 4.12 share that one slot; WireGuard, NordVPN and
+  Tor exits are independent and can differ per guest. A tailscaled per
+  tailnet exit would lift this at the cost of a tailnet device and auth key
+  each.
 - **D41 The attestation code is sealed to PCRs 4, 7 and 8, not 9.** The
   brief says 4,7,8,9. The pinned systemd (260) initialises its NvPCRs at
   every boot and measures an `nvpcr-init` record for each into PCR 9, from
@@ -1364,3 +1435,7 @@ After the console and showcase slices, in this order, one commit each with
   shot list committed inside the size budget, the README gallery, and the
   four defects the first complete run found (D28, D29); `vm-desktop`
   extended with the overview, recording and idle subtests (done).
+- (t) egress exits (section 4.12, D42): named exits of four kinds, per-guest
+  and host failover lists, the kill switch for every kind, `nixie egress`,
+  "tailnord", Tor after a VPN, the panel and desktop switches; `vm-egress`
+  extended.

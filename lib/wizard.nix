@@ -141,6 +141,14 @@
     label = "Exit node";
     advanced = true;
   };
+  "nixie.network.guestEgress" = {
+    label = "Exits guests use, in order";
+    advanced = true;
+  };
+  "nixie.network.hostEgress" = {
+    label = "Exits this machine uses, in order";
+    advanced = true;
+  };
   "nixie.network.exitNodeAllowLan" = {
     label = "Let guests reach the local network under an exit node";
     advanced = true;

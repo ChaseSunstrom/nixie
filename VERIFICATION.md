@@ -2856,3 +2856,32 @@ builds). The drv paths were checked against a real install's log first.
 | `final.sh` on the rebuilt ISO: phase 3 built 440 derivations, none from the list above; downloads came only from cache.nixos.org | pass |
 | the rest of the walk-through: Setup Mode, enrolment, TPM + PIN, Finish, codes 154435 (cold) and 114713 (restart), `CN=Nixie PK`, Secure Boot enabled | pass |
 | `fmt`, `statix`, `deadnix`, `iso-config`, `iso-grub-theme` | pass |
+
+## Egress through named exits: tailnet, WireGuard, NordVPN, Tor (slice (t), 2026-09-24)
+
+Asked for: several exit nodes, "tailnord" (a tailnet exit node leaving through
+NordVPN, as the tailscale-nordvpn projects do with containers), Tor after a
+VPN, per guest, as a failover list, switchable at runtime, on servers and
+desktops. Built as ARCHITECTURE 4.12 with one stated limit (D42: one tailnet
+exit node in use at a time). `modules/network/exits.nix`, `exit-up.sh`,
+`egress-watch.sh`; `nixie egress`; an Egress card on the host page and an
+exit tile in the desktop's control centre; `docs/guides/route-through-exits.md`.
+
+Found while building it: `writeShellApplication` turns errexit on, so the
+watcher died at the first `nft delete element` of a mark not in a Tor map (it
+now turns errexit off, being a loop); the nftables build-time check has no
+such users, so `meta skuid` names are swapped for `nobody` there only
+(`networking.nftables.preCheckRuleset`); `net.ipv4.ip_forward` was defined by
+the bridge and the exits both (the exits' is a default).
+
+| check | result |
+|---|---|
+| `vm-exits` (new, 375 s): two WireGuard providers, one also serving a stand-in NordVPN API; guests are namespaces on the bridge. The default list sends a declared and an undeclared guest out through the first exit and never to the LAN; a `direct` guest uses the uplinks; the machine's own traffic follows its own list (NordVPN, server `ch1.test` from the API) and the LAN still reaches its SSH; `nixie egress status/use/auto` pins and releases, and refuses `--guest` for a guest without its own list; a guest listed on Tor is cut off while Tor cannot start, and pinned to Tor its TCP reaches Tor's transparent port (Tor's own log) while ping is dropped; the first tunnel going down moves the guests to NordVPN (177 s); both down, guests and the machine are cut off and the status says so, with the LAN still reachable from the machine | pass |
+| `vm-egress` (109 s): the single `exitNode` setting, now a one-exit list | pass |
+| `vm-encryption` (417 s) | pass |
+| `fmt`, `statix`, `deadnix`, `systemd-security`, `eval-matrix`, `option-docs` | pass |
+
+Not verified here: a real NordVPN account and a real tailnet (the test's
+tunnels and API stand in for them; the API calls are the documented ones),
+Tor finishing its start (no Tor network offline), and "tailnord" end to end,
+which needs a tailnet to approve the exit node on.

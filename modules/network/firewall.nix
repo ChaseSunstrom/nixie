@@ -30,17 +30,40 @@ let
   onTailnet = config.nixie.network.tailscale.enable;
   private = "{ 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }";
 
-  # Under exit-node the only way out is the tunnel and, by option, the LAN;
-  # otherwise the uplinks.
+  # Under exits (modules/network/exits.nix) a guest leaves through a tunnel
+  # and, by option, to the LAN; only a scope whose list is "direct" uses the
+  # uplinks. Without exits, the uplinks.
+  marks = net.egressMarks;
+  directScopes = lib.filter (n: marks ? ${n}) (
+    lib.optional (net.guestEgress == [ ] && !exitNode) "guests"
+    ++ map (g: "guest-${g.name}") (lib.filter (g: g.egress == "direct") guests)
+  );
   egressRules =
-    if exitNode then
+    if marks != { } then
       ''
+        iifname "${br}" oifname "wg-*" accept
         iifname "${br}" oifname "${tailnetIf}" accept
+        ${lib.concatMapStringsSep "\n" (
+          n: ''iifname "${br}" oifname "uplink*" meta mark ${toString marks.${n}} accept''
+        ) directScopes}
         ${lib.optionalString net.exitNodeAllowLan ''iifname "${br}" oifname "uplink*" ip daddr ${private} accept''}
         iifname "${br}" drop
       ''
     else
       ''iifname "${br}" oifname "uplink*" accept'';
+  # Each guest's port marks its traffic with its egress scope.
+  markRules = lib.optionalString (marks != { }) ''
+    chain prerouting {
+      type filter hook prerouting priority filter; policy accept;
+      ${lib.concatMapStringsSep "\n" (
+        g:
+        lib.optionalString (marks ? "guest-${g.name}")
+          ''iifname "veth-${g.name}" meta mark set ${toString marks."guest-${g.name}"}''
+      ) guests}
+      iifname "veth*" meta mark 0 meta mark set ${toString marks.guests}
+    }
+  '';
+  torExits = lib.filterAttrs (_: e: e.type == "tor") net.exits;
 
   # Per-guest rules a site may extend; empty means the guest is treated like
   # every other one. The undeclared chain catches any other veth.
@@ -124,6 +147,11 @@ in
               config.nixie.hostUi.enable && onTailnet
             ) ''iifname "${tailnetIf}" tcp dport ${hostUiPort} accept''}
             ${lib.optionalString onTailnet "udp dport 41641 accept"}
+            # Guests on a Tor exit reach it here after the redirect.
+            ${lib.optionalString (torExits != { }) ''
+              iifname "${br}" tcp dport 9041-9099 accept
+              iifname "${br}" udp dport 5351-5399 accept
+            ''}
             ${fw.extraInputRules}
           }
           chain forward {
@@ -161,6 +189,7 @@ in
           chain guest-undeclared {
             accept
           }
+          ${markRules}
         '';
       };
     };

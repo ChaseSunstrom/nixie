@@ -74,6 +74,7 @@ let
       n: u: lib.hasPrefix "nixie-" n && lib.hasSuffix ".service" n && (u.enable or true)
     ) sys.config.systemd.units;
   documentedExposure = [
+    "nixie-egress"
     "nixie-attestation-reseal"
     "nixie-notices"
     "nixie-update"
@@ -1014,6 +1015,7 @@ in
   ];
 
   vm-egress = import ./vm/egress.nix { inherit pkgs nixieLib exampleSite; };
+  vm-exits = import ./vm/exits.nix { inherit pkgs nixieLib exampleSite; };
 
   vm-monitoring = import ./vm/monitoring.nix { inherit pkgs nixieLib exampleSite; };
 

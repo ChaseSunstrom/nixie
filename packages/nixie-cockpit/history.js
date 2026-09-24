@@ -124,7 +124,44 @@ function actions() {
   }
 }
 
+// Which exit each scope uses (modules/network/exits.nix), with a way to pin
+// one or hand it back to its list. Absent when the host has no exits.
+function egress() {
+  const box = document.getElementById("egress");
+  cockpit
+    .spawn(["nixie", "egress", "status", "--json"], { superuser: "try", err: "message" })
+    .then((out) => {
+      const st = JSON.parse(out);
+      const exits = Object.keys(st.exits);
+      const arg = (scope) => (scope === "host" ? ["--host"] : scope === "guests" ? ["--guests"] : ["--guest", scope.slice(6)]);
+      const scopes = Object.entries(st.scopes).filter(([s]) => !s.startsWith("tor-") && s !== "tailnet-clients");
+      const rows = scopes.map(([s, v]) => [
+        esc(s === "host" ? "this machine" : s === "guests" ? "guests" : s.slice(6)),
+        v.using === "none" ? '<span class="err">cut off: no exit works</span>' : esc(v.using),
+        '<span class="muted">' + esc(v.list.length ? v.list.join(" → ") : "direct") + "</span>",
+        '<select data-scope="' + esc(s) + '"><option value="auto"' + (v.pinned ? "" : " selected") + ">follow the list</option>" +
+          ["direct"].concat(exits).map((e) => '<option value="' + esc(e) + '"' + (v.pinned && v.using === e ? " selected" : "") + ">" + esc(e) + "</option>").join("") +
+          "</select>",
+      ]);
+      const health = exits.map((e) => '<span class="' + (st.exits[e].up ? "" : "err") + '">' + esc(e) + (st.exits[e].up ? " up" : " down") +
+        (st.servers && st.servers[e] ? " (" + esc(st.servers[e]) + ")" : "") + "</span>").join(" · ");
+      box.innerHTML = '<div class="card"><h2>Egress</h2><p>' + health + "</p>" +
+        table(["for", "leaving by", "list", "pin"], rows) + "</div>";
+      for (const sel of box.querySelectorAll("select")) {
+        sel.onchange = () => {
+          const argv = sel.value === "auto" ? ["nixie", "egress", "auto"] : ["nixie", "egress", "use", sel.value];
+          sel.disabled = true;
+          cockpit.spawn(argv.concat(arg(sel.dataset.scope)), { superuser: "require", err: "message" })
+            .then(() => setTimeout(egress, 2000))
+            .catch((e) => { box.insertAdjacentHTML("beforeend", '<p class="err">' + esc(e.message || e) + "</p>"); sel.disabled = false; });
+        };
+      }
+    })
+    .catch(() => { box.innerHTML = ""; });
+}
+
 function load() {
+  egress();
   cockpit
     .spawn(["nixie", "notices", "--json"], { superuser: "try", err: "message" })
     .then((out) => notices(JSON.parse(out)))

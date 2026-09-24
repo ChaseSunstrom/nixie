@@ -33,6 +33,20 @@ let
           default = [ ];
           description = "Extra Incus profiles to attach. The kill switch profile is added automatically under exit-node egress.";
         };
+        egress = mkOption {
+          type = t.nullOr (t.either (t.enum [ "direct" ]) (t.listOf t.str));
+          default = null;
+          example = [
+            "tor"
+            "nord"
+          ];
+          description = ''
+            This guest's own way out: "direct", or exits from
+            nixie.network.exits in order, the next taking over when one stops;
+            none working cuts the guest off. Empty follows
+            nixie.network.guestEgress.
+          '';
+        };
         nesting = mkOption {
           type = t.bool;
           default = false;
