@@ -63,7 +63,7 @@
 .pick:hover:not(:disabled) { border-color: var(--brand); transform: translateY(-1px); }
 .pick:disabled { opacity: .55; cursor: progress; }
 .pick-name { font-weight: 500; }
-.notice { margin: 0; padding: 9px 12px; border-radius: 6px; white-space: pre-wrap; animation: reveal 260ms var(--ease) both; }
+.notice { display: block; margin: 0; padding: 9px 12px; border-radius: 6px; white-space: pre-wrap; animation: reveal 260ms var(--ease) both; }
 .notice.err { background: color-mix(in oklch, var(--err) 12%, transparent); box-shadow: inset 3px 0 0 var(--err); }
 
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }

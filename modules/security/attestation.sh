@@ -53,6 +53,9 @@ case ${1:-once} in
     # every disk prompt, so waiting here is waiting the person does. A
     # machine without one says there is no code and gets out of the way.
     for _ in $(seq 20); do [ -e /dev/tpmrm0 ] && break; sleep 0.25; done
+    # The ESP's link too: on a SATA disk (VirtualBox's) udev makes it after
+    # this starts, and without the record a failed code reads "not yet".
+    for _ in $(seq 20); do [ -z "$esp" ] || [ -e "$esp" ] && break; sleep 0.25; done
     if [ -n "$esp" ] && [ -e "$esp" ]; then
       mkdir -p /run/nixie-esp
       if mount -o ro "$esp" /run/nixie-esp 2>/dev/null; then

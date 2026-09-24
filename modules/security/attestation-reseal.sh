@@ -18,6 +18,6 @@ if [ -z "$installed" ] || ! bootctl status 2>/dev/null | grep -qE 'Secure Boot: 
   echo "not sealing: $booted is not a Secure Boot verified system this machine installed; run 'nixie reseal' if you trust it"
   exit 0
 fi
-tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery)" -p 4,7,8,9
+tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery)" -p 4,7,8
 printf '%s' "$booted" >@sealed@
 echo "attestation sealed to $booted"

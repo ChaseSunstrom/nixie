@@ -124,6 +124,20 @@ Any hypervisor with UEFI works; these are the settings that matter.
   Network, Port Forwarding) and open `https://127.0.0.1:<port>/`.
 - **TPM (optional):** VirtualBox 7 and libvirt offer a virtual TPM 2.0; without
   one the wizard does not offer TPM binding.
+- **Secure Boot (optional):** leave the VM's Secure Boot box unticked while
+  installing; the installer does not start with it on. When setup reaches
+  Secure Boot it restarts into the VM's firmware menu, where VirtualBox's own
+  keys are removed: Device Manager, Secure Boot Configuration, Secure Boot
+  Mode set to Custom Mode, Custom Secure Boot Options, PK Options, Delete Pk,
+  Y, then Esc and Reset. The VM enrols this machine's keys on that restart
+  and enforces them from then on. Never press "Reset Keys to Default" in the
+  VM's settings: it restores VirtualBox's keys, and the VM then stops with
+  "Access Denied" (untick Secure Boot and repeat the steps to recover).
+- **Shut the VM down cleanly.** VirtualBox saves the firmware's keys and the
+  TPM's contents only when the VM stops normally; if VirtualBox itself is
+  killed, both go back to how they were at the last clean stop, and the
+  TPM PIN no longer opens the disk (the recovery key still does; then
+  `nixie security reenroll`).
 - **Graphics:** no 3D acceleration is needed; the wizard falls back to
   software rendering.
 - The image can stay attached while setup runs: each of setup's reboots goes

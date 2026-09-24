@@ -44,6 +44,25 @@ In the firmware settings, turn Secure Boot on, save, and boot again.
 MSG
   exit 12
 fi
+if [ "$(systemd-detect-virt 2>/dev/null || true)" = oracle ]; then
+  # VirtualBox's settings cannot do this: its Secure Boot checkbox refuses
+  # without a PK, and "Reset Keys to Default" (and the checkbox on a VM that
+  # never had keys) enrols Oracle's and Microsoft's, which refuse this
+  # machine's loader. Its firmware menu can.
+  cat >&2 <<'MSG'
+VirtualBox holds its own Secure Boot keys. Restart into the firmware settings
+(or press Esc as the VM starts), then:
+  1. Device Manager > Secure Boot Configuration.
+  2. Secure Boot Mode: Custom Mode.
+  3. Custom Secure Boot Options > PK Options > Delete Pk, and answer Y.
+  4. Esc back to the first menu and choose Reset.
+The VM then enrols this machine's keys and turns Secure Boot on by itself.
+Do not press "Reset Keys to Default" in the VM's settings: it puts
+VirtualBox's keys back, and the VM then shows "Access Denied". If that
+happened, untick Secure Boot there and repeat the steps.
+MSG
+  exit 11
+fi
 cat >&2 <<'MSG'
 The firmware holds other Secure Boot keys. In the firmware settings, under
 Secure Boot:

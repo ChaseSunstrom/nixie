@@ -2751,3 +2751,60 @@ Health card was an empty box on a machine with nothing to report; it is
 hidden only while its list is empty, so a failed unit or a pending restart
 still shows. `vm-desktop`, `vm-host-ui` and every non-VM check pass, and the
 desktop and panel media runs show both.
+
+## Secure Boot and the TPM in VirtualBox, with VirtualBox's own keys (2026-09-23)
+
+Reported: with Secure Boot on, VirtualBox refuses to start the disk ("Access
+Denied"); with it off, the keys never enrol. The reporter's VM held
+**Oracle's PK and Microsoft's KEK** (read from its NVRAM with `VBoxManage
+modifynvram queryvar`) with the switch off. VirtualBox's GUI enrols those
+when Secure Boot is ticked on a VM that never had keys, and again on "Reset
+Keys to Default"; its Main API refuses to turn Secure Boot on without a PK.
+So the firmware was never in Setup Mode, and turned on it enforced keys that
+refuse this machine's loader. VirtualBox's firmware menu does clear it:
+Device Manager > Secure Boot Configuration > Secure Boot Mode: Custom >
+Custom Secure Boot Options > PK Options > Delete Pk > Y. That also removes
+`SecureBootEnable`, so once systemd-boot enrols this machine's keys the
+firmware enforces them at once; the VirtualBox checkbox is never needed.
+
+A VM made the same way (the GUI's enrolment, then Secure Boot unticked; EFI,
+TPM 2.0, SATA, the ISO left attached) took the hardened install end to end,
+driven through the setup API with the firmware menu typed by
+`keyboardputscancode`. Five faults came out that no QEMU run had shown, all
+fixed:
+
+| found | fix |
+|---|---|
+| every Secure Boot install logged `sops-install-secrets: manifest is not valid: ... the key 'secureboot/KEK' cannot be found`: sops-nix reads each `/` of a secret's name as a level of nesting, and phase 2 writes the keys flat, so **no regular secret installed** (backup password, TOTP secret, the Secure Boot keys) | `key = "secureboot/<file>"` on each |
+| with that fixed, `prepare-sb-auto-enroll` failed: `open /var/lib/sbctl/keys/db/db.key: permission denied`, as root with every capability. sbctl confines itself with Landlock to its key directory, and the keys were symlinks into `/run/secrets` | the keys are copied into `/var/lib/sbctl` by an activation step after `setupSecrets` |
+| the first restart after installing started the installer again: lanzaboote writes no firmware boot entry, so phase 3 found no "Linux Boot Manager" to point `BootNext` at and said nothing | phase 3 creates the entry when it is missing; later restarts (the firmware menu's Reset included) come up in the installed system with the ISO still attached |
+| the initrd showed "No attestation code yet" on a machine that had one: it read the ESP's record before udev made `/dev/disk/by-partlabel/disk-system-esp` for a SATA disk | it waits up to 5 s for the ESP link as it does for the TPM |
+| the attestation code failed on every cold start after being sealed on a restart (and vice versa); this is the "rough edge" of the 2026-09-22 entry. PCRs 4, 7 and 8 matched between the two starts; **PCR 9 did not**, and its value was not the one replayed from the firmware's event log: systemd 260 measures `nvpcr-init:cryptsetup/hardware/verity` records into PCR 9 at every boot (`/run/log/systemd/tpm2-measure.log`) | sealed to PCRs 4, 7, 8 (ARCHITECTURE D41); PCR 4 already measures the whole UKI, initrd and command line included |
+
+The setup page now says what to do in VirtualBox (the backend reports
+`virt: "oracle"` from `systemd-detect-virt`), phase 5 prints the same steps
+for the terminal, and the install guide's VM section has them. The page's
+notice box was laid out as a flex row by the panel's shared stylesheet, which
+split any sentence with bold words into columns; it is a block now.
+
+VirtualBox writes NVRAM and TPM state only when a VM stops cleanly. The
+host's desktop session crashed during one run, and the VM came back with
+Oracle's PK and a TPM that no longer knew the disk's seal: the PIN failed
+and only the recovery key would have opened it. The guide says to shut the
+VM down cleanly.
+
+| check (the final, unattended run: `~/.cache/nixie-vbox/final.sh`) | result |
+|---|---|
+| setup reports `virt: oracle`; phases 1-3; no secrets error | pass |
+| first restart with the ISO attached reaches the installed system | pass |
+| `prepare-sb-auto-enroll` stages the keys | pass |
+| phase 5 with VirtualBox's keys: exit 11 with the VirtualBox steps (page screenshot) | pass |
+| Restart into firmware settings, Custom Mode, Delete Pk, Reset: systemd-boot enrols, phase 5 exits 0 | pass |
+| phases 6-8; phase 7: outer layer bound to the TPM, attestation code computes, Secure Boot enabled | pass |
+| Finish; first normal start says "this system changed since it was sealed", the reseal unit seals it, `bootctl`: `Secure Boot: enabled (user)` | pass |
+| clean power-off, cold start: "Attestation code: 287241", PIN then passphrase open the disk | pass |
+| restart: "Attestation code: 359422", PIN then passphrase | pass |
+| no failed units; NVRAM PK after power-off is `CN=Nixie PK`; VirtualBox reports Secure Boot enabled | pass |
+| `fmt`, `statix`, `deadnix`, `secure-boot-states`, `secure-boot-report`, `boot-and-setup`, `systemd-security`, `eval-matrix`, `option-docs`, `option-reference`, `readme`, `no-hardware-facts`, `iso-config`, `setup-devices` | pass |
+| `vm-splash` (735 s): attestation code at boot, reseal unit, TPM + PIN, duress | pass |
+| `vm-encryption` (486 s), `vm-installer-lan` (194 s), `vm-deploy` (356 s) | pass |

@@ -479,7 +479,7 @@ case "$cmd" in
     exit $rc ;;
   reseal)
     feature attestation || { echo "attestation is off; nothing to reseal"; exit 0; }
-    tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery 2>/dev/null)" -p 4,7,8,9 </dev/null \
+    tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery 2>/dev/null)" -p 4,7,8 </dev/null \
       && { mkdir -p /boot/nixie; readlink -f /run/booted-system | tr -d '\n' >/boot/nixie/attestation-generation; echo "attestation resealed to the running boot chain"; } ;;
   menu)
     command -v nixie-menu >/dev/null || { echo "the menu is part of the desktop profile" >&2; exit 2; }

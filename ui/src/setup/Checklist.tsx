@@ -147,6 +147,25 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
           <div className="row"><button className="btn primary pulse" onClick={() => api.reboot()}>Restart</button></div>
         </>
       );
+    // VirtualBox's settings put its own keys back ("Reset Keys to Default"),
+    // so the keys are cleared in its firmware menu instead.
+    if (n === 5 && sb === 11 && st.virt === "oracle")
+      return (
+        <>
+          <p className="caption">VirtualBox holds its own Secure Boot keys. Restart into the firmware settings, then:</p>
+          <ol className="caption steps">
+            <li><b>Device Manager</b> → <b>Secure Boot Configuration</b>.</li>
+            <li>Set <b>Secure Boot Mode</b> to <b>Custom Mode</b>.</li>
+            <li><b>Custom Secure Boot Options</b> → <b>PK Options</b> → <b>Delete Pk</b>, and answer <b>Y</b>.</li>
+            <li>Press Esc back to the first menu and choose <b>Reset</b>. The VM enrols this machine's keys and turns Secure Boot on by itself.</li>
+          </ol>
+          <p className="notice">Don't press <b>Reset Keys to Default</b> in the VM's settings: it puts VirtualBox's keys back, and the VM then shows <b>Access Denied</b>. If that happened, untick Secure Boot there and repeat these steps.</p>
+          <div className="row">
+            <button className="btn primary" onClick={() => api.reboot(true)}>Restart into firmware settings</button>
+            <button className="btn" onClick={() => go(5)}>Check again</button>
+          </div>
+        </>
+      );
     if (n === 5 && sb === 11)
       return (
         <>

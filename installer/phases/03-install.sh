@@ -96,8 +96,18 @@ fi
 # keeps a stale "Linux Boot Manager" pointing at a partition that is gone.
 step "pointing the next start at this disk"
 esp=$(lsblk -no PARTUUID "$(findmnt -no SOURCE /mnt/boot)" 2>/dev/null || true)
-n=$(efibootmgr 2>/dev/null | grep -i "Linux Boot Manager.*GPT,${esp:-none}," | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\).*/\1/p' | head -1 || true)
-[ -z "$n" ] || efibootmgr -q --bootnext "$n" || log "could not point the next boot at the installed system"
+entry() { efibootmgr 2>/dev/null | grep -i "Linux Boot Manager.*GPT,${esp:-none}," | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\).*/\1/p' | head -1 || true; }
+n=$(entry)
+# lanzaboote copies systemd-boot onto the ESP but writes no firmware entry,
+# and without one the firmware starts whatever it lists first: in VirtualBox,
+# the installer again.
+if [ -z "$n" ] && [ -n "$esp" ]; then
+  part=$(findmnt -no SOURCE /mnt/boot)
+  efibootmgr -q --create --disk "/dev/$(lsblk -no PKNAME "$part")" --part "$(cat "/sys/class/block/$(basename "$part")/partition")" \
+    --label "Linux Boot Manager" --loader '\EFI\systemd\systemd-bootx64.efi' || true
+  n=$(entry)
+fi
+[ -n "$n" ] && efibootmgr -q --bootnext "$n" || log "could not point the next boot at the installed system; take the installer out before restarting"
 phase_finish
 cp -a "$NIXIE_SETUP_DIR"/*.done "$STATE" /mnt/var/lib/nixie/setup/
 

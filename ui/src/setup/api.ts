@@ -4,7 +4,7 @@ export type Device = { path: string; size: number; label: string; fstype: string
 export type SiteFile = { path: string; content: string };
 export type Check = { ok: boolean; message: string; detail?: string; locations: { path: string; line: number; col: number }[] };
 export type Hardware = { disks: { path: string; size: number; model: string | null; serial: string | null; transport: string | null; id: string | null }[]; nics: { mac: string; name: string; up: boolean }[]; gpu: string; tpm: boolean; efi: boolean; online?: boolean };
-export type State = { mode: "iso" | "continuation"; state: Record<string, unknown>; done: number[]; host: string; secrets: string[]; layout: { features: Record<string, boolean | number[]> } | null };
+export type State = { mode: "iso" | "continuation"; state: Record<string, unknown>; done: number[]; host: string; secrets: string[]; layout: { features: Record<string, boolean | number[]> } | null; virt?: string };
 
 async function j<T>(method: string, path: string, body?: unknown): Promise<T> {
   const r = await fetch(path, { method, headers: body !== undefined ? { "Content-Type": "application/json" } : undefined, body: body === undefined ? undefined : JSON.stringify(body) });

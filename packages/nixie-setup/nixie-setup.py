@@ -489,7 +489,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def api_get(self, path, q):
         if path == "/api/state":
             st = read_state()
-            return self.send_json({"mode": ARGS.mode, "state": st, "done": markers(), "host": socket.gethostname(), "secrets": sorted(SECRETS), "layout": self.layout()})
+            # "oracle" is VirtualBox, whose Secure Boot keys are cleared differently.
+            virt = sh(["systemd-detect-virt"]).stdout.strip()
+            return self.send_json({"mode": ARGS.mode, "state": st, "done": markers(), "host": socket.gethostname(), "secrets": sorted(SECRETS), "layout": self.layout(), "virt": virt})
         if path == "/api/hardware":
             r = sh(["nixie-discover"])
             if r.returncode:

@@ -1225,6 +1225,16 @@ and runs `nixie apply`.
   brief lists is implemented, but ones the design does not draw follow the
   same component recipes rather than a new design. `VERIFICATION.md` for the
   slice lists any feature that shipped in reduced form.
+- **D41 The attestation code is sealed to PCRs 4, 7 and 8, not 9.** The
+  brief says 4,7,8,9. The pinned systemd (260) initialises its NvPCRs at
+  every boot and measures an `nvpcr-init` record for each into PCR 9, from
+  the initrd and again later, so PCR 9 differs between a cold start and a
+  restart and a code sealed to it showed "ATTESTATION FAILED" on the next
+  cold start (seen in VirtualBox with Secure Boot enforced). Everything the
+  firmware and loader put in PCR 9 -- the UKI's `.initrd` section and the
+  kernel's load options -- is inside the signed UKI, which PCR 4 measures
+  whole, so leaving 9 out loses no coverage. Turning NvPCRs off instead
+  would mean patching systemd; there is no NixOS option for it.
 - **D40 What is proved by a machine, and what by a picture.** The gate is
   evaluation: option trees, closures, unit wiring, the text of a script.
   Three things this cannot reach got outputs of their own rather

@@ -112,8 +112,12 @@ if feature attestation; then
     # boot chain (after a kernel update) without changing the code the person
     # already scanned. It is kept root-only and travels in the header backup.
     [ -s /var/lib/nixie/totp-recovery ] || (umask 077; openssl rand -hex 16 >/var/lib/nixie/totp-recovery)
+    # Not PCR 9: systemd (258 on) extends it at every boot with its NvPCR
+    # anchors, differently on a cold start and a restart, so a code sealed
+    # to it came out "ATTESTATION FAILED". What the firmware puts in 9, the
+    # UKI's initrd and command line, PCR 4 already covers with the whole UKI.
     tpm2-totp clean >/dev/null 2>&1 || true
-    tpm2-totp generate -P "$(cat /var/lib/nixie/totp-recovery)" -p 4,7,8,9 >"$(secret_file attestation-qr)" 2>&1
+    tpm2-totp generate -P "$(cat /var/lib/nixie/totp-recovery)" -p 4,7,8 >"$(secret_file attestation-qr)" 2>&1
     log "attestation secret created; show $(secret_file attestation-qr) to the person once"
   fi
   # The initrd compares the system it boots with this to refuse showing a
