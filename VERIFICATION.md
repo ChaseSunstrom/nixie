@@ -2885,3 +2885,56 @@ Not verified here: a real NordVPN account and a real tailnet (the test's
 tunnels and API stand in for them; the API calls are the documented ones),
 Tor finishing its start (no Tor network offline), and "tailnord" end to end,
 which needs a tailnet to approve the exit node on.
+
+## A black screen after Finish, and a PIN lost to it (2026-09-24)
+
+Reported: after setup the screen "was just black", the VM was closed, and the
+disk would not unlock with the TPM PIN afterwards. Reproduced on an install
+made exactly as the wizard makes one (no serial console; every answer typed
+on the VM's keyboard; the screen photographed every 5 s): the boot splash,
+the passphrase and PIN prompts and the kiosk all draw, but Finish stops the
+kiosk and the console panel appears only after the switch -- 35 s of black
+screen here, longer on a slower machine. VirtualBox saves its NVRAM and TPM
+only when a VM stops cleanly, so a VM closed then comes back with a TPM that
+never saw setup's seal: the PIN cannot work, and only the recovery key opens
+the disk. The same run showed the console panel warning "The attestation
+code does not compute" after Finish while the code computed: the notices
+were collected at boot, before phase 6 sealed it.
+
+Changes: Finish brings tty1 forward and writes "Finishing setup: switching
+to the normal system. This takes a minute or two. Do not turn the machine
+off." before the switch (`kbd` for `chvt` in the installer's tools); phase 6,
+Finish and `nixie reseal` refresh the notices.
+
+| check | result |
+|---|---|
+| `final.sh` on the rebuilt ISO: every earlier step, plus the screen 12 s after Finish reads "Finishing setup ... Do not turn the machine off" (OCR); cold start code 447950, restart code 973968 | pass |
+| a stale "does not compute" notice planted on the installed VM is gone after the command Finish runs (`systemctl start nixie-notices`), and the code computes | pass |
+| `vm-encryption` (417 s, phase 6), `boot-and-setup` | pass |
+
+## A NAS as first-class storage (slice (u), 2026-09-24)
+
+ARCHITECTURE 4.13: `nixie.nas.<share>` (NFS, optional FS-Cache, `whenDown =
+"degrade" | "hold"`), `nixie.data.{cache,state,media}.on`,
+`nixie.data.copies`, `nixie.backups.repository = "nas:<share>/<dir>"`,
+`nixie-nas-watch` with `/run/nixie/nas.json`, a notice per unreachable share,
+`nixie nas status`; `docs/guides/use-a-nas.md`. state/ on a NAS requires
+"hold" (asserted): while a share is gone its bind is missing, and anything
+written to state/ would land on the local disk and vanish when it returned.
+
+Found while testing: NixOS test VMs replace `fileSystems` wholesale, so the
+mounts are systemd mount and automount units instead (the same on a machine);
+the bind of a data folder needs `_netdev`, without which it counted as a local
+filesystem and made an ordering cycle through the network that systemd broke
+by dropping unrelated jobs (name lookups, sshd); and a host that starts before
+its NAS answers gets its binds from the watcher once it does.
+
+| check | result |
+|---|---|
+| `vm-nas` (new, 172 s): an NFS server and a host with cache/ on it: files written to /data/cache land on the NAS, the share is mounted with `fsc` and cachefilesd runs; three dated copies of state/ keep the newest two and share the unchanged file (one inode); a backup writes a restic repository onto the share; the NAS going away is reported (`nas.json`, the notice, `nixie nas status`) with the guest that mounts from it named; the host starts with the NAS down; the NAS back, the share is up and cache/ is its folder again | pass |
+| `fmt`, `statix`, `deadnix`, `systemd-security`, `eval-matrix`, `option-docs`, `option-reference` | pass |
+
+Not verified here: a "hold" share stopping and starting a real Incus guest
+(the test names the guest; the stop and start are `incus stop --force` and
+`incus start`), and FS-Cache serving a second read from local disk (the test
+shows the cache in use, not a timing).

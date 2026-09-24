@@ -223,41 +223,44 @@ in
       boot.supportedFilesystems = [ "nfs" ];
       services.cachefilesd.enable = lib.any (s: s.cache) (lib.attrValues cfg);
       environment.etc."nixie/nas.json".source = settings;
-      fileSystems =
-        lib.mapAttrs' (
-          n: s:
-          lib.nameValuePair (mountOf n) {
-            device = "${s.server}:${s.export}";
-            fsType = "nfs";
-            # Mounted when first used and never in the way of booting: a NAS
-            # that is down must not stop the machine starting.
-            options = [
+      # Units, not fileSystems: the same on a machine and in a test VM (whose
+      # qemu module replaces fileSystems wholesale), and none of them may keep
+      # the machine from starting when the NAS is down.
+      systemd.automounts = lib.mapAttrsToList (n: _: {
+        where = mountOf n;
+        wantedBy = [ "remote-fs.target" ];
+        automountConfig.TimeoutIdleSec = 600;
+      }) cfg;
+      systemd.mounts =
+        lib.mapAttrsToList (n: s: {
+          what = "${s.server}:${s.export}";
+          where = mountOf n;
+          type = "nfs";
+          options = lib.concatStringsSep "," (
+            [
               "nfsvers=${s.version}"
-              "noauto"
-              "x-systemd.automount"
-              "x-systemd.idle-timeout=600"
-              "x-systemd.mount-timeout=30"
               "_netdev"
-              "nofail"
             ]
             ++ lib.optional s.cache "fsc"
-            ++ s.options;
-          }
-        ) cfg
-        // lib.mapAttrs' (
-          d: n:
-          lib.nameValuePair "${root}/${d}" {
-            device = "${mountOf n}/${d}";
-            fsType = "none";
-            options = [
-              "bind"
-              "nofail"
-              "_netdev"
-              "x-systemd.requires=nixie-nas-dirs-${n}.service"
-              "x-systemd.after=nixie-nas-dirs-${n}.service"
-            ];
-          }
-        ) placed;
+            ++ s.options
+          );
+          wants = [ "network-online.target" ];
+          after = [ "network-online.target" ];
+          mountConfig.TimeoutSec = 30;
+        }) cfg
+        # The data root's folders placed on a share: its folder bound over them.
+        ++ lib.mapAttrsToList (d: n: {
+          what = "${mountOf n}/${d}";
+          where = "${root}/${d}";
+          type = "none";
+          # _netdev makes it a remote mount: as a local one, local-fs.target
+          # waited on the network (an ordering cycle systemd broke by
+          # dropping jobs at random).
+          options = "bind,_netdev";
+          requires = [ "nixie-nas-dirs-${n}.service" ];
+          after = [ "nixie-nas-dirs-${n}.service" ];
+          wantedBy = [ "remote-fs.target" ];
+        }) placed;
       systemd.services =
         lib.mapAttrs' (
           n: _:

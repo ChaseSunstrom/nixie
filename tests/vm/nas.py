@@ -5,6 +5,10 @@ nas.wait_for_unit("nfs-server.service")
 host.wait_for_unit("multi-user.target")
 
 with subtest("cache/ lives on the share, read through a local cache"):
+    # Both machines start together, so the host may come up before the NAS
+    # answers; the watcher binds cache/ onto the share once it does.
+    host.wait_until_succeeds("systemctl start nixie-nas-watch.service && mountpoint -q /data/cache", timeout=180)
+    print(host.succeed("journalctl -u nixie-nas-watch -b -o cat --no-pager | tail -5; findmnt /data/cache; findmnt /nas/tank"))
     host.succeed("echo hello > /data/cache/hello")
     nas.succeed("grep -q hello /export/cache/hello")
     host.succeed("grep ' /nas/tank ' /proc/mounts | grep -q fsc")
