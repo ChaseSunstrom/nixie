@@ -2835,3 +2835,24 @@ failed, says to start again with the recovery key and then run
 | refused TPM (Secure Boot unticked): the fallback says "The TPM did not open the disk. Recovery key"; the disk passphrase typed there is asked again instead of failing; the recovery key opens the disk and the machine starts | pass |
 | `vm-splash` (586 s), wrong PIN shows the new label; `vm-encryption` (409 s) | pass |
 | `fmt`, `statix`, `deadnix`, `boot-and-setup`, `systemd-security`, `eval-matrix`, `option-reference` | pass |
+
+## An install stopped by a Go module download (2026-09-24)
+
+Reported with a photo: phase 3 failed at `sops-install-secrets-0.0.1-go-modules`
+with `unexpected EOF` from `proxy.golang.org`. Nothing that phase 3 builds on
+the installer is on cache.nixos.org unless the installer builds it, and a
+Secure Boot server built 664 derivations there, among them the Rust toolchain
+and crates for lanzaboote (static.rust-lang.org, crates.io), sops-nix's Go
+modules (proxy.golang.org), the web UI's npm packages (registry.npmjs.org)
+and a font (GitHub): each a server whose hiccup stops the install.
+
+Change: the ISO carries the built lanzaboote tool, `sops-install-secrets`,
+the font and the npm dependencies (`system.extraDependencies`, taken from
+the example server with Secure Boot on, so they are the derivations a site
+builds). The drv paths were checked against a real install's log first.
+
+| check | result |
+|---|---|
+| `final.sh` on the rebuilt ISO: phase 3 built 440 derivations, none from the list above; downloads came only from cache.nixos.org | pass |
+| the rest of the walk-through: Setup Mode, enrolment, TPM + PIN, Finish, codes 154435 (cold) and 114713 (restart), `CN=Nixie PK`, Secure Boot enabled | pass |
+| `fmt`, `statix`, `deadnix`, `iso-config`, `iso-grub-theme` | pass |
