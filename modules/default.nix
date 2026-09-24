@@ -19,6 +19,7 @@
     ./guests.nix
     ./data.nix
     ./backups.nix
+    ./nas.nix
     ./monitoring.nix
     ./ui.nix
     ./secrets.nix

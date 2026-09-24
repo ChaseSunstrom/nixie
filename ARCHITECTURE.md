@@ -637,6 +637,48 @@ WireGuard, Nord and Tor exits have no such limit and can differ per guest.
 Running a tailscaled per tailnet exit would lift it, at the cost of one
 tailnet device and auth key per exit; not done until someone needs it.
 
+### 4.13 a NAS as first-class storage (change request, 2026-09-24)
+
+Asked for: a NAS over NFS for cache/ with a local cache, as the backup
+target, for state/ too, and for copies; what happens when it is down chosen
+per share.
+
+```
+nixie.nas.<name>.server        str              the NAS's name or address
+nixie.nas.<name>.export        str              the exported path, e.g. "/mnt/tank/nixie"
+nixie.nas.<name>.version       str, default "4.2"   NFS version
+nixie.nas.<name>.options       listOf str, default [ ]  extra mount options
+nixie.nas.<name>.cache         bool, default false
+  Keep a copy of what is read from this share on the local disk (FS-Cache),
+  so large files -- models, images -- load at disk speed the second time.
+nixie.nas.<name>.whenDown      enum "degrade" | "hold", default "degrade"
+  "degrade": everything starts and keeps running without the share; what
+  reads from it waits or fails, and the notices say the NAS is down.
+  "hold": guests that mount something from this share are stopped while it
+  is unreachable and started again when it is back.
+nixie.data.cache.on            nullOr str (a nas name), default null
+nixie.data.state.on            nullOr str, default null
+  Irreplaceable data on the NAS; a warning says what this costs (the NAS's
+  uptime and speed become the guests').
+nixie.data.media.on            nullOr str, default null
+nixie.data.copies.<name>       { from = "state" | "media" | path; to = "<nas>:<dir>";
+                                 schedule = "daily"; keep = 7; }
+  A dated copy of a local directory on the NAS each time (rsync with
+  hard links to the previous copy, so unchanged files cost nothing).
+nixie.backups.repository       also accepts "nas:<name>/<dir>"
+```
+
+Mechanics. Each share mounts at `/nas/<name>` by systemd automount
+(`_netdev`, `nofail`, an idle timeout, `fsc` when cached; `services.cachefilesd`
+for the local cache). A directory placed on a share is a bind of
+`/nas/<name>/<dir>` onto `<data.root>/<dir>` ordered after its mount, so
+guests' mounts and every tool keep using the data root's paths. Copies and
+backups to a share require its mount. `nixie-nas-watch` checks every share
+each minute (a timed `stat` of the mount), writes `/run/nixie/nas.json` for
+the notices, the panel and `nixie doctor`, and for "hold" shares stops and
+starts the guests whose mounts are under that share (the list is computed
+from `nixie.guests`). `nixie nas status` shows the same.
+
 ## 5. The site contract
 
 `site.nix` is data:
@@ -1437,5 +1479,7 @@ After the console and showcase slices, in this order, one commit each with
   extended with the overview, recording and idle subtests (done).
 - (t) egress exits (section 4.12, D42): named exits of four kinds, per-guest
   and host failover lists, the kill switch for every kind, `nixie egress`,
-  "tailnord", Tor after a VPN, the panel and desktop switches; `vm-egress`
-  extended.
+  "tailnord", Tor after a VPN, the panel and desktop switches; `vm-exits`.
+- (u) the NAS (section 4.13): NFS shares with a local cache, data
+  directories and backups on them, dated copies, "degrade" or "hold" when a
+  share is down, `nixie nas status`; `vm-nas`.

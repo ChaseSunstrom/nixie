@@ -8,6 +8,8 @@ let
   template = import ../lib/template.nix lib;
   inherit (import ../lib/option.nix lib) mkOption;
   cfg = config.nixie.backups;
+  onNas = lib.hasPrefix "nas:" cfg.repository;
+  nasMount = "/nas/${lib.head (lib.splitString "/" (lib.removePrefix "nas:" cfg.repository))}";
   # The sops path of the password the installer generates when the wizard
   # turns backups on; written out as a path, not read from sops.secrets, so the
   # declaration below can depend on it without a loop.
@@ -44,7 +46,7 @@ in
       type = lib.types.str;
       default = "";
       example = "sftp:backup@host:/srv/restic";
-      description = "Where backups go, as a restic repository URL.";
+      description = "Where backups go, as a restic repository URL, or \"nas:<share>/<folder>\" for a share in nixie.nas.";
       nixieUi = {
         section = "services";
         order = 1;
@@ -145,8 +147,10 @@ in
         }
       ];
       services.restic.backups.nixie = {
+        # A NAS share is a local path under its mount, which the backup then
+        # needs (below).
+        repository = if onNas then "/nas/${lib.removePrefix "nas:" cfg.repository}" else cfg.repository;
         inherit (cfg)
-          repository
           passwordFile
           environmentFile
           rcloneConfigFile
@@ -174,9 +178,11 @@ in
           "--keep-monthly ${toString cfg.keep.monthly}"
         ];
       };
+      systemd.services.restic-backups-nixie.unitConfig.RequiresMountsFor = lib.mkIf onNas [ nasMount ];
       # `restic check` on its own schedule; the result file feeds doctor/verify.
       systemd.services.nixie-backup-check = lib.mkIf (cfg.check != null) {
         description = "Verify the backup repository";
+        unitConfig.RequiresMountsFor = lib.mkIf onNas [ nasMount ];
         # The restic module puts its `restic-nixie` wrapper (repository and
         # credentials baked in) in the system profile, not on a unit's PATH.
         path = [ "/run/current-system/sw" ];

@@ -14,6 +14,7 @@ let
     gptfdisk
     iproute2
     jq
+    kbd # chvt: Finish brings the console forward while it switches
     mkpasswd
     nix
     nixos-install-tools

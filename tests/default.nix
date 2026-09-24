@@ -1016,6 +1016,7 @@ in
 
   vm-egress = import ./vm/egress.nix { inherit pkgs nixieLib exampleSite; };
   vm-exits = import ./vm/exits.nix { inherit pkgs nixieLib exampleSite; };
+  vm-nas = import ./vm/nas.nix { inherit pkgs nixieLib exampleSite; };
 
   vm-monitoring = import ./vm/monitoring.nix { inherit pkgs nixieLib exampleSite; };
 

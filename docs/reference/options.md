@@ -118,7 +118,7 @@ An rclone configuration file for "rclone:" repositories (S3, B2 and friends).
 
 *string*, default: `""`. Wizard section: services.
 
-Where backups go, as a restic repository URL.
+Where backups go, as a restic repository URL, or "nas:<share>/<folder>" for a share in nixie.nas.
 
 ## `nixie.backups.schedule`
 
@@ -169,6 +169,18 @@ compositor and a browser in the server closure.
 
 Re-lock the kiosk after this much inactivity.
 
+## `nixie.data.cache.on`
+
+*null or string*, default: `null`.
+
+Keep the data root's cache/ on this NAS share (a name from nixie.nas) instead of the local disk. Turn on the share's cache to keep reads fast.
+
+## `nixie.data.copies`
+
+*attribute set of (submodule)*, default: `{}`.
+
+Dated copies of local data on a NAS share, besides backups.
+
 ## `nixie.data.fetch.timer`
 
 *null or string*, default: `null`.
@@ -186,6 +198,12 @@ Extra fetcher kinds provided by the site, name to file.
 *attribute set of attribute set of attribute set of anything*, default: `{}`.
 
 What lives in cache/, by fetcher kind and name. See the data guide.
+
+## `nixie.data.media.on`
+
+*null or string*, default: `null`.
+
+Keep the data root's media/ on this NAS share (a name from nixie.nas) instead of the local disk.
 
 ## `nixie.data.mediaBackup`
 
@@ -215,6 +233,12 @@ Where the image registry answers on this machine.
 Where state/, cache/ and media/ live. state/ is irreplaceable and is
 backed up. cache/ is never backed up because `nixie fetch` can rebuild
 it from the manifest. They never share a directory.
+
+## `nixie.data.state.on`
+
+*null or string*, default: `null`.
+
+Keep the data root's state/ on this NAS share (a name from nixie.nas) instead of the local disk. state/ is what cannot be fetched again: it is then only as available and as fast as the NAS, so back it up.
 
 ## `nixie.desktop.accentFromWallpaper`
 
@@ -827,6 +851,14 @@ Port Prometheus listens on, on this host only. Not 9090: the host page uses that
 *string*, default: `"30d"`.
 
 How long metrics are kept.
+
+## `nixie.nas`
+
+*attribute set of (submodule)*, default: `{}`.
+
+NAS shares this machine uses, over NFS, each mounted at /nas/<name>
+when first used. Put the data root's directories, copies and backups
+on them with the options that name a share.
 
 ## `nixie.network.address`
 

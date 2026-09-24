@@ -149,4 +149,6 @@ tar -C "$tmp" -cf - . | age "${recipients[@]}" >"$NIXIE_SETUP_DIR/header-backup.
 chmod 0600 "$NIXIE_SETUP_DIR/header-backup.tar.age"
 [ -z "$dest" ] || install -m 0600 "$NIXIE_SETUP_DIR/header-backup.tar.age" "$dest/nixie-$(host)-headers.tar.age"
 log "header backup bundle at $NIXIE_SETUP_DIR/header-backup.tar.age${dest:+ and $dest}"
+# The panel's notices were collected before the code was sealed.
+systemctl start --no-block nixie-notices.service 2>/dev/null || true
 phase_finish

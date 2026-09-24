@@ -58,6 +58,10 @@ usage() {
   c "disk close" "unmount and lock what disk open opened"
   c "usb [--json] | usb allow <vendor:product>" "blocked USB devices, or allow one"
   c "hardware scan | refresh | add-disk <by-id>" "compare with hardware.nix, rewrite it, add a disk"
+  if [ -e /etc/nixie/nas.json ]; then
+    h "NAS"
+    c "nas [status] [--json]" "whether each NAS share answers, and what waits for it"
+  fi
   if [ -e /etc/nixie/egress.json ]; then
     h "Egress"
     c "egress [status] [--json]" "which exit each scope uses, and which exits are up"
@@ -293,6 +297,14 @@ case "$cmd" in
         fi
         if feature attestation && ! tpm2-totp calculate >/dev/null 2>&1; then
           echo '{"id":"reseal","level":"warn","title":"The attestation code does not compute","detail":"the boot chain changed; reseal it if you changed it yourself","action":"nixie reseal"}'
+        fi
+        # NAS shares that did not answer the last check (modules/nas.nix).
+        if [ -s /run/nixie/nas.json ]; then
+          jq -c '.shares | to_entries[] | select(.value.up | not) | {id: ("nas-" + .key), level: "warn",
+            title: "The NAS share \(.key) is unreachable",
+            detail: (if .value.whenDown == "hold" and (.value.held | length) > 0 then "stopped until it is back: " + (.value.held | join(", "))
+                     else "what reads from it waits or fails until it is back" end),
+            action: "nixie nas status"}' /run/nixie/nas.json
         fi
         if [ -e /var/lib/nixie/backup-check.json ] && [ "$(jq -r .ok /var/lib/nixie/backup-check.json)" != true ]; then
           echo '{"id":"backup","level":"warn","title":"The last backup check failed","detail":"the repository was unreadable or a snapshot did not verify","action":"nixie backup verify"}'
@@ -786,6 +798,17 @@ case "$cmd" in
         echo "$dev is now $name, mounted at $root/$name"
         echo "declare it in hosts/$host/hardware.nix as nixie.disks.data, or leave it as an extra pool" ;;
       *) echo "usage: nixie hardware [scan | refresh | add-disk <by-id> [name]]" >&2; exit 2 ;;
+    esac ;;
+  nas)
+    [ -e /etc/nixie/nas.json ] || { echo "no NAS shares are configured on this host (nixie.nas)" >&2; exit 2; }
+    # A fresh look, not the last minute's.
+    systemctl start nixie-nas-watch.service 2>/dev/null || true
+    [ -s /run/nixie/nas.json ] || { echo "the NAS check has not run yet: systemctl status nixie-nas-watch" >&2; exit 1; }
+    case "${1:-status}" in
+      --json) cat /run/nixie/nas.json ;;
+      status)
+        jq -r '.shares | to_entries[] | "\(.key)\t\(if .value.up then "up" else "UNREACHABLE" end)\t\(.value.mount)\t\(.value.whenDown)\t\(if (.value.held | length) > 0 then "stopped: " + (.value.held | join(", ")) elif (.value.guests | length) > 0 then "used by: " + (.value.guests | join(", ")) else "" end)"' /run/nixie/nas.json | column -t -s $'\t' ;;
+      *) echo "usage: nixie nas [status] [--json]" >&2; exit 2 ;;
     esac ;;
   egress)
     # nixie-egress (modules/network/exits.nix) reads a pin per scope and
