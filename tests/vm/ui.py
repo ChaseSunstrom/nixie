@@ -65,3 +65,45 @@ assert "EXPIRING: soon" in doc, doc
 # The daemon itself answers on the same origin, untrusted without a client certificate.
 host.succeed("curl -sfk https://127.0.0.1:8443/1.0 | jq -e '.metadata.auth == \"untrusted\"'")
 host.succeed("curl -sfk https://127.0.0.1:8443/1.0 | jq -e '.metadata.config // {} | has(\"user.nixie.notices\") | not'")
+
+with subtest("nixie panel trust hands a browser its certificate once, for a code"):
+    # As a person runs it: on the machine, printing an address and a code,
+    # and waiting for the browser that types it.
+    host.succeed(
+        "systemd-run --unit=nixie-trust-test --remain-after-exit --setenv=PATH=/run/current-system/sw/bin "
+        "-p StandardOutput=file:/tmp/trust.out nixie panel trust --name laptop"
+    )
+    host.wait_until_succeeds("grep -q 'type the code' /tmp/trust.out", timeout=60)
+    host.wait_for_open_port(9443)
+    out = host.succeed("cat /tmp/trust.out")
+    print(out)
+    m = re.search(r"type the code\s+(\d{6})", out)
+    assert m, out
+    code = m.group(1)
+    assert code not in host.succeed("ps -eo args"), "the code is on a command line anyone can read"
+    host.succeed("curl -sfk https://127.0.0.1:9443/ | grep -q 'Type the code'")
+    host.succeed("curl -sk -o /dev/null -w '%{http_code}' -d code=000000 https://127.0.0.1:9443/ | grep -qx 403")
+    page = host.succeed(f"curl -sfk -d code={code} https://127.0.0.1:9443/")
+    m_link = re.search(r'href="(/[^"]+\.p12)"', page)
+    m_pw = re.search(r"class=pw>([^<]+)", page)
+    assert m_link and m_pw, page
+    link, password = m_link.group(1), m_pw.group(1)
+    host.succeed(f"curl -sfk -o /tmp/browser.p12 https://127.0.0.1:9443{link}")
+    host.succeed(f"openssl pkcs12 -in /tmp/browser.p12 -passin pass:{password} -nodes -out /tmp/browser.pem")
+    host.succeed("curl -sfk --cert /tmp/browser.pem https://127.0.0.1:8443/1.0 | jq -e '.metadata.auth == \"trusted\"'")
+    # A minute after the download the page is gone, and the certificate stays.
+    host.wait_until_succeeds("systemctl show -p SubState --value nixie-trust-test | grep -qx exited", timeout=120)
+    host.succeed("systemctl show -p ExecMainStatus --value nixie-trust-test | grep -qx 0")
+    host.fail("curl -sk --max-time 5 https://127.0.0.1:9443/")
+    host.succeed("grep -q 'fetched; the control panel trusts it' /tmp/trust.out")
+    host.succeed("nixie panel list | grep -q laptop")
+
+with subtest("the setup page's form of it: a file and its password"):
+    info = __import__("json").loads(host.succeed("nixie panel trust --name filed --p12 /tmp/filed.p12 --json"))
+    host.succeed(f"openssl pkcs12 -in /tmp/filed.p12 -passin pass:{info['password']} -nodes -out /tmp/filed.pem")
+    host.succeed("curl -sfk --cert /tmp/filed.pem https://127.0.0.1:8443/1.0 | jq -e '.metadata.auth == \"trusted\"'")
+
+with subtest("forget takes a browser's access back"):
+    host.succeed("nixie panel forget laptop")
+    host.succeed("curl -sk --cert /tmp/browser.pem https://127.0.0.1:8443/1.0 | jq -e '.metadata.auth == \"untrusted\"'")
+    host.fail("nixie panel list | grep -q laptop")

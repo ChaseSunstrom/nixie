@@ -13,6 +13,10 @@ would flag. It is drawn in the chosen finish with 256-colour approximations
 of the tokens. Press any key to get the normal `login` prompt; tty3 and up
 are ordinary logins (Ctrl+Alt+F3).
 
+When a start needed the recovery key because the TPM refused the PIN, the
+panel says why and offers `p`, which runs `nixie security rebind`: it asks
+for the recovery key and a PIN and seals the disk to this start again.
+
 The panel reads the same Incus socket as the web UI, read-only, and the
 same metrics; it is never a second data path.
 
@@ -20,9 +24,20 @@ same metrics; it is never a second data path.
 
 `nixie.console.kiosk.enable` keeps the setup kiosk permanently: cage and a
 browser on tty1 showing a lock page, then the full control panel. The lock
-page checks the administrator password (through `su`) and, when a second
-factor is enrolled, the same TOTP code the host page uses. After
-`nixie.console.kiosk.idleLock` (default 10 minutes) of inactivity it locks
+page asks for the administrator's password (checked with `unix_chkpwd`, the
+pam_unix helper) and, when `nixie.auth.secondFactor` is "totp", the code from
+the authenticator app, checked against the same secret the host page uses;
+without that secret on the machine it stays locked and says so, rather than
+opening without the second factor. A refusal is said on the page; nothing
+leaves the browser on an error page, which in a kiosk has no way back.
+
+Unlocked, the page shows the control panel in a frame, and the lock passes
+the panel's requests to incusd over its unix socket. So the kiosk browser
+needs no client certificate, and the panel it shows is the trusted one.
+After `nixie.console.kiosk.idleLock` (default 10 minutes) with no key, click
+or touch, the session ends: the panel's requests stop working at once and
+the page goes back to the lock. The Lock button in the corner ends it
+sooner. If the browser ends (a crash, or Ctrl+W), the kiosk starts it
 again. With the kiosk on, the front panel moves to tty2. The server closure
 then contains exactly the kiosk stack (cage and the browser); a check proves
 nothing else from the desktop list is present.

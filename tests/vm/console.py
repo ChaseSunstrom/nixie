@@ -30,10 +30,32 @@ panel.shutdown()
 kiosk.start()
 kiosk.wait_for_unit("nixie-kiosk-gate.service")
 kiosk.wait_for_unit("cage-tty1.service")
-kiosk.wait_for_text("(Administrator|Unlock)", timeout=300)
+kiosk.wait_for_unit("incus-preseed.service")
+kiosk.wait_for_text("(Unlock|authenticator)", timeout=300)
 kiosk.screenshot("kiosk-lock")
-kiosk.succeed("curl -s -o /dev/null -w '%{http_code}' -d 'password=nixie' http://127.0.0.1:9444/unlock | grep -q 302")
-kiosk.succeed("curl -s -o /dev/null -w '%{http_code}' -d 'password=wrong' http://127.0.0.1:9444/unlock | grep -q 303")
-kiosk.wait_for_text("(nixie|Overview|Instances)", timeout=120)
-kiosk.screenshot("kiosk-panel")
+
+with subtest("the lock refuses, and passes nothing of the daemon's, while locked"):
+    kiosk.succeed("curl -s -H 'Accept: application/json' -d password=nixie http://127.0.0.1:9444/__nixie/unlock | grep -q 'authenticator app is needed'")
+    kiosk.succeed("curl -s -H 'Accept: application/json' -d password=wrong -d code=000000 http://127.0.0.1:9444/__nixie/unlock | grep -q 'not right'")
+    kiosk.succeed("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9444/1.0 | grep -q 403")
+    # The old lock read a secret file nobody wrote, dropped the connection,
+    # and the kiosk was left on a browser error page with no way back.
+    kiosk.succeed("curl -s -o /dev/null -w '%{http_code}' -d password=nixie -d code=000000 http://127.0.0.1:9444/__nixie/unlock | grep -q 303")
+    kiosk.succeed("systemctl is-active nixie-kiosk-gate.service")
+
+with subtest("a person at the screen unlocks it and gets the trusted panel"):
+    # The password field has the focus; the code comes from the app.
+    kiosk.send_chars("nixie")
+    kiosk.send_key("tab")
+    code = kiosk.succeed("oathtool --totp -b @totp@").strip()
+    kiosk.send_chars(code + "\n")
+    # "Overview" is the panel's own navigation: neither the lock page nor
+    # the page a browser without a certificate gets has the word.
+    kiosk.wait_for_text("Overview", timeout=240)
+    kiosk.screenshot("kiosk-panel")
+
+with subtest("left alone, it locks itself again"):
+    kiosk.wait_for_text("Unlock the control panel", timeout=400)
+    kiosk.screenshot("kiosk-relocked")
+
 kiosk.succeed("systemctl is-active nixie-panel.service && systemctl show -p TTYPath nixie-panel.service | grep -q tty2")

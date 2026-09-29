@@ -69,6 +69,19 @@ ask_splash() { # label
   done
 }
 
+# Why the TPM kept a layer shut, in systemd-cryptsetup's own words from
+# this start's journal: it says so before it asks for a key instead.
+refusal() { # layer name
+  local log
+  log=$(timeout 3 journalctl -b -q -o cat -u "systemd-cryptsetup@${1//-/\\x2d}.service" 2>/dev/null || true)
+  case $log in
+    *"dictionary attack lock"*) echo "The TPM is locked after too many wrong PINs; the lock goes once this start is done." ;;
+    *"policy does not match"*) echo "Secure Boot or the firmware changed since the disk was sealed, so the TPM keeps it shut." ;;
+    *"does not belong to this TPM"* | *"Failed to unseal"*) echo "The TPM no longer holds this disk's seal: it was cleared, reset or replaced." ;;
+    *) echo "The TPM did not open the disk." ;;
+  esac
+}
+
 last=""
 while true; do
   handled=0
@@ -86,45 +99,51 @@ while true; do
     name=""; dev=""; args=()
     [ -z "$pid" ] || mapfile -d "" -t args <"/proc/$pid/cmdline" 2>/dev/null || true
     if [ "${args[1]:-}" = attach ]; then name=${args[2]:-}; dev=${args[3]:-}; fi
-    # The same process asking again means the last answer was wrong.
-    again=""
+    # The same process asking again means the last answer was wrong; a
+    # note says why the TPM left the outer layer to the recovery key.
+    again=""; note=""
     [ "$pid:$msg" != "$last" ] || again="That did not open the disk. Try again."
+    # systemd asks every token's PIN alike; the TPM's is the outer
+    # layer's, a security key's the passphrase layer's.
+    # A machine with a TPM layer is asked twice at every start once that
+    # layer is bound: the PIN opens the outer one, and the inner one has
+    # no answer to reuse, so it asks for its own. Saying which of the two
+    # is being asked for is the difference between a second lock and the
+    # same question apparently asked twice.
+    two=""; [ ! -e /dev/mapper/rpool-outer ] || two=" (2 of 2)"
+    # Once the outer layer has asked for the TPM's PIN, its passphrase
+    # slot is gone (phase 6) and only the recovery key opens it.
+    case $msg in
+      *PIN*)
+        if [[ $name == *-outer ]]; then
+          label="PIN (1 of 2)"
+          # A second request means the TPM checked the PIN against a seal
+          # this start matches, and it was wrong: every other refusal falls
+          # back to the recovery key instead. systemd rewords its retry, so
+          # $again does not catch it; a request is a new one when its file
+          # is (the same one comes back when a question was cancelled).
+          # Each wrong PIN costs one of the TPM's tries (tpm-lockout.sh).
+          [ -z "${outer_pin:-}" ] || [ "$outer_pin" = "$ask" ] || again="That PIN was wrong. Try again."
+          outer_pin=$ask
+        else label="Security key PIN$two"; fi
+        ;;
+      *)
+        if [[ $name != *-outer ]]; then label="Disk passphrase$two"
+        elif [ -n "${outer_pin:-}" ]; then
+          label="Recovery key"
+          [ -n "$again" ] || note=$(refusal "$name")
+        else label="Passphrase or recovery key"; fi
+        ;;
+    esac
     if splash; then
-      # systemd asks every token's PIN alike; the TPM's is the outer
-      # layer's, a security key's the passphrase layer's.
-      # A machine with a TPM layer is asked twice at every start once that
-      # layer is bound: the PIN opens the outer one, and the inner one has
-      # no answer to reuse, so it asks for its own. Saying which of the two
-      # is being asked for is the difference between a second lock and the
-      # same question apparently asked twice.
-      two=""; [ ! -e /dev/mapper/rpool-outer ] || two=" (2 of 2)"
-      # Once the outer layer has asked for the TPM's PIN, its passphrase
-      # slot is gone (phase 6) and only the recovery key opens it; the
-      # TPM refuses a right PIN too when Secure Boot or the firmware
-      # changed since setup. Only the label reaches a text console.
-      case $msg in
-        *PIN*)
-          if [[ $name == *-outer ]]; then
-            # A second request is a refusal; systemd rewords its retry, so
-            # $again does not catch it.
-            label="PIN (1 of 2)"
-            [ -z "${outer_pin:-}" ] || label="PIN not accepted (wrong PIN, or Secure Boot changed). PIN"
-            outer_pin=1
-          else label="Security key PIN$two"; fi
-          ;;
-        *)
-          if [[ $name != *-outer ]]; then label="Disk passphrase$two"
-          elif [ -n "${outer_pin:-}" ]; then label="The TPM did not open the disk. Recovery key"
-          else label="Passphrase or recovery key"; fi
-          ;;
-      esac
-      say "$again"
+      say "${again:-$note}"
       # For the journal: nothing on the screen says what was asked.
       echo "<5>nixie-unlock: asking for $label on the splash${again:+ again}" >/dev/kmsg 2>/dev/null || true
+      [ -z "$again$note" ] || echo "<5>nixie-unlock: said: ${again:-$note}" >/dev/kmsg 2>/dev/null || true
       ask_splash "$label" || continue
       say "Unlocking…"
     else
-      [ -z "$again" ] || echo "$again"
+      [ -z "$again$note" ] || echo "${again:-$note}"
       printf '%s ' "$msg"
       IFS= read -rs pw
       echo

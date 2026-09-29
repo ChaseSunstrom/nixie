@@ -100,9 +100,21 @@ in
       # render node. One that has a render node but no OpenGL, like VirtualBox
       # and VMware without 3D acceleration, fails with "Unable to create the
       # wlroots renderer" instead, so that start is retried in software.
+      # A GPU driver that loads late (seen in a slow VM; NVIDIA's can too)
+      # has no card yet when this starts, and cage gives up with "Found 0
+      # GPUs"; it is waited for, up to half a minute.
       package = pkgs.writeShellScriptBin "cage" ''
+        for _ in $(seq 60); do ls /dev/dri/card* >/dev/null 2>&1 && break; sleep 0.5; done
         ${pkgs.cage}/bin/cage "$@" || WLR_RENDERER=pixman exec ${pkgs.cage}/bin/cage "$@"
       '';
+    };
+    # The screen must come back whatever ended it: a card that never came,
+    # a browser that crashed, or one closed with Ctrl+W, left a bare console
+    # nobody at the machine could get out of. A stop (Finish does one) stays
+    # stopped.
+    systemd.services.cage-tty1.serviceConfig = {
+      Restart = "always";
+      RestartSec = 2;
     };
     hardware.graphics.enable = true;
     # The minimal installer CD turns fontconfig off, and a browser without it

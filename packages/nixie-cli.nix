@@ -44,6 +44,10 @@ pkgs.writeShellApplication {
     ++ lib.optionals guests [
       incus-lts.client
       (opentofu.withPlugins (p: [ p.lxc_incus ]))
+      # `panel trust` hands the browser certificate over with it.
+      (writeScriptBin "nixie-trust-serve" (
+        "#!${python3}/bin/python3\n" + builtins.readFile ./nixie-cli/trust-serve.py
+      ))
     ];
   # The command itself is packages/nixie-cli/nixie.sh; only what Nix knows
   # is substituted in.

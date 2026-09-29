@@ -35,7 +35,8 @@ modules/                  the `nixie.*` option tree; one concern per file
   disks.nix               nixie.disks.* and the disko layout
   security/
     encryption.nix        LUKS2 root, panic=10, header backups
-    tpm.nix               outer LUKS layer, PIN, lockout auth
+    tpm.nix               outer LUKS layer, PIN, the check of how each start opened it
+    tpm-lockout.sh        the TPM's lockout: its password, 32 tries, the count cleared (D45)
     secure-boot.nix       lanzaboote wiring
     attestation.nix       tpm2-totp in initrd, on the splash; reseal after an update
     duress.nix            the duress option (the check is in unlock.nix)
@@ -58,6 +59,7 @@ modules/                  the `nixie.*` option tree; one concern per file
   ui.nix                  nixie.ui.* (theme, tokens, links, allowSiteEdits)
   site.nix                nixie.site.* (checkout location)
   host-ui.nix             nixie.hostUi.* (Cockpit)
+  console.nix             front panel on tty1; the kiosk's lock, which passes the panel to incusd (D43)
   setup.nix               nixie.setup.pending, the setup generation specialisation
   desktop/                nixie.desktop.* (session, shell, theme, packages, power)
 profiles/
@@ -70,6 +72,7 @@ installer/
   kiosk.nix               cage + browser, shared by the ISO and the setup generation
 packages/
   nixie-cli.nix           writeShellApplication set: apply fetch restore reseal export doctor
+                          panel trust, with trust-serve.py handing a certificate over (D44)
   nixie-setup/            installer backend (Python stdlib) + static wizard bundle
   deploy.nix              headless front end: gum + nixos-anywhere
   test-iso.nix            boots the ISO under QEMU/OVMF/swtpm and drives the wizard
@@ -473,13 +476,13 @@ An Incus `gpu` device shares the host driver so the console keeps working;
 VFIO passthrough to a VM takes the card away from the host and the console
 goes dark, which `docs/console.md` says plainly.
 
-Proposed resolution of the tty conflict (not yet built, awaiting a nod):
-the setup generation's kiosk owns tty1 while `nixie.setup.pending` is true
-and the front panel is not started then; in the normal generation the front
-panel takes tty1, unless the kiosk is enabled, in which case the kiosk keeps
-tty1 and the front panel moves to tty2. The kiosk's client certificate is
-made at setup, trusted by incusd, and loaded into the kiosk browser's NSS
-store with an auto-select policy for the panel URL.
+The tty conflict is resolved as proposed: the setup generation's kiosk owns
+tty1 while `nixie.setup.pending` is true and the front panel is not started
+then; in the normal generation the front panel takes tty1, unless the kiosk
+is enabled, in which case the kiosk keeps tty1 and the front panel moves to
+tty2. The kiosk's way into the panel is not the client certificate in its
+browser that was proposed here, but the lock itself passing the panel's
+requests to incusd's socket (D43).
 
 ### 4.10 showcase (change request, the last slice)
 
@@ -797,10 +800,16 @@ admin keys). With duress on, it first tests the entry against key slot 7 of
 the layer that asked, an unbound slot holding the duress passphrase that
 opens nothing; on a match it erases every layer's slots and powers off.
 
-Always on with encryption: `panic=10`, TPM lockout auth set from a sops secret
-by phase 6, and LUKS header backups GPG-encrypted to a sops-held key written
-where the wizard chose (a download in the browser path, a path in the
-headless path).
+Always on with encryption: `panic=10`, TPM lockout auth set by phase 6 (D10),
+with the TPM's tries raised and its count cleared by every start that gets
+through (D45), and LUKS header backups GPG-encrypted to a sops-held key
+written where the wizard chose (a download in the browser path, a path in the
+headless path). When the TPM refuses the outer layer, the agent reads why
+from systemd-cryptsetup's own journal lines (a lockout, a changed PCR 7, a
+seal the TPM no longer holds) and says it over the recovery key prompt;
+`nixie-tpm-check` records the same in `/run/nixie/tpm.json` once the start
+is through, for the notices and `nixie doctor`, and `nixie security rebind`
+seals the layer to the running start again with the recovery key it keeps.
 
 ## 9. Phase engine and installer state machine
 
@@ -1143,8 +1152,13 @@ and runs `nixie apply`.
   instance rather than replacing it.
 - **D17 The kiosk lock page checks the password with `unix_chkpwd`** (the
   pam_unix helper, which reads it from stdin; `su` needs a terminal) and the
-  TOTP code against the same secret the host page uses; it binds to loopback
-  only.
+  TOTP code against the same secret the host page uses (sops' `totp-secret`,
+  declared for the kiosk as well as the host page); it binds to loopback
+  only. It first read a second file, `/run/nixie/oath/secret`, that nothing
+  wrote: a right password with the second factor on raised an exception, the
+  connection closed empty, and the kiosk browser, with no address bar and no
+  back button, stayed on its error page. Without the host page it skipped
+  the second factor altogether. Both are gone with D43.
 - **D18 The system disk in tests is a plain device path** (`/dev/vda`,
   overridden with `mkForce`), because the test framework's virtio drive has
   no serial and so no by-id link. The ISO test driver attaches the disk with
@@ -1332,6 +1346,65 @@ and runs `nixie apply`.
   brief lists is implemented, but ones the design does not draw follow the
   same component recipes rather than a new design. `VERIFICATION.md` for the
   slice lists any feature that shipped in reduced form.
+- **D45 This machine keeps the TPM's lockout, and a start forgives wrong
+  PINs.** The brief asks for a lockout password; it says nothing of the
+  limits behind it. A TPM counts failed authorisations and, past its limit,
+  refuses every one, the right PIN included. libtpms, which is the TPM in
+  VirtualBox and QEMU's swtpm, starts with a limit of 3 and gives one back
+  per 1000 seconds it runs (read here from swtpm: `TPM2_PT_MAX_AUTH_FAIL:
+  0x3`, `TPM2_PT_LOCKOUT_INTERVAL: 0x3E8`), and phase 6 set the password but
+  kept those, so three wrong PINs over any number of starts left a VM on the
+  recovery key while the inner layer's passphrase still worked -- reported
+  as "the TPM doesn't bind correctly on restart". Phase 6 now sets the
+  password first (only with the empty one when none is set, since a wrong
+  one locks the lockout hierarchy for a day), then 32 tries with one back
+  every 7200 seconds, Windows' values, then clears the count, all before it
+  seals the PIN, whose test would otherwise be refused by a TPM already
+  locked. `nixie-tpm-check` runs at every start: it records how the outer
+  layer was opened, sets the same limits on a machine installed before this,
+  and clears the count, since only a person with the PIN or the recovery key
+  reaches a started system. Resealing by itself after a refusal, as
+  BitLocker does, is not done: the PIN a person typed at a refused start is
+  unverified (a changed PCR 7 fails before the PIN is checked), and sealing
+  a mistyped one would lock them out again. `nixie security rebind` asks for
+  it instead, twice, and proves it opens the layer before it finishes.
+- **D44 A browser gets its certificate over the setup port, once.** The
+  brief says that after Finish the control panel is the only web surface,
+  and the panel's page told people to make a certificate with `openssl` on
+  the host and import the `.p12` into their browser, with no way to get the
+  file there short of `scp`. `nixie panel trust` makes and trusts the
+  certificate (EC P-384; the `.p12` in 3DES with a SHA-1 MAC, the form
+  macOS's keychain imports) and serves it for up to ten minutes on port
+  9443 with incusd's own server certificate, to whoever types the six-digit
+  code it printed; ten wrong codes or no download in time and it stops and
+  takes the certificate back out of the trust store. The code and the
+  password travel in the environment, not on a command line other users can
+  read. The firewall opens 9443 where the panel's port is open; nothing
+  listens there otherwise. Setup's Finish step makes one for the browser
+  already paired with it through the same command (`--p12`), which is the
+  first-time path; `nixie panel list` and `forget` go with it. Making the
+  certificate in the browser and adding it with an Incus trust token was
+  the alternative: it needs X.509 and PKCS#12 code in the panel's bundle
+  and a token of some two hundred characters typed from the machine's
+  screen.
+- **D43 The kiosk reaches the panel through incusd's socket, behind its
+  lock.** Section 4.9 proposed a client certificate in the kiosk browser's
+  NSS store; it was never built, and the kiosk, once unlocked, was
+  redirected to the panel's HTTPS address and got the "not trusted" page,
+  whose instructions cannot be followed in a kiosk. A certificate in the
+  browser would also make the lock a picture: the browser would hold the
+  access, and the idle lock, which only the lock page's own address
+  enforced, never applied once the browser had left it. The lock
+  (`modules/console/kiosk-gate.py`, standard library only) is now the only
+  thing the kiosk talks to. Unlocked, it serves a page with the panel in a
+  same-origin frame and passes every other request, websockets included, to
+  incusd's unix socket, which trusts root; the session is an HttpOnly cookie,
+  ended by `nixie.console.kiosk.idleLock` without a key, click or touch in
+  the page (the panel's own polling does not count), by the Lock button, or
+  by the lock restarting, and an open websocket is cut within five seconds
+  of it ending. Refusals are said on the lock page, which sends the form
+  itself, and the process answers every request it cannot serve rather than
+  dropping it.
 - **D42 One tailnet exit node at a time.** Asked for: several exit nodes,
   per guest. tailscaled routes through one exit node per instance, so the
   tailnet exits of section 4.12 share that one slot; WireGuard, NordVPN and

@@ -24,17 +24,17 @@ function Trust() {
       <div className="panel pair-card wide">
         <div className="brand-row"><Mark size={30} /><span className="wordmark">nixie</span>{auth && <span className="chip">{auth}</span>}</div>
         <h1 className="title">This browser is not trusted yet</h1>
-        <p className="caption">The daemon answers, but this browser has no certificate it trusts. Two ways in:</p>
+        <p className="caption">The control panel answers browsers that hold a certificate this machine made. Getting one takes a minute:</p>
         {oidc && <p><a className="btn primary" href="/oidc/login" style={{ display: "inline-flex", alignItems: "center" }}>Log in with the identity provider</a></p>}
         <ol style={{ lineHeight: 1.7 }}>
-          <li>On the host, as the administrator, make a client certificate and a token:
-            <pre className="well term" style={{ margin: "6px 0", minHeight: 0 }}>{`openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -sha384 -days 3650 -nodes -subj "/CN=nixie-browser" -keyout client.key -out client.crt
-openssl pkcs12 -export -inkey client.key -in client.crt -out client.p12   # choose a password
-incus config trust add-certificate client.crt`}</pre>
+          <li>On the machine (over SSH, at its console once logged in, or in the host page's terminal), run:
+            <pre className="well term" style={{ margin: "6px 0", minHeight: 0 }}>sudo nixie panel trust</pre>
           </li>
-          <li>Import <code>client.p12</code> into this browser's certificates, then reload. Firefox: Settings › Privacy › Certificates › Your Certificates. Chromium: chrome://settings/certificates.</li>
+          <li>It shows an address and a six-digit code. Open the address in this browser and type the code: the page gives you the certificate file and its password.</li>
+          <li>Import the file into this browser. Chrome and Edge: Settings › Privacy and security › Security › Manage certificates › Your certificates › Import. Firefox: Settings › Privacy &amp; Security › Certificates › View Certificates › Your Certificates › Import. Safari: open the file.</li>
+          <li>Reload this page, and choose the nixie certificate when the browser asks.</li>
         </ol>
-        <p className="muted">The control panel talks only to the daemon that served it; nothing is sent anywhere else.</p>
+        <p className="muted">Setting a machine up, the setup page's last step makes one for the browser it is open in. The control panel talks only to the daemon that served it; nothing is sent anywhere else.</p>
       </div>
     </div>
   );

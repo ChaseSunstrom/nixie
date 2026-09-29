@@ -4,7 +4,8 @@ export type Device = { path: string; size: number; label: string; fstype: string
 export type SiteFile = { path: string; content: string };
 export type Check = { ok: boolean; message: string; detail?: string; locations: { path: string; line: number; col: number }[] };
 export type Hardware = { disks: { path: string; size: number; model: string | null; serial: string | null; transport: string | null; id: string | null }[]; nics: { mac: string; name: string; up: boolean }[]; gpu: string; tpm: boolean; efi: boolean; online?: boolean };
-export type State = { mode: "iso" | "continuation"; state: Record<string, unknown>; done: number[]; host: string; secrets: string[]; layout: { features: Record<string, boolean | number[]> } | null; virt?: string };
+export type State = { mode: "iso" | "continuation"; state: Record<string, unknown>; done: number[]; host: string; secrets: string[]; layout: { features: Record<string, boolean | number[]> } | null; virt?: string; panel?: { available: boolean; local: boolean } };
+export type PanelCertificate = { name: string; password: string; fingerprint: string; panel: string; file: string; p12: string };
 
 async function j<T>(method: string, path: string, body?: unknown): Promise<T> {
   const r = await fetch(path, { method, headers: body !== undefined ? { "Content-Type": "application/json" } : undefined, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -37,6 +38,7 @@ export const api = {
   reboot: (firmware = false) => j<{ ok: boolean }>("POST", "/api/reboot", { firmware }),
   finish: () => j<{ ok: boolean; output: string }>("POST", "/api/finish", {}),
   finishStatus: () => j<{ failed: boolean; lines: string[] }>("GET", "/api/finish"),
+  panelCertificate: () => j<PanelCertificate>("POST", "/api/panel-certificate", {}),
   files: () => j<{ files: SiteFile[] }>("GET", "/api/files"),
   saveFile: (path: string, content: string) => j<{ ok: boolean }>("POST", "/api/files", { path, content }),
   check: () => j<Check>("POST", "/api/check", {}),

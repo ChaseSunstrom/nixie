@@ -167,7 +167,7 @@ Both share the boot chain, the security stack, the installer and the
 | option | what it does | what it costs | default |
 |---|---|---|---|
 | `nixie.security.encryption.enable` | LUKS2 under ZFS on the system disk (and the data disk, keyed from the root) | a passphrase every boot; the one change that needs a reinstall | off (the ISO pre-selects on) |
-| `nixie.security.tpm.enable` | an outer LUKS layer bound to the TPM 2.0 with a required PIN, PCRs from `nixie.security.tpm.pcrs` | a PIN every boot; `nixie reseal` after firmware changes | off |
+| `nixie.security.tpm.enable` | an outer LUKS layer bound to the TPM 2.0 with a required PIN, PCRs from `nixie.security.tpm.pcrs` | a PIN every boot; `nixie security rebind` if a firmware change makes the TPM refuse it | off |
 | `nixie.security.secureBoot.enable` | lanzaboote signs the boot chain with your keys, enrolled from Setup Mode | a firmware visit; unsigned media will not boot | off |
 | `nixie.security.attestation.enable` | a TOTP code from the TPM before the passphrase prompt | comparing a code at boot; `nixie reseal` after kernel updates | off |
 | `nixie.security.duress.enable` | a second passphrase that erases every key slot and powers off | no undo | off |
@@ -252,6 +252,9 @@ grep -q 'gpu = true' guests.nix
 | `nixie rollback guest <name> [--snapshot s]` | restore a guest's root disk from a snapshot; its `state/` is untouched |
 | `nixie rollback data <name> [--snapshot s] [--in-place]` | a state directory from a ZFS snapshot, beside the live one or in place |
 | `nixie reseal` | reseals attestation to the running boot chain |
+| `nixie security rebind` | when a start needed the recovery key because the TPM refused the PIN (Secure Boot or the firmware changed, the TPM was reset): seals the disk to this start again with a PIN, keeping the recovery key; also from the front panel (`p`) |
+| `nixie panel trust [--name <n>]` | a certificate for the browser that opens the control panel: prints an address and a code, and that browser fetches the file and its password once; `--p12 <file>` writes it instead |
+| `nixie panel list \| forget <name>` | the certificates the control panel trusts, and taking one back |
 | `nixie security reenroll` | after a board, TPM or firmware change: Secure Boot enrolment, TPM + PIN binding with a new recovery key, attestation, lockout password, header backups; resumable, also from the front panel (`e`) ([VERIFICATION.md#slice-o-recovery](VERIFICATION.md#slice-o-recovery)) |
 | `nix run .#apply [<machine>]` | from a site checkout: copy it to that machine and run its own `nixie apply` there; with no machine, this one |
 | `nixie update [--check \| --now]` | whether the site repository is ahead of this machine, and apply it; the timer does this by itself (`nixie.updates.mode`) |
@@ -327,8 +330,11 @@ networks, storage, operations, dashboards and guest history. Machines lists
 every machine in the site, not only the one serving the page, and opens any
 other machine's panel; the list is written from `site.nix` by `lib.mkSite`,
 so a machine added to the site appears there after the next `nixie apply`.
-A browser gets in with a client certificate the daemon trusts; the panel's first page gives
-the commands. The gear in the header opens Settings: the finish, the figures
+A browser gets in with a client certificate the daemon trusts. Setup's last
+step makes one for the browser it is open in; after that, `sudo nixie panel
+trust` on the machine prints an address and a code, and the browser that
+types the code there downloads its certificate and the password to import it
+with, once. The panel's first page says the same. The gear in the header opens Settings: the finish, the figures
 in the header, the time range a browser starts with, which Overview panels
 show and in what order and width, the pages in the navigation and extra
 links. They are kept on the host for every browser, in the daemon's
@@ -343,7 +349,10 @@ that stops when the browser asks for reduced motion.
 
 The first text console shows a front panel (`nixie.console.frontPanel.enable`,
 on by default); any key opens the normal login. `nixie.console.kiosk.enable`
-keeps a kiosk with the control panel behind a lock page on the local display
+keeps a kiosk with the control panel behind a lock page on the local display:
+the administrator's password and, with the second factor on, the
+authenticator code; the panel reaches incusd through its socket, so the kiosk
+needs no certificate, and it locks itself again when left alone
 ([docs/console.md](docs/console.md), [VERIFICATION.md#console](VERIFICATION.md#console)).
 
 ## Desktop

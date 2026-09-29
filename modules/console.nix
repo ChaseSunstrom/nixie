@@ -18,20 +18,29 @@ let
   # The lock page is the setup pairing card in the host's finish.
   tk = import ../lib/tokens.nix { inherit lib; };
   t = tk.forFinish config.nixie.ui.theme;
-  lockPage = pkgs.writeText "lock.html" (template.fill ./console/lock.html (tk.marks t));
-  # A small local gate: the kiosk checks the password with `unix_chkpwd`, the
-  # pam_unix helper (it reads the password from stdin, so no terminal is
-  # needed), and, when TOTP is enrolled, the code against the same file the
-  # host page uses.
-  gate = pkgs.writeShellApplication {
-    name = "nixie-kiosk-gate";
-    runtimeInputs = with pkgs; [
-      python3
-      coreutils
-      oath-toolkit
-    ];
-    text = template.fill ./console/kiosk-gate.sh { inherit lockPage; };
-  };
+  totp = config.nixie.auth.secondFactor == "totp";
+  lockPage = pkgs.writeText "lock.html" (
+    template.fill ./console/lock.html (
+      tk.marks t
+      // {
+        lead =
+          if totp then
+            "The administrator's password, and the code from the authenticator app."
+          else
+            "The administrator's password.";
+        code = lib.optionalString totp ''<label>Code from the authenticator app<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>'';
+      }
+    )
+  );
+  panelPage = pkgs.writeText "panel.html" (template.fill ./console/panel.html (tk.marks t));
+  # The lock in front of the local panel, and the panel's way to incusd
+  # (console/kiosk-gate.py): the administrator's password through
+  # `unix_chkpwd`, the pam_unix helper, and the authenticator code against
+  # the secret the host page uses; incusd over its unix socket, so the kiosk
+  # browser holds no certificate.
+  gate = pkgs.writeScriptBin "nixie-kiosk-gate" (
+    "#!${pkgs.python3}/bin/python3\n" + builtins.readFile ./console/kiosk-gate.py
+  );
 in
 {
   imports = [ ../installer/kiosk.nix ];
@@ -111,16 +120,29 @@ in
         url = "http://127.0.0.1:9444/";
         tokenFile = "";
       };
+      # The lock checks the same authenticator the host page does; without
+      # this it would have no secret to check against, and must not open.
+      sops.secrets.totp-secret = lib.mkIf totp { };
       systemd.services.nixie-kiosk-gate = {
         description = "Lock page in front of the local control panel";
         wantedBy = [ "multi-user.target" ];
         before = [ "cage-tty1.service" ];
+        after = [ "sops-nix.service" ];
         serviceConfig = {
-          # exposure: checks the admin password through unix_chkpwd; loopback only.
-          ExecStart = "${lib.getExe gate} ${config.nixie.auth.admin.name} ${
-            toString (lib.toInt (lib.removeSuffix "m" cfg.kiosk.idleLock) * 60)
-          } https://127.0.0.1:${toString config.nixie.incus.ui.port}/ui/";
-          Restart = "on-failure";
+          # exposure: root, to check the admin password through unix_chkpwd,
+          # read the second factor's secret and reach incusd's socket;
+          # loopback only.
+          ExecStart = lib.escapeShellArgs [
+            "${gate}/bin/nixie-kiosk-gate"
+            config.nixie.auth.admin.name
+            (toString (lib.toInt (lib.removeSuffix "m" cfg.kiosk.idleLock) * 60))
+            (if totp then config.sops.secrets.totp-secret.path else "none")
+            lockPage
+            panelPage
+            "/var/lib/incus/unix.socket"
+          ];
+          Restart = "always";
+          RestartSec = 1;
         };
       };
     })

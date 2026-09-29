@@ -2,6 +2,40 @@
 
 ## 0.1.0 (unreleased)
 
+A virtual TPM no longer leaves a machine on its recovery key. VirtualBox's
+TPM, like QEMU's swtpm, allows three wrong PINs over every start and then
+refuses the right one too, giving one try back per 17 minutes it runs; setup
+set a lockout password but kept that limit. Setup now raises it to 32 (one
+back every two hours) before it seals the PIN, every start that gets through
+clears the count, and a machine installed before this gets both at its next
+start. When the TPM does refuse, the splash says why over the recovery key
+prompt -- locked after wrong PINs, Secure Boot or the firmware changed, or a
+TPM that lost the seal -- and a wrong PIN is called wrong instead of "wrong
+PIN, or Secure Boot changed". `nixie security rebind` (and `p` on the front
+panel) seals the disk to the running start again with a new PIN and keeps the
+recovery key; `nixie doctor` and the notices say what the last start used.
+
+The kiosk works with a second factor, and shows the control panel. Its lock
+read a file nothing wrote, so with the authenticator on, the right password
+dropped the connection and left the kiosk on a browser error page it had no
+way back from; without the host page it skipped the second factor instead.
+Unlocked, it sent the browser to the panel's address, which answered "this
+browser is not trusted yet" with instructions a kiosk cannot follow, and the
+idle lock never applied there. The lock now checks the password and the code
+itself, says why it refuses on the page, shows the panel in a frame and
+passes its requests to incusd's socket, so the kiosk needs no certificate,
+and ends the session after the idle time with no input, or at Lock. The
+kiosk's screen also comes back by itself when the browser exits (Ctrl+W
+closed it for good) and waits for a graphics card that is late to appear,
+which in a slow VM had left a bare console.
+
+A browser gets its control panel certificate without `openssl` and `scp`.
+Setup's last step makes one for the browser it is open in; later, `sudo
+nixie panel trust` prints an address and a code, and the browser that types
+the code there downloads the certificate and the password to import it with,
+once, within ten minutes. `nixie panel list` and `nixie panel forget` show
+and take back what the panel trusts, and the panel's own page says all this.
+
 The installer's wizard is rebuilt: fewer steps with plain labels (Machine,
 Disks, Name, Security, Network, Services, Desktop, Review, Install), the first
 sentence of each option's help with More for the rest, advanced settings
