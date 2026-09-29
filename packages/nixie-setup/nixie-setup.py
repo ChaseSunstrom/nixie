@@ -10,7 +10,7 @@ the first reboot (phases 4-8); the wizard never does anything the CLI cannot.
 import argparse, base64, hashlib, hmac, http.cookies, http.server, json, os, re, secrets, shutil, socket, ssl, struct, subprocess, sys, tarfile, tempfile, threading, time, urllib.parse
 
 ARGS = None
-SESSIONS = set()
+SESSIONS = {}         # token -> True for the kiosk on this machine's own screen
 PAIR_CODE = None
 FINISH_STARTED = None
 SECRETS = {}           # name -> bytes, in memory only
@@ -444,9 +444,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         tok = c["nixie-session"].value if "nixie-session" in c else None
         return tok if tok in SESSIONS else None
 
-    def set_session(self):
+    def set_session(self, local=False):
         tok = secrets.token_urlsafe(32)
-        SESSIONS.add(tok)
+        SESSIONS[tok] = local
         self.send_header("Set-Cookie", f"nixie-session={tok}; Path=/; Secure; HttpOnly; SameSite=Strict")
 
     def static(self, path):
@@ -473,14 +473,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # The kiosk on the machine itself pairs with the local token.
                 if "token" in q and os.path.exists(ARGS.local_token) and hmac.compare_digest(open(ARGS.local_token).read().strip(), q["token"][0]):
                     self.send_response(204)
-                    self.set_session()
+                    self.set_session(local=True)
                     self.end_headers()
                     return
                 return self.send_json({"error": "not paired"}, 401)
             return self.api_get(u.path, q)
         if "token" in q and os.path.exists(ARGS.local_token) and hmac.compare_digest(open(ARGS.local_token).read().strip(), q["token"][0]):
             self.send_response(302)
-            self.set_session()
+            self.set_session(local=True)
             self.send_header("Location", "/")
             self.end_headers()
             return
@@ -491,7 +491,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             st = read_state()
             # "oracle" is VirtualBox, whose Secure Boot keys are cleared differently.
             virt = sh(["systemd-detect-virt"]).stdout.strip()
-            return self.send_json({"mode": ARGS.mode, "state": st, "done": markers(), "host": socket.gethostname(), "secrets": sorted(SECRETS), "layout": self.layout(), "virt": virt})
+            # The control panel exists once the installed system runs incusd;
+            # a certificate for it is only worth making in a browser that is
+            # not the kiosk on this machine's own screen.
+            panel = {"available": ARGS.mode == "continuation" and os.path.exists("/var/lib/incus/unix.socket"), "local": bool(SESSIONS.get(self.session()))}
+            return self.send_json({"mode": ARGS.mode, "state": st, "done": markers(), "host": socket.gethostname(), "secrets": sorted(SECRETS), "layout": self.layout(), "virt": virt, "panel": panel})
         if path == "/api/hardware":
             r = sh(["nixie-discover"])
             if r.returncode:
@@ -664,7 +668,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if u.path == "/api/finish":
             return self.api_finish()
+        if u.path == "/api/panel-certificate":
+            return self.panel_certificate()
         return self.send_json({"error": "not found"}, 404)
+
+    def panel_certificate(self):
+        # The certificate `nixie panel trust` makes, handed to the browser
+        # that is already paired with setup rather than through its code page.
+        if ARGS.mode != "continuation" or not shutil.which("nixie"):
+            return self.send_json({"error": "the control panel is set up after the first start"}, 400)
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "browser.p12")
+            r = sh(["nixie", "panel", "trust", "--name", time.strftime("setup-%Y%m%d-%H%M%S"), "--p12", out, "--json"])
+            if r.returncode:
+                return self.send_json({"error": (r.stderr or r.stdout).strip()[-2000:] or "nixie panel trust failed"}, 500)
+            info = json.loads(r.stdout)
+            with open(out, "rb") as f:
+                info["p12"] = base64.b64encode(f.read()).decode()
+        info["file"] = f"nixie-{read_state().get('host', socket.gethostname())}.p12"
+        return self.send_json(info)
 
     def site(self, b):
         mode = b.get("mode", "new")

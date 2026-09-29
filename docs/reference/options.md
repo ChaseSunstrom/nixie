@@ -21,8 +21,9 @@ writes it into the site's secrets; it never ends up in the Nix store.
 
 *one of "none", "totp" (none, totp)*, default: `"none"`. Wizard section: auth.
 
-An extra step for logging in to the host page. "totp" asks for a
-six-digit code from an authenticator app, enrolled during setup.
+An extra step for logging in to the host page, and for unlocking the
+kiosk on the local screen. "totp" asks for a six-digit code from an
+authenticator app, enrolled during setup.
 Passkeys are not offered because the host page checks logins on the
 server itself, where a browser passkey cannot reach.
 
@@ -1150,8 +1151,9 @@ reinstalling. The keys live in the site's secrets.
 
 Add a second encryption layer tied to this machine's TPM chip plus a
 PIN. The disk then opens only in this machine, and only with both the
-PIN and the passphrase. Needs a TPM 2.0. A firmware update or a change
-to the boot chain can require running `nixie reseal`.
+PIN and the passphrase. Needs a TPM 2.0. After a firmware update or a
+change to Secure Boot the TPM can refuse the PIN: the recovery key
+then opens the disk, and `nixie security rebind` seals it again.
 
 ## `nixie.security.tpm.pcrs`
 

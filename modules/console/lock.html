@@ -6,12 +6,37 @@ form{width:360px;background:@s1@;border:1px solid @line@;border-radius:14px;padd
 @media (prefers-reduced-motion:reduce){form{animation:none}}
 .brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:600;letter-spacing:-.03em}h1{margin:6px 0 0;font-size:22px;font-weight:500}p{margin:0;color:@muted@}
 label{display:grid;gap:4px;font-weight:500}input{background:@s2@;border:1px solid @line@;border-radius:6px;color:@ink@;height:36px;padding:0 10px;font:inherit}input:focus{outline:2px solid @brand2@;outline-offset:1px}
-button{margin-top:4px;height:38px;background:@brand@;border:0;border-radius:6px;color:#fff;font:inherit;cursor:pointer}button:hover{filter:brightness(1.12)}
+button{margin-top:4px;height:38px;background:@brand@;border:0;border-radius:6px;color:#fff;font:inherit;cursor:pointer}button:hover{filter:brightness(1.12)}button:disabled{opacity:.6;cursor:progress}
+#why{color:@err@;min-height:1.2em}#why:empty{display:none}
 </style>
-<form method="post" action="/unlock">
+<form method="post" action="/__nixie/unlock" id="f">
   <div class="brand"><svg width="28" height="28" viewBox="0 0 72 72" aria-hidden="true"><rect x="10" y="18" width="10" height="44" rx="3" fill="@brand@"/><rect x="10" y="18" width="52" height="10" rx="3" fill="@brand@"/><rect x="52" y="18" width="10" height="44" rx="3" fill="@brand2@"/></svg>nixie</div>
-  <h1>Unlock the control panel</h1><p>The administrator's password, and the code from the authenticator app if one is enrolled.</p>
-  <label>Password<input name="password" type="password" autofocus></label>
-  <label>Second factor<input name="code" inputmode="numeric" placeholder="if enrolled"></label>
-  <button>Unlock</button>
+  <h1>Unlock the control panel</h1><p>@lead@</p>
+  <label>Password<input name="password" type="password" autocomplete="off" autofocus></label>
+  @code@
+  <p id="why" role="alert"></p>
+  <button id="go">Unlock</button>
 </form>
+<script>
+// Sent from the page rather than as a form, so a refusal, or a lock that
+// is restarting, is said here: the kiosk has no way back from an error page.
+const f = document.getElementById("f"), why = document.getElementById("why"), go = document.getElementById("go");
+f.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  why.textContent = "";
+  go.disabled = true;
+  try {
+    const r = await fetch("/__nixie/unlock", { method: "POST", headers: { Accept: "application/json" }, body: new URLSearchParams(new FormData(f)) });
+    const j = await r.json().catch(() => ({ ok: false, error: "The lock gave an answer it cannot read. Try again." }));
+    if (j.ok) return location.replace("/");
+    why.textContent = j.error;
+  } catch {
+    why.textContent = "The lock is not answering right now. Try again in a moment.";
+  } finally {
+    go.disabled = false;
+    f.password.value = "";
+    if (f.code) f.code.value = "";
+    f.password.focus();
+  }
+});
+</script>

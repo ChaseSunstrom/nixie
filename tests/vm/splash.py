@@ -130,9 +130,12 @@ with subtest("the code and the PINs on the splash, a wrong PIN said so"):
     text = screen()
     assert "Attestation code" in text and re.search(r"\d{3} ?\d{3}", text), "no code on the splash"
     type_in("9999")
-    asked("PIN not accepted (wrong PIN, or Secure Boot changed). PIN", again=True)
+    # The TPM checked that PIN against a seal this start matches: wrong PIN,
+    # said so, and asked again under the same label.
+    asked("PIN (1 of 2)", again=True)
+    on_console("nixie-unlock: said: That PIN was wrong")
     target.screenshot("splash-wrong-pin")
-    assert "did not open" in screen(), "no word of the wrong PIN"
+    assert "wrong" in screen(), "no word of the wrong PIN"
     type_in("1234")
     # The passphrase layer asks for the security key's PIN instead.
     asked("Security key PIN (2 of 2)")
@@ -180,6 +183,81 @@ with subtest("the code and the PINs on the splash, a wrong PIN said so"):
     target.succeed("test \"$(cat /boot/nixie/attestation-generation)\" = \"$(readlink -f /run/booted-system)\"")
     target.succeed("tpm2-totp calculate")
     target.succeed("rm -r /run/systemd/system/nixie-attestation-reseal.service.d /run/nixie-test-bin && systemctl daemon-reload")
+    target.shutdown()
+
+with subtest("wrong PINs lock the TPM: the recovery key, and why, then the PIN works again"):
+    target.start()
+    asked("PIN (1 of 2)")
+    type_in("1234")
+    asked("Security key PIN (2 of 2)")
+    type_in("123456")
+    target.wait_for_unit("multi-user.target")
+    target.wait_for_unit("nixie-tpm-check.service")
+    # Phase 6 took the TPM's lockout over: 32 tries, not a virtual TPM's 3,
+    # and the typo above was forgiven once this start got through.
+    tcti = "export TPM2TOOLS_TCTI=device:/dev/tpmrm0; "
+    caps = target.succeed(tcti + "tpm2_getcap properties-variable")
+    assert "TPM2_PT_MAX_AUTH_FAIL: 0x20" in caps and "TPM2_PT_LOCKOUT_COUNTER: 0x0" in caps, caps
+    target.succeed("jq -e '.opened == \"tpm\" and .managed' /run/nixie/tpm.json")
+    # Wrong PINs over a few starts, standing in: one try left, then spent.
+    target.succeed(
+        tcti + "tpm2_dictionarylockout --setup-parameters --max-tries=1 --recovery-time=1000 "
+        "--lockout-recovery-time=1000 -p file:/var/lib/nixie/tpm-lockout-auth"
+    )
+    target.succeed(
+        tcti + "cd /tmp && tpm2_createprimary -Q -C o -c p.ctx && printf x >x && "
+        "tpm2_create -Q -C p.ctx -p good -i x -u x.pub -r x.priv && "
+        "tpm2_load -Q -C p.ctx -u x.pub -r x.priv -c x.ctx && ! tpm2_unseal -c x.ctx -p bad"
+    )
+    target.succeed(tcti + "tpm2_getcap properties-variable | grep -qE 'inLockout: +1'")
+    target.shutdown()
+
+    target.start()
+    asked("PIN (1 of 2)")
+    type_in("1234")
+    # The right PIN, refused: the outer layer goes to the recovery key, and
+    # the splash says what the TPM said.
+    asked("Recovery key")
+    on_console("nixie-unlock: said: The TPM is locked after too many wrong PINs")
+    target.screenshot("splash-tpm-locked")
+    assert "locked" in screen(), "no word of the locked TPM"
+    type_in(recovery)
+    asked("Security key PIN (2 of 2)")
+    type_in("123456")
+    target.wait_for_unit("multi-user.target")
+    target.wait_for_unit("nixie-tpm-check.service")
+    t = target.succeed("cat /run/nixie/tpm.json")
+    print(t)
+    target.succeed("jq -e '.opened == \"recovery\" and .reason == \"lockout\" and .managed' /run/nixie/tpm.json")
+    # This machine keeps the lockout password, so the start put it right.
+    caps = target.succeed(tcti + "tpm2_getcap properties-variable")
+    assert "TPM2_PT_MAX_AUTH_FAIL: 0x20" in caps and "TPM2_PT_LOCKOUT_COUNTER: 0x0" in caps, caps
+    target.succeed("nixie notices --write")
+    assert "too many wrong PINs" in target.succeed("cat /run/nixie/notices.json")
+    doc = target.succeed("nixie doctor || true")
+    print(doc)
+    assert "the PIN works at the next start" in doc, doc
+    # Sealing again keeps the recovery key a person wrote down.
+    target.succeed(f"umask 077 && printf '%s' '{recovery}' >/root/rk && printf 1234 >/root/pin")
+    out = target.succeed("NIXIE_RECOVERY_KEY_FILE=/root/rk NIXIE_PIN_FILE=/root/pin nixie security rebind 2>&1")
+    print(out)
+    assert "sealed to the TPM again" in out, out
+    dump = target.succeed("cryptsetup luksDump /dev/vda2")
+    assert dump.count("systemd-recovery") == 1 and dump.count("systemd-tpm2") == 1, dump
+    target.succeed(f"printf '%s' '{recovery}' | cryptsetup open --test-passphrase /dev/vda2")
+    target.succeed("jq -e .rebound /run/nixie/tpm.json")
+    assert "too many wrong PINs" not in target.succeed("cat /run/nixie/notices.json")
+    target.shutdown()
+
+    # And the PIN alone opens the outer layer again.
+    target.start()
+    asked("PIN (1 of 2)")
+    type_in("1234")
+    asked("Security key PIN (2 of 2)")
+    type_in("123456")
+    target.wait_for_unit("multi-user.target")
+    target.wait_for_unit("nixie-tpm-check.service")
+    target.succeed("jq -e '.opened == \"tpm\"' /run/nixie/tpm.json")
     target.shutdown()
 
 with subtest("another machine opens the disk with the recovery key and the passphrase"):

@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><title>nixie</title>
+<style>
+html,body{margin:0;height:100%;background:@bg@;overflow:hidden}
+iframe{border:0;display:block;width:100%;height:100%}
+#lock{position:fixed;left:14px;bottom:14px;height:30px;padding:0 12px;background:@s2@;color:@ink@;border:1px solid @line@;border-radius:6px;font:13px Archivo,sans-serif;cursor:pointer;opacity:.75}
+#lock:hover,#lock:focus-visible{opacity:1;outline:2px solid @brand2@;outline-offset:1px}
+</style>
+<iframe id="panel" src="/ui/" title="Control panel"></iframe>
+<button id="lock" title="Lock the control panel now">Lock</button>
+<script>
+// The lock (kiosk-gate.py) decides when the session ends; this page tells it
+// that a person is here, and goes back to the lock page once it has ended.
+// Only input counts as a person: the panel polls the daemon on its own.
+const frame = document.getElementById("panel");
+let here = false;
+const mark = () => { here = true; };
+const events = ["keydown", "pointerdown", "pointermove", "wheel", "touchstart"];
+const watch = (w) => { for (const e of events) w.addEventListener(e, mark, { capture: true, passive: true }); };
+watch(window);
+// Same origin, so the panel's own document can be watched too.
+frame.addEventListener("load", () => { try { watch(frame.contentWindow); } catch {} });
+const back = () => location.replace("/");
+setInterval(() => {
+  if (!here) return;
+  here = false;
+  fetch("/__nixie/active", { method: "POST" }).then((r) => { if (r.status === 401) back(); }).catch(() => {});
+}, 15000);
+setInterval(() => {
+  fetch("/__nixie/state").then((r) => r.json()).then((s) => { if (!s.unlocked) back(); }).catch(() => {});
+}, 5000);
+document.getElementById("lock").addEventListener("click", () => {
+  fetch("/__nixie/lock", { method: "POST" }).finally(back);
+});
+</script>

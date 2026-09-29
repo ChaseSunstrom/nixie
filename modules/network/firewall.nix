@@ -19,10 +19,13 @@ let
   lanIf = if nat then "uplink*" else br;
   tailnetIf = "tailscale0";
   uiPort = toString config.nixie.incus.ui.port;
+  # Where `nixie panel trust` hands a browser its certificate, for the few
+  # minutes it runs; the setup port, which nothing else uses after setup.
+  trustPort = "9443";
   sshPort = toString (lib.head config.services.openssh.ports);
   hostUiPort = toString config.nixie.hostUi.port;
   promPort = toString config.nixie.monitoring.port;
-  hostPorts = "${sshPort}, ${uiPort}, ${hostUiPort}, ${promPort}";
+  hostPorts = "${sshPort}, ${uiPort}, ${trustPort}, ${hostUiPort}, ${promPort}";
   # The one host service the guests are meant to reach: the images this
   # machine keeps for them (modules/data.nix).
   registryOn = config.nixie.data.registry.enable;
@@ -138,8 +141,8 @@ in
             ${lib.optionalString onTailnet ''iifname "${tailnetIf}" tcp dport ${sshPort} accept''}
             ${lib.optionalString (
               config.nixie.incus.ui.listen == "lan+tailnet"
-            ) ''iifname "${lanIf}" tcp dport { ${uiPort}, ${promPort} } accept''}
-            ${lib.optionalString onTailnet ''iifname "${tailnetIf}" tcp dport { ${uiPort}, ${promPort} } accept''}
+            ) ''iifname "${lanIf}" tcp dport { ${uiPort}, ${trustPort}, ${promPort} } accept''}
+            ${lib.optionalString onTailnet ''iifname "${tailnetIf}" tcp dport { ${uiPort}, ${trustPort}, ${promPort} } accept''}
             ${lib.optionalString (
               config.nixie.hostUi.enable && config.nixie.hostUi.listen == "lan+tailnet"
             ) ''iifname "${lanIf}" tcp dport ${hostUiPort} accept''}

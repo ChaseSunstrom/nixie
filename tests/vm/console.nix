@@ -1,6 +1,8 @@
 # tty1 shows the front panel after boot (read back with OCR), and with the
-# kiosk on the local display shows the lock page, accepts the admin login and
-# renders the control panel. Both closure states are checked in tests/default.nix.
+# kiosk on the local display shows the lock page, takes the admin password
+# and the authenticator code typed on the screen, renders the control panel
+# through incusd's socket, and locks itself again when nobody touches it.
+# Both closure states are checked in tests/default.nix.
 {
   pkgs,
   nixieLib,
@@ -8,6 +10,10 @@
 }:
 let
   inherit (pkgs) lib;
+  template = import ../../lib/template.nix lib;
+  # The example secrets carry no TOTP secret; the test provides one.
+  # base32 of "12345678901234567890".
+  totp = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
   base = {
     imports = nixieLib.hostModules ../../examples/site "server" exampleSite.hosts.server ++ [
       ./qemu.nix
@@ -36,8 +42,20 @@ pkgs.testers.runNixOSTest {
     kiosk = {
       imports = [ base ];
       virtualisation.memorySize = 3072;
-      nixie.console.kiosk.enable = true;
+      nixie.console.kiosk = {
+        enable = true;
+        idleLock = "2m";
+      };
+      nixie.auth.secondFactor = "totp";
+      # Test only: stand in for the sops-provided secret.
+      sops.secrets.totp-secret = lib.mkForce { };
+      systemd.services.nixie-kiosk-gate.serviceConfig.ExecStartPre =
+        pkgs.writeShellScript "seed" "mkdir -p /run/secrets && printf '${totp}' > /run/secrets/totp-secret";
+      environment.systemPackages = [
+        pkgs.curl
+        pkgs.oath-toolkit
+      ];
     };
   };
-  testScript = builtins.readFile ./console.py;
+  testScript = template.fill ./console.py { inherit totp; };
 }

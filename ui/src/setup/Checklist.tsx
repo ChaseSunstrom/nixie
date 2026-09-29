@@ -88,6 +88,24 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
   // headers can be written to a drive instead.
   const [dest, setDest] = useState("");
   const [copied, setCopied] = useState("");
+  // The control panel answers browsers holding a certificate this machine
+  // made (`nixie panel trust`); the one this page is open in gets it here.
+  const [cert, setCert] = useState<{ file: string; password: string; url: string; panel: string } | null>(null);
+  const makeCert = () => {
+    setErr("");
+    api.panelCertificate().then((c) => {
+      const bytes = Uint8Array.from(atob(c.p12), (ch) => ch.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/x-pkcs12" }));
+      // The panel's port, at the address this page was opened on.
+      const panel = new URL(c.panel);
+      panel.hostname = location.hostname;
+      setCert({ file: c.file, password: c.password, url, panel: panel.toString() });
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = c.file;
+      a.click();
+    }).catch((e) => setErr((e as Error).message));
+  };
 
   const phases = [
     { n: 4, title: "First start", blurb: "The identity and the site are in place.", used: true },
@@ -236,6 +254,30 @@ export function Continuation({ st, run, busy, setBusy, lines, setLines, err, set
                 <a className="btn" href="/api/download/header-backup" download>Download instead</a>
                 {copied && <span className="caption">Written to {copied}</span>}
               </div>
+            </div>
+          )}
+          {st.panel?.available && (
+            <div className="fields">
+              <div className="check-title">The control panel, from your computer</div>
+              {st.panel.local ? (
+                <p className="caption">The control panel opens in a browser on another computer, with a certificate this machine makes. After Finish, log in on this machine and run <code>sudo nixie panel trust</code>: it shows an address and a code to type in that browser, which then gets the certificate.</p>
+              ) : cert ? (
+                <>
+                  <p className="caption">Import <b>{cert.file}</b> into this browser with this password, then open <a href={cert.panel} target="_blank" rel="noreferrer">{cert.panel}</a> and choose the nixie certificate when the browser asks.</p>
+                  <pre className="well mono">{cert.password}</pre>
+                  <ol className="caption steps">
+                    <li>Chrome, Edge: Settings › Privacy and security › Security › Manage certificates › Your certificates › Import.</li>
+                    <li>Firefox: Settings › Privacy &amp; Security › Certificates › View Certificates › Your Certificates › Import.</li>
+                    <li>Safari: open the file; it goes into the keychain.</li>
+                  </ol>
+                  <div className="row"><a className="btn" href={cert.url} download={cert.file}>Download again</a></div>
+                </>
+              ) : (
+                <>
+                  <p className="caption">This browser can open the control panel once it holds a certificate this machine trusts. Another browser gets one later with <code>sudo nixie panel trust</code>.</p>
+                  <div className="row"><button className="btn" disabled={busy} onClick={makeCert}>Make a certificate for this browser</button></div>
+                </>
+              )}
             </div>
           )}
           <div className="row">

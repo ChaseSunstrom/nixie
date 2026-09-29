@@ -86,6 +86,7 @@ let
     "nixie-oath-users"
     "nixie-panel"
     "nixie-kiosk-gate"
+    "nixie-tpm-check"
     "nixie-terminal"
     "nixie-banner"
   ];

@@ -287,8 +287,9 @@ in
       config.nixie.hardware.gpu == "nvidia" && lib.any (g: g.gpu) (lib.attrValues guests)
     ) true;
 
-    # The control panel's "not trusted yet" page has the administrator make
-    # a browser certificate with openssl on this host.
+    # The control panel's "not trusted yet" page sends the administrator to
+    # `nixie panel trust`, which carries its own openssl; this one is for a
+    # person checking a certificate by hand.
     environment.systemPackages = [ pkgs.openssl ];
     environment.etc."nixie/tofu/config.tf.json".source = tofuConfig;
     environment.etc."nixie/guests.json".text = guestsLib.declaredJson guests images;

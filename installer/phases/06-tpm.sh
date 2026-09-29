@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Phase 6: bind the outer layer to the TPM with a PIN, enrol the recovery
-# key and a security key, start attestation, set the TPM lockout password,
-# and produce the encrypted header backup bundle.
+# Phase 6: set the TPM's lockout password and PIN tries, bind the outer
+# layer to the TPM with a PIN, enrol the recovery key and a security key,
+# start attestation, and produce the encrypted header backup bundle.
 # Options: --backup-dest DIR copies the bundle there as well; --force redoes
 # the TPM binding, the recovery key and the attestation secret (reenroll).
 set -euo pipefail
@@ -27,8 +27,13 @@ recovery_slots() {
 
 if feature tpm; then
   step "binding the disk to the TPM"
-  need tpm2_changeauth tpm2_dictionarylockout
+  need nixie-tpm-lockout
   have_secret pin || die "no PIN given"
+  # First the TPM's own lockout: a password this machine keeps, 32 tries
+  # instead of a virtual TPM's 3, and the count cleared. A TPM locked by
+  # earlier wrong PINs would refuse the test below with the right one.
+  lockargs=(); [ "$force" = 1 ] && lockargs=(--new-auth)
+  while read -r l; do log "$l"; done < <(nixie-tpm-lockout prepare "${lockargs[@]}" 2>&1 || echo "could not prepare the TPM's lockout; its PIN tries are left as they are")
   # The install passphrase opens the outer layer at setup; afterwards only
   # the recovery key can (a reenroll after a board or TPM change).
   if have_secret passphrase; then unlock=$(secret_file passphrase); wipe=0
@@ -65,20 +70,6 @@ if feature tpm; then
     [ -z "$wipe" ] || systemd-cryptenroll --unlock-key-file="$(secret_file recovery-key)" --wipe-slot="$wipe" "$outer"
     log "outer layer bound to TPM (PCRs $pcrs) with PIN"
     log "recovery key (shown once, write it down): $recovery"
-  fi
-  if [ ! -s /var/lib/nixie/tpm-lockout-auth ] || [ "$force" = 1 ]; then
-    oldauth=(); [ -s /var/lib/nixie/tpm-lockout-auth ] && oldauth=(-p "$(cat /var/lib/nixie/tpm-lockout-auth)")
-    auth=$(openssl rand -hex 16)  # 32 chars: the TPM auth limit is one digest (32 bytes)
-    # Reading the sealed objects during earlier boots can trip the TPM's
-    # dictionary-attack lockout; clear it before setting our own auth. After
-    # a TPM reset the old auth is gone, so both forms are tried.
-    tpm2_dictionarylockout --clear-lockout "${oldauth[@]}" 2>/dev/null || tpm2_dictionarylockout --clear-lockout 2>/dev/null || true
-    if tpm2_changeauth -c lockout "${oldauth[@]}" "$auth" 2>/dev/null || tpm2_changeauth -c lockout "$auth"; then
-      (umask 077; echo "$auth" >/var/lib/nixie/tpm-lockout-auth)
-      log "TPM lockout password set"
-    else
-      log "could not set the TPM lockout password; leaving it unset"
-    fi
   fi
 fi
 

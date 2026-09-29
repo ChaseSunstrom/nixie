@@ -64,8 +64,9 @@ in
       ];
       default = "none";
       description = ''
-        An extra step for logging in to the host page. "totp" asks for a
-        six-digit code from an authenticator app, enrolled during setup.
+        An extra step for logging in to the host page, and for unlocking the
+        kiosk on the local screen. "totp" asks for a six-digit code from an
+        authenticator app, enrolled during setup.
         Passkeys are not offered because the host page checks logins on the
         server itself, where a browser passkey cannot reach.
       '';

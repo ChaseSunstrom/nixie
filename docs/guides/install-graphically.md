@@ -78,6 +78,14 @@ After setup:
   unlocked the code is sealed to it by itself with Secure Boot on, and with
   `sudo nixie reseal` otherwise. A start without a code that you did not
   update for is one not to unlock.
+- **When the PIN is refused.** A wrong PIN is said so and asked again. When
+  the TPM will not open the disk at all, the splash asks for the recovery key
+  and says why under the field: the TPM locked after too many wrong PINs (the
+  start clears that, so the PIN works again next time), Secure Boot or the
+  firmware changed, or the TPM lost the disk's seal. For the last two,
+  `sudo nixie security rebind` (or `p` on the front panel) seals the disk to
+  this start again with a PIN and keeps your recovery key; `nixie doctor`
+  says what the last start used and why.
 - **"Access Denied" at a start.** The firmware refused what it was asked to
   boot. `sudo nixie secure-boot` says which of the reasons it is: the
   firmware still holds someone else's keys (set Secure Boot Mode to Custom,
@@ -96,9 +104,19 @@ After setup:
   spare. For SSH, give a security key's public key (`ssh-keygen -t
   ed25519-sk`); "SSH asks for the password after the key", on in the
   hardened setup, makes the password a second step.
-- **Control panel.** `https://<address>:8443/ui/`. The first visit explains
-  how to trust the browser: a client certificate made with `openssl` on the
-  host and `incus config trust add-certificate`. The gear opens Settings.
+- **Control panel.** `https://<address>:8443/ui/`. It answers browsers that
+  hold a certificate this machine made. Setup's Finish step has **Make a
+  certificate for this browser**: it downloads the file and shows the
+  password to import it with (Chrome and Edge: Settings › Privacy and
+  security › Security › Manage certificates › Your certificates › Import;
+  Firefox: Settings › Privacy & Security › Certificates › View Certificates ›
+  Your Certificates › Import; Safari: open the file). For another browser
+  later, run `sudo nixie panel trust` on the machine (over SSH, at its
+  console, or in the host page's terminal): it prints an address on the
+  setup port and a six-digit code, and the browser that opens the address
+  and types the code gets the file and its password, once. `nixie panel
+  list` shows what the panel trusts and `nixie panel forget <name>` takes a
+  browser's access back. The gear opens Settings.
   Machines lists every machine in this site and opens any other one's panel.
 - **The site.** `/etc/nixie/site` is a git checkout owned by root: edit it
   with `sudo`, then `sudo nixie apply`, which commits the edits first so
@@ -133,11 +151,18 @@ Any hypervisor with UEFI works; these are the settings that matter.
   and enforces them from then on. Never press "Reset Keys to Default" in the
   VM's settings: it restores VirtualBox's keys, and the VM then stops with
   "Access Denied" (untick Secure Boot and repeat the steps to recover).
+- **A virtual TPM allows three wrong PINs, in total.** VirtualBox's TPM, and
+  QEMU's swtpm, come with a limit of three wrong PINs across every start, and
+  give one back per 17 minutes the VM runs; past it they refuse the right PIN
+  too. Setup raises the limit to 32 and every start that gets through clears
+  the count; a machine installed before that gets both at its first start
+  after `nixie update --inputs nixie` brings this platform in.
 - **Shut the VM down cleanly.** VirtualBox saves the firmware's keys and the
   TPM's contents only when the VM stops normally; if VirtualBox itself is
   killed, both go back to how they were at the last clean stop, and the
   TPM PIN no longer opens the disk (the recovery key still does; then
-  `nixie security reenroll`).
+  `sudo nixie security rebind`, or `nixie security reenroll` when the
+  Secure Boot keys went too).
 - **Graphics:** no 3D acceleration is needed; the wizard falls back to
   software rendering.
 - The image can stay attached while setup runs: each of setup's reboots goes

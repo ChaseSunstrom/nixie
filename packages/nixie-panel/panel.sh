@@ -74,6 +74,10 @@ draw() {
   # Key hints wrap between hints, never inside one, and end a line above the
   # bottom so the terminal does not scroll.
   local hints=("any key: log in" "u: apply the waiting site update" "r: roll back to the previous system" "b: boot the previous one next time" "e: re-enrol Secure Boot, TPM and attestation" "Ctrl+Alt+F3: plain console")
+  # Only while the TPM refused this start and a new seal is what it needs.
+  if jq -e '.opened == "recovery" and (.rebound | not) and ((.reason == "lockout" and .managed) | not)' /run/nixie/tpm.json >/dev/null 2>&1; then
+    hints=("p: seal the disk to the TPM again" "${hints[@]}")
+  fi
   local lines=() line="" h y
   for h in "${hints[@]}"; do
     if [ -z "$line" ]; then line="  $h"
@@ -98,8 +102,10 @@ while true; do
       u) nixie update --now 2>&1 | tee >(logger -t nixie-panel) | tail -3; sleep 3; stty -echo 2>/dev/null || true ;;
       r) nixie rollback 2>&1 | tee >(logger -t nixie-panel) | tail -3; sleep 3; stty -echo 2>/dev/null || true ;;
       b) nixie rollback --boot-previous 2>&1 | tee >(logger -t nixie-panel) | tail -2; sleep 3; stty -echo 2>/dev/null || true ;;
-      # Re-enrolment asks for the recovery key and PIN on this console.
+      # Re-enrolment asks for the recovery key and PIN on this console, and
+      # so does sealing the disk to the TPM again.
       e) nixie security reenroll || true; read -r -s -n 1 -p "press any key"; stty -echo 2>/dev/null || true ;;
+      p) nixie security rebind || true; read -r -s -n 1 -p "press any key"; stty -echo 2>/dev/null || true ;;
       *) exec login ;;
     esac
   fi

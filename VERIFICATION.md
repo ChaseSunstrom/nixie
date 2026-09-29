@@ -2938,3 +2938,93 @@ Not verified here: a "hold" share stopping and starting a real Incus guest
 (the test names the guest; the stop and start are `incus stop --force` and
 `incus start`), and FS-Cache serving a second read from local disk (the test
 shows the cache in use, not a timing).
+
+## A PIN refused on restart, a kiosk stuck on an error, a certificate with no way off the machine (2026-09-29)
+
+Reported together: in VirtualBox the TPM PIN stopped opening the outer layer
+after a restart and only the recovery key did, while the inner layer's
+passphrase kept working; with the kiosk and the authenticator on, the kiosk
+browser ended on an error page it had no way back from; and the control
+panel's certificate, made with `openssl` on the host as its page said, had
+no way to reach the browser that needed it.
+
+This session's container has no KVM and no VirtualBox, and did not have Nix;
+Nix 2.28.4 was installed from the release tarball, GitHub's tarballs are
+refused by the network policy here, so every flake input was fetched over
+git with `--override-input` at its locked revision (same revisions, same
+content; the lock file is unchanged). VM tests ran under TCG, where they ran
+at all; the table says which.
+
+**The TPM.** VirtualBox's TPM is libtpms, as QEMU's swtpm is. A fresh swtpm
+state here reports `TPM2_PT_MAX_AUTH_FAIL: 0x3`, `TPM2_PT_LOCKOUT_INTERVAL:
+0x3E8`: three failed authorisations over any number of starts, one given
+back per 1000 seconds the TPM runs. With systemd 260's own
+`systemd-cryptenroll` on a LUKS2 image and that swtpm: a PIN sealed to PCR 7,
+three wrong PINs, and the right PIN was refused ("TPM is in dictionary
+attack lock-out mode.", "TPM2 PIN unlock failed"); cleared with the lockout
+hierarchy and set to 32 tries, the right PIN opened it again. One wrong PIN
+passed as a credential to a non-interactive `systemd-cryptenroll` spent all
+three tries at once. Phase 6 set a lockout password but kept the limit, and
+nothing ever cleared the count, so a few typos -- or the recovery key typed
+into the PIN prompt, which the old "PIN not accepted (wrong PIN, or Secure
+Boot changed)" invited -- locked the PIN out while the passphrase layer still
+opened: the report exactly. The same swtpm gave the two other refusals'
+words: PCR 7 extended after sealing, "TPM policy does not match current
+system state"; a TPM with a new state, "Failed to unseal secret using TPM2:
+State not recoverable". A non-orderly stop after a successful PIN did not
+count against libtpms here (three power cuts, count still 0). What
+VirtualBox itself does between a restart and a cold start was not observed
+here; its TPM driver (`DrvTpmEmuTpms.cpp`, read from its source) keeps the
+state in the VM's NVRAM store across a reset and writes it out at power-off.
+
+Changes: ARCHITECTURE D45. Phase 6 prepares the lockout before it seals
+(`modules/security/tpm-lockout.sh`); `nixie-tpm-check.service` runs at every
+start; the unlock agent says why over the recovery key prompt and calls a
+wrong PIN wrong; `nixie security rebind` and the front panel's `p`; notices
+and `nixie doctor`.
+
+**The kiosk.** `kiosk-gate.sh` read `/run/nixie/oath/secret`, which nothing
+wrote (`nixie-oath-users` writes `users`, in hex, for pam_oath), so a right
+password with the second factor on raised FileNotFoundError, the connection
+closed empty, and Chromium in `--app` mode showed its error page; without
+the host page `users` did not exist and the second factor was skipped.
+Unlocked, it redirected to `https://127.0.0.1:8443/ui/`, which has no
+certificate from the kiosk and answers with the "not trusted" page; the idle
+lock only acted on the lock page's own address. `kiosk-panel.png` in the
+gallery is in fact the lock page: the test's unlock was a `curl` with no
+browser behind it, and "nixie" in the OCR pattern matched the lock page's
+wordmark. Changes: ARCHITECTURE D43 and D17.
+
+**The certificate.** ARCHITECTURE D44: `nixie panel trust | list | forget`,
+`trust-serve.py`, setup's Finish step, the panel's own page.
+
+| check | result |
+|---|---|
+| libtpms defaults, from a fresh swtpm: `TPM2_PT_MAX_AUTH_FAIL: 0x3`, `TPM2_PT_LOCKOUT_INTERVAL: 0x3E8` | read |
+| systemd-cryptenroll (260.2) on a LUKS2 image and swtpm: PIN sealed to PCR 7, three wrong PINs, then the right PIN refused ("dictionary attack lock-out"); cleared and set to 32 tries, the right PIN opens | reproduced |
+| the same, PCR 7 extended after sealing: "TPM policy does not match current system state"; a TPM with new state: "Failed to unseal secret using TPM2: State not recoverable" | read |
+| `tpm-lockout.sh prepare` on swtpm: sets a password and 32 tries on a fresh TPM, is idempotent, clears a count of 3, replaces the password with `--new-auth`, and leaves a TPM with another install's password alone | pass |
+| `tpm-lockout.sh check` against the journal lines above (a stand-in `journalctl`): `opened` tpm / recovery, `reason` lockout / changed / forgot | pass |
+| the unlock agent (`unlock.sh`) on the console with stand-in requests: a second PIN request says "That PIN was wrong", the recovery key request after a lockout says "The TPM is locked after too many wrong PINs" | pass |
+| `nixie security rebind`'s sequence on swtpm: enrol with the recovery key, prove the PIN with a throwaway password slot, wipe it; a wrong PIN in that proof fails | pass |
+| the kiosk lock (`kiosk-gate.py`) against a stand-in incusd socket: locked answers, the code required, a replayed code refused, bodies and a websocket passed on, the websocket cut when the session ends | pass |
+| the same in Chromium 141 (Playwright), with the real panel bundle: refusals said on the page, unlocked the frame shows the panel's Overview and no "not trusted" page, input inside the frame keeps it open past the idle time, left alone it goes back to the lock and the daemon answers 403, the Lock button | pass |
+| `trust-serve.py`: wrong code 403, right code gives the password and the link, the file downloads, exit 0 a minute later | pass |
+| `vm-ui` (TCG, 1175 s): `nixie panel trust` in the VM prints the address and code, the code is on no command line, the page refuses a wrong code, the downloaded `.p12` opens with the shown password and incusd answers `trusted` to it, the page is gone a minute later and the certificate stays; `--p12 --json` likewise; `forget` makes it `untrusted` | pass |
+| `fmt`, `statix`, `deadnix`, `systemd-security` (`nixie-tpm-check` documented), `option-docs`, `option-reference`, `readme`, `no-hardware-facts`, `setup-devices`, `eval-matrix`, `boot-and-setup`, `iso-config`, `secure-boot-states`, `secure-boot-report`, `hardware-keys`, `site-machines`, `updates`, `setup-qr`, `tokens-agree`, `tokens-from-design`, `profile-server-kiosk-only`, `profile-server-has-no-desktop`, `no-secrets-in-store`, `panel-declare`; the drivers of `vm-ui`, `vm-console` and `vm-splash` (their scripts type-check) | pass |
+
+**Still running when this was committed**, under TCG in this container and
+with their per-step timeouts scaled for it (a copy of the tree; the
+committed tests are unchanged): `vm-splash`, whose new subtest locks the TPM
+with a wrong PIN, starts on the recovery key with the reason on the splash,
+checks that the start cleared the count and restored 32 tries, rebinds, and
+starts again on the PIN; and `vm-console`, which types the password and the
+authenticator code into the kiosk, reads the panel's Overview off the
+screen, and waits for the idle lock. Unscaled, `vm-splash` stopped at its
+own 30-minute limit on the install step (exit 124), and `vm-console`'s kiosk
+never drew: cage could not take the DRM device from logind ("Could not take
+device: No such device") for its first 53 starts, some 17 minutes into a
+TCG boot. Before this change cage had no restart, so one such failure left
+a bare console; `installer/kiosk.nix` now restarts it and waits for a card,
+and in a booted debug run of the kiosk VM it came up on the 54th start and
+ran Chromium. Their results follow in the next entry.

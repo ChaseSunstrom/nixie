@@ -19,13 +19,42 @@ and kept on the encrypted root, and LUKS header backups for every layer,
 encrypted with age to the host's key and every recipient in `.sops.yaml`.
 With the TPM layer, setup also enrols a recovery key on the outer layer,
 shows it once (text and QR) and keeps it nowhere on the machine; the boot
-prompt falls back to it whenever the TPM cannot unseal, `nixie doctor` says
-when that happened, and `nixie security reenroll` then rebinds the TPM
-(Secure Boot, TPM + PIN, attestation, lockout password, header backups; the
-same phases as setup, resumable across the enrolment reboot) and shows a
-fresh key. USB devices plugged in later are blocked; `nixie usb` lists
-them and `nixie usb allow` records one in the site. A keyboard is never
-blocked while setup or a reenroll runs.
+prompt falls back to it whenever the TPM cannot unseal.
+
+## When the TPM refuses the PIN
+
+The TPM keeps the outer layer shut, and the splash asks for the recovery key
+instead, for one of three reasons, and says which under the field:
+
+- **Too many wrong PINs.** Every TPM counts wrong PINs and refuses even the
+  right one once the count reaches its limit. A virtual TPM (VirtualBox,
+  QEMU's swtpm) comes with a limit of three, counted over every start, and
+  gives one try back per 17 minutes it runs; three typos over a week were
+  enough. Setup takes the TPM's lockout over with a password it keeps on the
+  encrypted disk and raises the limit to 32, with one try back every two
+  hours, as Windows does; and every start that gets through clears the count
+  (`nixie-tpm-check.service`), since nobody without the PIN or the recovery
+  key gets that far. So after a lockout, the recovery key once is enough: the
+  next start takes the PIN again.
+- **Secure Boot or the firmware changed** since the disk was sealed (PCR 7).
+  If you changed it, `sudo nixie security rebind` seals the disk to this start
+  again; if you did not, find out what did first.
+- **The TPM no longer holds the disk's seal:** it was cleared, reset or
+  replaced. A virtual machine closed without shutting down loses what its
+  TPM learned since it last stopped cleanly. `sudo nixie security rebind`.
+
+`nixie security rebind` asks for the recovery key and a PIN (twice), seals
+the outer layer to the TPM as this start measures it, proves the PIN opens it,
+and keeps the recovery key you already wrote down; the front panel's `p` runs
+it. `nixie doctor` and the notices (front panel, host page, desktop, login
+line) say what the last start used and why. After a new board, `nixie
+security reenroll` does everything again (Secure Boot, TPM + PIN,
+attestation, lockout password, header backups; the same phases as setup,
+resumable across the enrolment reboot) and shows a fresh recovery key.
+
+USB devices plugged in later are blocked; `nixie usb` lists them and `nixie
+usb allow` records one in the site. A keyboard is never blocked while setup
+or a reenroll runs.
 
 On the host: nftables default-drop inbound, guests can never reach the host's
 SSH, control panel, host page or metrics ports, every platform unit passes

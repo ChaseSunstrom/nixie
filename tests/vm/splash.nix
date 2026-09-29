@@ -45,6 +45,7 @@ let
           environment.systemPackages = [
             nixieInstaller
             nixieCli
+            pkgs.jq
           ];
         }
       )

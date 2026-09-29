@@ -51,6 +51,7 @@ usage() {
   fi
   h "Security and hardware"
   c "reseal" "reseal attestation to this boot chain"
+  c "security rebind" "seal the disk to the TPM again with a PIN, keeping the recovery key"
   c "security reenroll" "Secure Boot, TPM, recovery key again, after a board or firmware change"
   c "security add-key" "enrol another security key (FIDO2) for the disk"
   c "secure-boot [--sign] [--at <dir>]" "what the firmware holds and what is signed, when a start says \"Access Denied\""
@@ -70,6 +71,12 @@ usage() {
   fi
   h "Site"
   c "site key" "the key a site repository needs to receive pushes"
+  if [ "$guests" = 1 ]; then
+    h "Control panel"
+    c "panel trust [--name n]" "a certificate for a browser, fetched once with a code"
+    c "panel trust --p12 <file>" "the same certificate written to a file instead"
+    c "panel list | forget <name>" "the certificates the panel trusts, or take one back"
+  fi
   if command -v nixie-menu >/dev/null; then
     h "Desktop"
     c "menu" "finish, wallpaper, packages, update, keybinds"
@@ -298,6 +305,20 @@ case "$cmd" in
         if feature attestation && ! tpm2-totp calculate >/dev/null 2>&1; then
           echo '{"id":"reseal","level":"warn","title":"The attestation code does not compute","detail":"the boot chain changed; reseal it if you changed it yourself","action":"nixie reseal"}'
         fi
+        # The TPM refused at this start and the recovery key opened the disk
+        # (modules/security/tpm-lockout.sh says why).
+        if [ -s /run/nixie/tpm.json ] && jq -e '.opened == "recovery" and (.rebound | not)' /run/nixie/tpm.json >/dev/null; then
+          jq -c '{id: "tpm", level: "warn",
+            title: ({lockout: "The TPM refused the PIN at this start: too many wrong PINs",
+                     changed: "The TPM refused the PIN at this start: Secure Boot or the firmware changed",
+                     forgot: "The TPM no longer holds the disk'"'"'s seal"}[.reason] // "The TPM did not open the disk at this start"),
+            detail: (if .reason == "lockout" and .managed then "the count is cleared now, so the PIN works again at the next start"
+                     elif .reason == "lockout" then "a try comes back after a while; this machine could not clear the count itself"
+                     elif .reason == "changed" then "if you changed it, seal the disk to this start again; if not, find out what did first"
+                     elif .reason == "forgot" then "it was cleared or reset (a virtual machine closed without shutting down loses it); seal the disk to this start again"
+                     else "the recovery key opened it; seal the disk to this start again" end),
+            action: (if .reason == "lockout" then "nixie doctor" else "sudo nixie security rebind" end)}' /run/nixie/tpm.json
+        fi
         # NAS shares that did not answer the last check (modules/nas.nix).
         if [ -s /run/nixie/nas.json ]; then
           jq -c '.shares | to_entries[] | select(.value.up | not) | {id: ("nas-" + .key), level: "warn",
@@ -342,6 +363,79 @@ case "$cmd" in
     if [ "$write" = 1 ]; then exit 0; fi
     printf '%s' "$out" | jq -r '.notices[] | "  \(.title)\n    \(.detail)\n    \(.action)"'
     ;;
+  panel)
+    need_guests
+    sub=${1:-}; shift || true
+    case "$sub" in
+      trust)
+        # A browser certificate the control panel trusts, and a way to get it
+        # to the browser: a page on the setup port that hands it over once to
+        # whoever types the code printed here (trust-serve.py), or a file.
+        [ "$(id -u)" = 0 ] || { echo "run it as root: sudo nixie panel trust" >&2; exit 2; }
+        name="browser-$(date +%Y%m%d-%H%M%S)"; out=""; json=0
+        while [ $# -gt 0 ]; do case "$1" in --name) name=$2; shift ;; --p12) out=$2; shift ;; --json) json=1 ;; esac; shift; done
+        [[ $name =~ ^[A-Za-z0-9._-]+$ ]] || { echo "a name of letters, digits, dots, dashes and underscores" >&2; exit 2; }
+        port=$(incus config get core.https_address 2>/dev/null | sed -n 's/.*:\([0-9]*\)$/\1/p')
+        addr=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | head -1)
+        panelurl="https://${addr:-$host}:${port:-8443}/ui/"
+        tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -sha384 -days 3650 -nodes \
+          -subj "/CN=nixie $name" -keyout "$tmp/client.key" -out "$tmp/client.crt" 2>/dev/null
+        pass=$(openssl rand -hex 6 | sed 's/..../&-/g; s/-$//')
+        (umask 077; printf '%s' "$pass" >"$tmp/pass")
+        # 3DES and a SHA-1 MAC, not the AES that OpenSSL 3 writes by default:
+        # macOS's keychain refuses that form, and every browser takes this one.
+        openssl pkcs12 -export -inkey "$tmp/client.key" -in "$tmp/client.crt" -name "nixie $name ($host)" \
+          -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 -passout "file:$tmp/pass" -out "$tmp/browser.p12"
+        fp=$(openssl x509 -in "$tmp/client.crt" -noout -fingerprint -sha256 | cut -d= -f2 | tr -d : | tr 'A-F' 'a-f')
+        incus config trust add-certificate --name "$name" "$tmp/client.crt"
+        if [ -n "$out" ]; then
+          install -m 0600 "$tmp/browser.p12" "$out"
+          if [ "$json" = 1 ]; then
+            jq -n --arg name "$name" --arg password "$pass" --arg fingerprint "$fp" --arg panel "$panelurl" --arg file "$out" \
+              '{name: $name, password: $password, fingerprint: $fingerprint, panel: $panel, file: $file}'
+          else
+            echo "$out: a certificate the control panel trusts, as \"$name\"; its password is $pass"
+          fi
+          exit 0
+        fi
+        code=$(printf '%06d' $(( $(od -An -N4 -tu4 /dev/urandom) % 1000000 )))
+        crt=/var/lib/incus/server.crt; key=/var/lib/incus/server.key
+        [ -s "$crt" ] || { echo "incusd has no certificate yet; is it running?" >&2; incus config trust remove "$fp" >/dev/null 2>&1; exit 1; }
+        urls=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | sed 's|.*|https://&:9443/|')
+        [ -n "$urls" ] || urls="https://$host:9443/"
+        echo
+        echo "  A certificate for the browser that opens the control panel."
+        echo
+        while read -r u; do echo "  In that browser, open  $u"; done <<<"$urls"
+        echo "  and type the code      $code"
+        echo "  The file's password is $pass (the page shows it too)."
+        echo
+        echo "  The browser warns about the address's certificate: it is this machine's own, the one the"
+        echo "  control panel uses, with the fingerprint $(openssl x509 -in "$crt" -noout -fingerprint -sha256 | cut -d= -f2)."
+        [ ! -t 1 ] || qrencode -t UTF8 -m 1 "$(head -1 <<<"$urls")"
+        echo "  Waiting up to ten minutes. Ctrl+C gives up and takes the certificate back."
+        trap 'incus config trust remove "$fp" >/dev/null 2>&1 || true; rm -rf "$tmp"; echo; echo "given up; the certificate was taken back" >&2; exit 130' INT TERM
+        rc=0
+        NIXIE_TRUST_CODE=$code NIXIE_TRUST_PASSWORD=$pass nixie-trust-serve --p12 "$tmp/browser.p12" --cert "$crt" --key "$key" \
+          --host "$host" --panel "$panelurl" --name "$name" || rc=$?
+        if [ "$rc" = 0 ]; then
+          echo "fetched; the control panel trusts it as \"$name\" ('nixie panel forget $name' takes that back)"
+        else
+          incus config trust remove "$fp" >/dev/null 2>&1 || true
+          case $rc in 3) echo "too many wrong codes; the certificate was taken back" >&2 ;; *) echo "nobody fetched it; the certificate was taken back" >&2 ;; esac
+          exit 1
+        fi ;;
+      list)
+        incus config trust list --format json | jq -r '(["NAME", "TYPE", "FINGERPRINT"] | @tsv), (.[] | [.name, .type, .fingerprint[0:12]] | @tsv)' | column -t -s $'\t' ;;
+      forget)
+        [ "$(id -u)" = 0 ] || { echo "run it as root: sudo nixie panel forget <name>" >&2; exit 2; }
+        what=${1:?name or fingerprint, from nixie panel list}
+        fp=$(incus config trust list --format json | jq -r --arg w "$what" '[.[] | select(.name == $w or (.fingerprint | startswith($w)))] | if length == 1 then .[0].fingerprint else empty end')
+        [ -n "$fp" ] || { echo "no single trusted certificate named or starting with \"$what\"" >&2; exit 1; }
+        incus config trust remove "$fp" && echo "the control panel no longer trusts $what" ;;
+      *) echo "usage: nixie panel trust [--name n] [--p12 file [--json]] | list | forget <name>" >&2; exit 2 ;;
+    esac ;;
   site)
     case "${1:-}" in
       key)
@@ -424,10 +518,24 @@ case "$cmd" in
       if bootctl status 2>/dev/null | grep -qE 'Secure Boot: *enabled'; then say "secure boot" "enabled"; else say "secure boot" "NOT ENABLED"; rc=1; fi
     fi
     if feature tpm; then
-      # systemd-cryptsetup says so when the TPM could not unseal and a
-      # typed key opened the layer instead.
-      if journalctl -b -q -o cat 2>/dev/null | grep -qE 'TPM2 (operation|PIN unlock) failed'; then say "unlock" "RECOVERY KEY used at the last unlock; run nixie security reenroll"; rc=1
-      else say "unlock" "TPM"; fi
+      # nixie-tpm-check read systemd-cryptsetup's own words at this start.
+      t=/run/nixie/tpm.json
+      if [ ! -s "$t" ]; then say "unlock" "not checked yet at this start"
+      elif [ "$(jq -r .opened "$t")" = recovery ] && [ "$(jq -r .rebound "$t")" != true ]; then
+        case $(jq -r .reason "$t") in
+          lockout) say "unlock" "RECOVERY KEY used: the TPM was locked after wrong PINs$([ "$(jq -r .managed "$t")" = true ] && echo "; cleared, the PIN works at the next start")" ;;
+          changed) say "unlock" "RECOVERY KEY used: Secure Boot or the firmware changed; run nixie security rebind" ;;
+          forgot) say "unlock" "RECOVERY KEY used: the TPM lost the disk's seal; run nixie security rebind" ;;
+          *) say "unlock" "RECOVERY KEY used at this start; run nixie security rebind" ;;
+        esac
+        [ "$(jq -r '.reason == "lockout" and .managed' "$t")" = true ] || rc=1
+      elif [ "$(jq -r .enrolled "$t")" = true ]; then say "unlock" "TPM"
+      else say "unlock" "passphrase (the TPM is bound during setup)"; fi
+      if [ -s "$t" ]; then
+        if [ "$(jq -r .managed "$t")" = true ]; then say "tpm tries" "managed by this machine"
+        elif [ -s /var/lib/nixie/tpm-lockout-auth ]; then say "tpm tries" "NOT MANAGED: the TPM refused this machine's lockout password"; rc=1
+        else say "tpm tries" "left as the TPM came (set when the disk is bound)"; fi
+      fi
     fi
     if [ -e /etc/nixie/hardware.json ]; then
       drift=""
@@ -528,7 +636,55 @@ case "$cmd" in
       [ -z "$rule" ] || usbguard remove-rule "$rule" >/dev/null 2>&1 || true
       exit "$rc"
     fi
-    [ "${1:-}" = reenroll ] || { echo "usage: nixie security reenroll [--backup-dest <dir>] | add-key" >&2; exit 2; }
+    if [ "${1:-}" = rebind ]; then
+      # The TPM refused a start (Secure Boot or the firmware changed, the TPM
+      # was cleared, a virtual machine lost its TPM's memory): seal the outer
+      # layer to this start again. The recovery key opens it for the change
+      # and stays the one you wrote down; reenroll is for a new board.
+      feature tpm || { echo "this machine's disk is not bound to a TPM" >&2; exit 2; }
+      [ "$(id -u)" = 0 ] || { echo "run it as root: sudo nixie security rebind" >&2; exit 2; }
+      outer=$(layout '.luks[] | select(.name == "rpool-outer") | .device')
+      pcrs=$(layout '.features.pcrs | join("+")')
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      (umask 077; : >"$tmp/key"; : >"$tmp/pin"; mkdir "$tmp/creds")
+      # From files for a test or a script, without a trailing newline, which
+      # would be taken as part of the key.
+      if [ -n "${NIXIE_RECOVERY_KEY_FILE:-}" ]; then tr -d '\n' <"$NIXIE_RECOVERY_KEY_FILE" >"$tmp/key"
+      else read -r -s -p "recovery key of the outer layer: " k; echo; printf '%s' "$k" >"$tmp/key"; fi
+      if [ -n "${NIXIE_PIN_FILE:-}" ]; then tr -d '\n' <"$NIXIE_PIN_FILE" >"$tmp/pin"
+      else
+        read -r -s -p "PIN, asked at every start: " k; echo
+        read -r -s -p "the same PIN again: " k2; echo
+        [ -n "$k" ] && [ "$k" = "$k2" ] || { echo "the two PINs differ, or are empty; nothing changed" >&2; exit 1; }
+        printf '%s' "$k" >"$tmp/pin"
+      fi
+      unset k k2
+      cryptsetup open --test-passphrase --key-file="$tmp/key" "$outer" 2>/dev/null \
+        || { echo "that recovery key does not open $outer; nothing changed" >&2; exit 1; }
+      # A TPM locked by wrong PINs would refuse the new seal's test too.
+      nixie-tpm-lockout prepare || echo "the TPM's lockout could not be prepared; carrying on" >&2
+      systemd-cryptenroll --unlock-key-file="$tmp/key" --wipe-slot=tpm2 "$outer" >/dev/null 2>&1 || true
+      NEWPIN=$(cat "$tmp/pin") systemd-cryptenroll --unlock-key-file="$tmp/key" \
+        --tpm2-device=auto --tpm2-with-pin=yes --tpm2-pcrs="$pcrs" "$outer"
+      # Proof that the TPM and this PIN open it at this start: a throwaway
+      # password slot enrolled through the new seal, then removed.
+      cp "$tmp/pin" "$tmp/creds/cryptenroll.tpm2-pin"
+      probe=$(NEWPASSWORD=$(openssl rand -hex 24) CREDENTIALS_DIRECTORY=$tmp/creds \
+        systemd-cryptenroll --unlock-tpm2-device=auto --password "$outer" 2>&1 | sed -n 's/.*as key slot \([0-9]*\).*/\1/p')
+      if [ -z "$probe" ]; then
+        echo "the TPM and PIN did not open $outer after sealing; the recovery key still does, and 'nixie doctor' says more" >&2
+        exit 1
+      fi
+      systemd-cryptenroll --unlock-key-file="$tmp/key" --wipe-slot="$probe" "$outer" >/dev/null
+      [ ! -s /run/nixie/tpm.json ] || { jq '.rebound = true' /run/nixie/tpm.json >"$tmp/tpm.json" && cat "$tmp/tpm.json" >/run/nixie/tpm.json; }
+      "$self" notices --write >/dev/null 2>&1 || true
+      echo "the disk is sealed to the TPM again (PCRs $pcrs): the next start asks for this PIN; the recovery key is unchanged"
+      if feature attestation && ! tpm2-totp calculate >/dev/null 2>&1; then
+        echo "the attestation code does not compute on this start either: 'nixie reseal' seals it here, if you trust this start"
+      fi
+      exit 0
+    fi
+    [ "${1:-}" = reenroll ] || { echo "usage: nixie security rebind | reenroll [--backup-dest <dir>] | add-key" >&2; exit 2; }
     shift
     d=/var/lib/nixie/reenroll
     mkdir -p "$d" /run/nixie/keys; chmod 700 /run/nixie/keys
