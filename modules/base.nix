@@ -71,6 +71,12 @@ in
   system.nixos.tags = lib.optional (
     config.nixie.host.siteRevision != null
   ) "site-${config.nixie.host.siteRevision}";
+  # Setup logged the outer layer's recovery key until 2026-10, and its log
+  # stays on this disk; the key is meant to exist only where it was written down.
+  system.activationScripts.nixie-setup-log = ''
+    f=/var/lib/nixie/setup/setup.log
+    [ ! -f "$f" ] || ${pkgs.gnused}/bin/sed -i -E 's/[cbdefghijklnrtuv]{8}(-[cbdefghijklnrtuv]{8}){7}/[recovery key removed]/g' "$f"
+  '';
   systemd.services.nixie-gc = {
     description = "Delete system generations beyond nixie.host.keepGenerations and collect garbage";
     serviceConfig = {

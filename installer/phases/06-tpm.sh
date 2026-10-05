@@ -64,7 +64,9 @@ if feature tpm; then
     [ -n "$old" ] && wipe="${wipe:+$wipe,}$old"
     [ -z "$wipe" ] || systemd-cryptenroll --unlock-key-file="$(secret_file recovery-key)" --wipe-slot="$wipe" "$outer"
     log "outer layer bound to TPM (PCRs $pcrs) with PIN"
-    log "recovery key (shown once, write it down): $recovery"
+    # Never in the log: setup keeps its log on this disk. Every front end
+    # shows the key once from the key file, which lives in memory.
+    log "recovery key enrolled"
   fi
   if [ ! -s /var/lib/nixie/tpm-lockout-auth ] || [ "$force" = 1 ]; then
     oldauth=(); [ -s /var/lib/nixie/tpm-lockout-auth ] && oldauth=(-p "$(cat /var/lib/nixie/tpm-lockout-auth)")

@@ -2989,3 +2989,19 @@ system built outside the VM (`NIXIE_TOPLEVEL`); evaluating a site inside one
 needs the whole of nixpkgs' sources and minutes per run. The lines run only
 after a flake `nixos-rebuild switch` and change nothing when the archive
 command fails.
+
+## The recovery key, kept off the disk (2026-10-05)
+
+Phase 6 logged the outer layer's new recovery key, and the setup backend
+appends every phase's output to `/var/lib/nixie/setup/setup.log` on the
+installed disk, which nothing removes: the key the wizard calls "never stored
+on this machine" stayed there, readable by root and in any copy of the disk
+taken after unlocking. Every front end already shows the key from the key
+file in memory (the web wizard's attestation call, the terminal wizard, `nixie
+security reenroll`), so the log line now only says the key was enrolled, and
+an activation step blanks any recovery key a log written before holds.
+
+| check | result |
+|---|---|
+| `vm-encryption` (381 s): phase 6's whole output does not contain the recovery key; a setup log planted with the old line holds "[recovery key removed]" and not the key after `activate` | pass |
+| `vm-installer-lan` (phase 6 through the web backend, Finish), `vm-boot-plain`, `boot-and-setup`, `statix`, `fmt`, `deadnix`, `systemd-security` | pass |

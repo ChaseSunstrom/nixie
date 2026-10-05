@@ -69,7 +69,8 @@ with subtest("phase 5: the boot chain is signed and phase 5 detects Setup Mode")
 
 with subtest("phase 6: TPM + PIN enrolment, attestation init, header backups"):
     target.succeed(keys)
-    target.succeed("nixie-phase 6 --backup-dest /root >&2")
+    phase6 = target.succeed("nixie-phase 6 --backup-dest /root 2>&1")
+    print(phase6)
     target.succeed("cryptsetup luksDump /dev/vda2 | grep -q systemd-tpm2")
     target.succeed("cryptsetup luksDump /dev/vda2 | grep -q systemd-recovery")
     target.succeed("test -s /root/nixie-server-headers.tar.age")
@@ -80,6 +81,13 @@ with subtest("phase 6: TPM + PIN enrolment, attestation init, header backups"):
     # slot is gone.
     recovery = target.succeed("cat /run/nixie/keys/recovery-key").strip()
     assert len(recovery) > 40, recovery
+    # Setup keeps phase output in a log on this disk, so the key is not in it;
+    # a log written before that is scrubbed at the next activation.
+    assert recovery not in phase6, "phase 6 printed the recovery key"
+    target.succeed(f"mkdir -p /var/lib/nixie/setup && echo 'recovery key (shown once, write it down): {recovery}' >>/var/lib/nixie/setup/setup.log")
+    target.succeed("/run/current-system/activate >&2")
+    target.fail(f"grep -q '{recovery}' /var/lib/nixie/setup/setup.log")
+    target.succeed("grep -q 'recovery key removed' /var/lib/nixie/setup/setup.log")
     target.fail("cryptsetup luksDump /dev/vda2 | grep -q '^  0: luks2'")
     # Restoring a header from the bundle must work with the host key.
     target.succeed("mkdir /root/hb && age -d -i /var/lib/nixie/age.key /root/nixie-server-headers.tar.age | tar -C /root/hb -xf - && test -s /root/hb/rpool-outer.header && grep -q 'recovery key' /root/hb/RECOVERY.txt")
