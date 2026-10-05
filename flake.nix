@@ -39,6 +39,32 @@
         # `inputs.nixie.lib.mkOption`.
         inherit (import ./lib/option.nix inputs.nixpkgs.lib) mkOption;
         version = "0.1.0";
+        # What a machine keeps of the platform (nix.registry.nixie, the
+        # platform a site started on the installer names): everything a site
+        # evaluates, without the gallery, the tests and the prose, so editing
+        # those changes no machine. Filtering it again gives the same path,
+        # which such a site's lock relies on.
+        source =
+          let
+            fs = nixpkgs.lib.fileset;
+          in
+          fs.toSource {
+            root = ./.;
+            fileset = fs.difference ./. (
+              fs.unions (
+                map fs.maybeMissing [
+                  ./docs
+                  ./tests
+                  ./design
+                  ./README.md
+                  ./VERIFICATION.md
+                  ./ARCHITECTURE.md
+                  ./CHANGELOG.md
+                  ./CLAUDE.md
+                ]
+              )
+            );
+          };
       };
       templates.site = {
         path = ./templates/site;

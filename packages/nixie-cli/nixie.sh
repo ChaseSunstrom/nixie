@@ -132,6 +132,17 @@ case "$cmd" in
         switched "$NIXIE_TOPLEVEL/bin/switch-to-configuration" switch
       else
         switched nixos-rebuild switch --flake "$site#$host"
+        # Every input the site evaluated outlives the weekly clean-up, so the
+        # next apply needs no network; the system keeps only lib.source.
+        # New links go in before stale ones go, so a clean-up in between
+        # still sees every input; a lock naming one source twice is common.
+        # Best effort: it never stops the apply.
+        roots=/nix/var/nix/gcroots/nixie-site
+        if paths=$(nix flake archive --json --dry-run "$site" | jq -r '.. | .path? // empty' | sort -u) && [ -n "$paths" ]; then
+          mkdir -p "$roots"
+          for p in $paths; do ln -sfn "$p" "$roots/${p##*/}"; done
+          for l in "$roots"/*; do grep -qxF "$(readlink "$l")" <<<"$paths" || rm -f "$l"; done
+        else false; fi || echo "nixie apply: the site's inputs are not kept; the next apply may need the network" >&2
       fi
     fi
     : "${label:=$(date +%Y%m%d-%H%M%S)}"

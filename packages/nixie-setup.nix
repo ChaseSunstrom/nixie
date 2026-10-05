@@ -72,7 +72,7 @@ pkgs.writeShellApplication {
   ];
   text = ''
     exec python3 ${./nixie-setup/nixie-setup.py} \
-      --platform "path:${self}" \
+      --platform "path:${self.lib.source}" \
       --static ${web.nixie-setup-web} \
       --options ${optionsJson} \
       --site-options ${siteOptions} \

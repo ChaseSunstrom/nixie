@@ -4,13 +4,14 @@ let
   inherit (import ../lib/option.nix lib) mkOption;
 in
 {
-  # A site started on the installer names the platform by its store path, and
-  # `nixie apply` evaluates that site here, often offline; keeping the source
-  # in the system closure keeps the path valid. It also resolves
-  # `nix run nixie#deploy`.
+  # A site started on the installer names the platform by this store path
+  # (lib.source), and `nixie apply` evaluates that site here, often offline;
+  # keeping it in the system closure keeps the path valid. A site that names
+  # the platform by URL has its inputs kept by `nixie apply` instead. It also
+  # resolves `nix run nixie#deploy`.
   config.nix.registry.nixie.to = {
     type = "path";
-    path = self.outPath;
+    path = self.lib.source;
   };
   # What `nixie apply` pushes to, which commit this system was built from,
   # and what `nixie update` should do about a newer one; read at run time.

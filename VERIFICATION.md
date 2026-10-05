@@ -2956,3 +2956,36 @@ and the terminal wizard pair without the code.
 |---|---|
 | `vm-installer-lan` (177 s): the right code pairs, the used code is refused, a burst of six wrong guesses from the LAN gets at least four 429s and nothing but 403/429; the install and the continuation after the restart go on as before | pass |
 | baseline gate before the change: 52 checks | pass |
+
+## A machine keeps the platform, not the repository (2026-10-05)
+
+Every installed machine named the whole repository as its platform
+(`nix.registry.nixie`, and the `path:` a site started on the installer
+locks): the 22 MB gallery and the test screenshots rode along on every
+machine and the image, and any edit to a README, VERIFICATION.md or a test
+script changed every machine's system, so every VM test and the image rebuilt
+for a typo. `lib.source` is now the platform without `docs/`, `tests/`,
+`design/` and the prose at the top (1.8 MB), and the registry, the wizard's
+`--platform`, the image's sources and the headless deploy's test site all
+name it. Filtering it again gives the same path, so a site that locks it
+evaluates the same machine. The whole repository was also the only flake input
+an installed machine kept through the weekly clean-up, so a site naming the
+platform by URL lost disko, lanzaboote, sops-nix and terranix to it and the
+next offline `nixie apply` had to download them; `nixie apply` now roots
+every input the site evaluated under `/nix/var/nix/gcroots/nixie-site`.
+
+| check | result |
+|---|---|
+| the example server's system derivation, on HEAD before the change: a line added to README.md and to a test script changes it (`r524jk…` to `99l9mr…`) | pass (the problem, shown) |
+| the same with the change: README.md, a test script, a guide and VERIFICATION.md edited, the derivation stays `m34ww5…`; a line in `modules/base.nix` still changes it; undone, it is `m34ww5…` again | pass |
+| a copy of the example site locking `path:<lib.source>` evaluates to the same `m34ww5…`, and its registry names the same source (fixed point) | pass |
+| the rooting lines run here under errexit, nounset and pipefail: the platform flake's 14 inputs linked; a stale link dropped while the 14 stay; a lock naming one source twice (as `nixpkgs` and `nixpkgs_2` at one revision do) links it once; empty output keeps the roots; a failing archive keeps them and warns without stopping the apply | pass |
+| after the review's fixes to those lines: `nixie-cli` rebuilt (shellcheck), `vm-updates`, `vm-rollback`, `statix`, `fmt`, `deadnix`, `updates`, `boot-and-setup` | pass |
+| `platform-source` (new): the server's closure holds `lib.source` and not the repository; `iso-config`: the platform's inputs and `lib.source` are on the image, the repository is not | pass |
+| full gate, one capped build per check: 53 checks, `vm-installer-lan`, `vm-deploy`, `vm-deploy-kexec`, `vm-encryption` and `vm-updates` among them | pass |
+
+Not verified here: the rooting inside a VM test. Every VM test applies a
+system built outside the VM (`NIXIE_TOPLEVEL`); evaluating a site inside one
+needs the whole of nixpkgs' sources and minutes per run. The lines run only
+after a flake `nixos-rebuild switch` and change nothing when the archive
+command fails.

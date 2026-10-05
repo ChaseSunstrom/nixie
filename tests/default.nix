@@ -514,7 +514,12 @@ in
           let
             onImage = map toString iso.system.extraDependencies;
           in
-          lib.all (i: lib.elem (toString i.outPath) onImage) (lib.attrValues inputs);
+          lib.all (i: lib.elem (toString i) onImage) (
+            [ self.lib.source ] ++ map (i: i.outPath) (lib.attrValues (removeAttrs inputs [ "self" ]))
+          );
+        # What a site names is lib.source; the gallery and the test record stay off.
+        "the whole repository is not on the image" =
+          !lib.elem (toString self.outPath) (map toString iso.system.extraDependencies);
       };
       failed = lib.attrNames (lib.filterAttrs (_: ok: !ok) facts);
     in
@@ -979,6 +984,19 @@ in
         touch $out
       '';
 
+  # A machine keeps lib.source, never the whole repository: the gallery and
+  # the test record stay off it, and editing them rebuilds no machine.
+  platform-source =
+    pkgs.runCommand "platform-source"
+      { closure = pkgs.closureInfo { rootPaths = [ server.config.system.build.toplevel ]; }; }
+      ''
+        grep -qx ${self.lib.source} $closure/store-paths
+        if grep -qx ${self.outPath} $closure/store-paths; then
+          echo "the whole repository is in the server's closure" >&2
+          exit 1
+        fi
+        touch $out
+      '';
   profile-server-has-no-desktop = closureFree "server" server.config.system.build.toplevel [
     "hyprland"
     "cage"

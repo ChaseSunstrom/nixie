@@ -15,7 +15,9 @@ let
     let
       walk = i: [ i.outPath ] ++ builtins.concatMap walk (builtins.attrValues (i.inputs or { }));
     in
-    pkgs.lib.unique (builtins.concatMap walk (builtins.attrValues inputs));
+    pkgs.lib.unique (
+      [ self.lib.source ] ++ builtins.concatMap walk (builtins.attrValues (removeAttrs inputs [ "self" ]))
+    );
   # Built here rather than on the installer: none is on cache.nixos.org, and
   # each fetches from its own server while it builds (the Rust toolchain and
   # crates.io, proxy.golang.org, GitHub), where one dropped download stopped

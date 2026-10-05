@@ -51,22 +51,24 @@ let
       ''
         cp -r ${lib.cleanSource ../../examples/site} $out
         chmod -R u+w $out
-        substituteInPlace $out/flake.nix --replace 'github:OWNER/nixie' 'path:${self}'
+        substituteInPlace $out/flake.nix --replace 'github:OWNER/nixie' 'path:${self.lib.source}'
         # The disk this site names, for the machine it is installed on here: a
         # test's virtio drive has no serial and so no by-id link (D18), and the
         # deploy reads the disk from the site rather than from the system it is
         # handed.
         substituteInPlace $out/hosts/server/hardware.nix \
           --replace '/dev/disk/by-id/virtio-nixie-system' '/dev/vda'
-        hash=$(nix --extra-experimental-features nix-command hash path ${self})
-        python3 ${./deploy-lock.py} ${self} "$hash" $out/flake.lock
+        hash=$(nix --extra-experimental-features nix-command hash path ${self.lib.source})
+        python3 ${./deploy-lock.py} ${self.lib.source} "$hash" $out/flake.lock
       '';
   # Every source the platform's lock names, as the ISO does.
   sources =
     let
       walk = i: [ i.outPath ] ++ builtins.concatMap walk (builtins.attrValues (i.inputs or { }));
     in
-    lib.unique (builtins.concatMap walk (builtins.attrValues inputs));
+    lib.unique (
+      [ self.lib.source ] ++ builtins.concatMap walk (builtins.attrValues (removeAttrs inputs [ "self" ]))
+    );
 in
 {
   inherit

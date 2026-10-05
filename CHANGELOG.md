@@ -367,6 +367,12 @@ administrator a normal user, which on root collides with NixOS's own
 definition. Both wizards refuse those names, the web wizard checks every
 pattern-restricted field before phase 3, and the module says why.
 
+A machine keeps the platform without the gallery, the tests and the prose
+(`lib.source`, 1.8 MB instead of the whole repository), so editing those no
+longer changes any machine's system, and `nixie apply` keeps every input its
+site evaluated through the weekly clean-up, so the next apply needs no
+network. Wrong pairing codes on the LAN wizard are taken one a second.
+
 The control panel has a Settings button: the finish, header figures, the
 starting time range, the Overview panels' order, width and visibility, the
 navigation and extra links, kept on the host for every browser.

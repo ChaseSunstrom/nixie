@@ -108,6 +108,10 @@ nixosModules.nixie          modules/default.nix
 lib.mkSite                  lib/mk-site.nix
 lib.mkOption                the wizard's own mkOption: nixpkgs' refuses the nixieUi argument, so a
                             site declaring an option the installer renders needs this one (D40)
+lib.source                  the platform a machine keeps (nix.registry.nixie, the path a site
+                            started on the installer locks): the repository without docs/, tests/,
+                            design/ and the prose, so editing those changes no machine; a fixed
+                            point, filtering it again gives the same path
 templates.site
 packages.x86_64-linux.{nixie-ui,nixie-setup,nixie-cli,nixie-iso,deploy,test-iso}
 packages.x86_64-linux.nixie-iso-kiosk
