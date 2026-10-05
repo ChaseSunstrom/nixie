@@ -572,6 +572,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/banner":
             p = os.path.join(ARGS.state_dir, "banner.txt")
             return self.send_json({"text": open(p).read() if os.path.exists(p) else "", "code": PAIR_CODE})
+        if path == "/api/report":
+            # The bundle `nixie report` writes, for a browser on another
+            # machine. The installer's service PATH has no `nixie` of its own.
+            try:
+                r = subprocess.run([shutil.which("nixie") or "/run/current-system/sw/bin/nixie", "report", "-"], capture_output=True, timeout=120)
+            except subprocess.TimeoutExpired:
+                return self.send_json({"error": "the report took longer than two minutes; run nixie report on the machine"}, 500)
+            if r.returncode:
+                return self.send_json({"error": r.stderr.decode(errors="replace")[-2000:]}, 500)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/gzip")
+            self.send_header("Content-Disposition", f"attachment; filename=nixie-report-{socket.gethostname()}.tar.gz")
+            self.send_header("Content-Length", str(len(r.stdout)))
+            self.end_headers()
+            return self.wfile.write(r.stdout)
         if path == "/api/log":
             p = os.path.join(ARGS.state_dir, "setup.log")
             return self.send_json({"log": open(p).read()[-20000:] if os.path.exists(p) else ""})

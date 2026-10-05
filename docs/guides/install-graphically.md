@@ -147,3 +147,13 @@ Any hypervisor with UEFI works; these are the settings that matter.
 `nix run .#test-iso` does all of this under QEMU and drives the install end
 to end; `--usb` boots the image as a USB stick and `--security tpm` or
 `--security secureboot` turns the security features on.
+
+## When something fails
+
+A failed step shows its output under Details, with **Save a report** beside
+it: one file with this machine's disks, firmware and network, what setup
+logged, the warnings of this start and the errors of the last one, the
+failed services' logs and, on an installed machine, `nixie doctor`. Recovery
+keys, age keys and private keys are blanked. On the machine itself, `sudo
+nixie report` writes the same file to `/tmp` and prints where; attach it to
+the bug report instead of a photo of the screen.

@@ -34,6 +34,10 @@ pkgs.writeShellApplication {
       usbguard
       qrencode
       gptfdisk
+      efibootmgr # `report` lists the firmware's boot entries
+      gnutar
+      gzip
+      findutils
       iproute2
       pciutils
       util-linux

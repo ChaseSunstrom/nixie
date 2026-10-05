@@ -371,7 +371,11 @@ A machine keeps the platform without the gallery, the tests and the prose
 (`lib.source`, 1.8 MB instead of the whole repository), so editing those no
 longer changes any machine's system, and `nixie apply` keeps every input its
 site evaluated through the weekly clean-up, so the next apply needs no
-network. Wrong pairing codes on the LAN wizard are taken one a second.
+network. Wrong pairing codes on the LAN wizard are taken one a second. A failed step in either wizard offers **Save a report**, and
+`nixie report` writes the same file from a shell: machine facts, setup's
+log, this and the last start's journal, failed services and doctor, with
+keys blanked. Phase 6 no longer writes the recovery key into setup's log on
+the disk, and a log written before is blanked at the next activation.
 
 The control panel has a Settings button: the finish, header figures, the
 starting time range, the Overview panels' order, width and visibility, the

@@ -52,6 +52,10 @@ with subtest("the wizard's fonts load from the address its stylesheet names"):
 
 with subtest("pair from the LAN with the single-use code"):
     pair()
+    # The wizard's "Save a report": the bundle `nixie report` writes, to a
+    # paired browser only.
+    client.succeed("curl -sk -b /tmp/c -o /tmp/report.tgz https://192.168.1.2:9443/api/report && tar -tzf /tmp/report.tgz | grep -q machine.txt")
+    assert client.succeed("curl -sk -o /dev/null -w '%{http_code}' https://192.168.1.2:9443/api/report").strip() == "401"
     hw = api("GET", "/api/hardware")
     assert any(d["path"] == "/dev/vda" for d in hw["disks"]), hw
     # Every disk the kernel has must be offered. A disk with no

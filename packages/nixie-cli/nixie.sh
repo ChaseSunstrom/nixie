@@ -35,6 +35,7 @@ usage() {
   c "apply [--yes]" "commit site edits, switch, update guests, push the site"
   c "apply --confirm-within 10m | --confirm" "apply, and undo it unless confirmed in time"
   c "doctor" "boot security, keys, guests, backups, disk space"
+  c "report [<file> | -]" "one file for a bug report: logs, doctor, setup; keys blanked"
   h "Going back"
   c "rollback [--list | --json]" "the previous system now, or list what there is"
   c "rollback --generation N | --boot-previous" "a given generation now, or the previous at next boot"
@@ -506,6 +507,42 @@ case "$cmd" in
     free=$(df --output=pcent / | tail -1 | tr -dc 0-9)
     if [ "$free" -ge 90 ]; then say "disk" "root $free% full"; rc=1; else say "disk" "root $free% used"; fi
     exit $rc ;;
+  report)
+    # One file for a bug report instead of a photo of the screen: what this
+    # machine is, what setup and the last two starts logged, what doctor
+    # finds. Works on the installer too. Keys are blanked by their shape;
+    # nothing else secret is ever logged.
+    # The journals are root's to read, and so is this.
+    umask 077
+    out=${1:-/tmp/nixie-report-$host-$(date +%Y%m%d-%H%M%S).tar.gz}
+    d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
+    {
+      echo "== version"; cat /etc/os-release 2>/dev/null || true; uname -a
+      echo "== systems"; readlink /run/current-system /run/booted-system || true
+      echo "== disks"; lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS || true
+      echo "== boot"; bootctl status 2>&1 || true; efibootmgr 2>&1 || true
+      echo "== tpm"; ls /sys/class/tpm 2>&1 || true
+      echo "== network"; ip -br addr || true; ip route || true
+    } >"$d/machine.txt" 2>&1
+    [ ! -e /run/current-system/etc/nixie/layout.json ] || "$self" doctor >"$d/doctor.txt" 2>&1 || true
+    journalctl -b -p warning -n 3000 --no-pager >"$d/journal-this-start.txt" 2>&1 || true
+    journalctl -b -1 -p err -n 1000 --no-pager >"$d/journal-last-start.txt" 2>&1 || true
+    for u in $(systemctl list-units --failed --plain --no-legend | cut -d' ' -f1); do
+      echo "== $u"; journalctl -b -u "$u" -n 300 --no-pager
+    done >"$d/failed-units.txt" 2>&1 || true
+    mkdir "$d/setup"
+    for f in /var/lib/nixie/setup/setup.log /var/lib/nixie/setup/state.json /var/lib/nixie/setup/finished /var/lib/nixie/setup/*.done /run/nixie/notices.json; do
+      [ ! -f "$f" ] || cp "$f" "$d/setup/"
+    done
+    # A recovery key (systemd's modhex groups), an age identity, a private key.
+    # [1] keeps the age marker itself out of the store, which a check scans.
+    find "$d" -type f -exec sed -i -E \
+      -e 's/[cbdefghijklnrtuv]{8}(-[cbdefghijklnrtuv]{8}){7}/[recovery key removed]/g' \
+      -e 's/AGE-SECRET-KEY-[1][0-9A-Z]+/[age key removed]/g' \
+      -e 's/-----BEGIN [A-Z ]*PRIVATE KEY-----.*-----END [A-Z ]*PRIVATE KEY-----/[private key removed]/g' \
+      -e '/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/-----END [A-Z ]*PRIVATE KEY-----/c [private key removed]' {} +
+    if [ "$out" = - ]; then tar -C "$d" -czf - .
+    else tar -C "$d" -czf "$out" . && echo "report written to $out; attach it to the bug report"; fi ;;
   reseal)
     feature attestation || { echo "attestation is off; nothing to reseal"; exit 0; }
     tpm2-totp reseal -P "$(cat /var/lib/nixie/totp-recovery 2>/dev/null)" -p 4,7,8 </dev/null \

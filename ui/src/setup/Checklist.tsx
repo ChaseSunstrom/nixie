@@ -56,6 +56,7 @@ export function Log({ lines, open }: { lines: string[]; open: boolean }) {
     <details className="log" open={open || undefined}>
       <summary>Details</summary>
       <pre ref={ref} className="well term">{lines.join("\n") || "output appears here"}</pre>
+      {open && <p className="caption"><a href="/api/report" download>Save a report</a> to attach to a bug report: this machine's logs and checks, with its keys left out.</p>}
     </details>
   );
 }

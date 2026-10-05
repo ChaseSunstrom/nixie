@@ -88,6 +88,18 @@ with subtest("phase 6: TPM + PIN enrolment, attestation init, header backups"):
     target.succeed("/run/current-system/activate >&2")
     target.fail(f"grep -q '{recovery}' /var/lib/nixie/setup/setup.log")
     target.succeed("grep -q 'recovery key removed' /var/lib/nixie/setup/setup.log")
+    # A bug report from here carries the logs and doctor, never the key,
+    # even from a log that still holds one.
+    target.succeed(f"echo 'recovery key (shown once, write it down): {recovery}' >>/var/lib/nixie/setup/setup.log")
+    # An age identity, and a private key on one line and across lines.
+    target.succeed("age-keygen 2>/dev/null | grep AGE-SECRET >>/var/lib/nixie/setup/setup.log")
+    target.succeed("ssh-keygen -q -t ed25519 -N '' -f /tmp/k && cat /tmp/k >>/var/lib/nixie/setup/setup.log && echo \"inline: $(tr '\\n' ' ' </tmp/k) after\" >>/var/lib/nixie/setup/setup.log && echo 'last line' >>/var/lib/nixie/setup/setup.log")
+    target.succeed("nixie report /tmp/report.tar.gz >&2 && mkdir /tmp/report && tar -C /tmp/report -xzf /tmp/report.tar.gz")
+    target.succeed("cd /tmp/report && test -s machine.txt && test -s doctor.txt && test -s setup/setup.log && test -e journal-this-start.txt && grep -q 'luks' doctor.txt")
+    target.fail(f"grep -rqF '{recovery}' /tmp/report")
+    target.fail("grep -rqE 'AGE-SECRET-KEY-1|PRIVATE KEY-----' /tmp/report")
+    target.succeed("grep -q 'age key removed' /tmp/report/setup/setup.log && grep -q 'inline: \\[private key removed\\] *after' /tmp/report/setup/setup.log && grep -q 'last line' /tmp/report/setup/setup.log")
+    target.succeed("grep -q 'recovery key removed' /tmp/report/setup/setup.log")
     target.fail("cryptsetup luksDump /dev/vda2 | grep -q '^  0: luks2'")
     # Restoring a header from the bundle must work with the host key.
     target.succeed("mkdir /root/hb && age -d -i /var/lib/nixie/age.key /root/nixie-server-headers.tar.age | tar -C /root/hb -xf - && test -s /root/hb/rpool-outer.header && grep -q 'recovery key' /root/hb/RECOVERY.txt")

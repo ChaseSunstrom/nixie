@@ -871,8 +871,8 @@ setting `nixie.installer.mode`: graphical (the default), web and terminal.
   both wizards produce the same `site.nix`.
 
 A site started on the installer points `inputs.nixie` at the platform's own
-store path (`path:/nix/store/…-source`, passed to `nixie-setup` at build
-time). Every host keeps that source in its closure as the `nixie` flake
+store path (`path:/nix/store/…-source`, `lib.source`, passed to `nixie-setup`
+at build time). Every host keeps that source in its closure as the `nixie` flake
 registry entry (`modules/site.nix`), so `nixie apply` and Finish evaluate the
 site on the installed host without the installer, and `nix run nixie#deploy`
 resolves there. Phase 8 applies guests and data only and Finish runs as the
@@ -884,7 +884,9 @@ transient unit `nixie-finish`: both used to switch generations from inside
   same way with the same scripts.
 
 `nixie-setup` backend: a Python 3 stdlib program (`http.server`, `ssl`,
-`json`, `subprocess`). Endpoints: `POST /pair`, `GET /hardware`,
+`json`, `subprocess`). Endpoints: `POST /pair` (one wrong code a second
+across every connection), `GET /report` (the bundle `nixie report -` writes,
+for a failed step's Save a report), `GET /hardware`,
 `GET /options` (option metadata rendered from the module tree at build time),
 `POST /plan` (returns the `hardware.nix` and settings it will write),
 `POST /phase/<n>` (streams output as SSE), `GET /state`, `POST /finish`.

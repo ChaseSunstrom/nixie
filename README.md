@@ -268,6 +268,7 @@ grep -q 'gpu = true' guests.nix
 | `nixie hardware add-disk <by-id> [name]` | format and mount a disk the site does not declare; it refuses any that it does |
 | `nixie usb [--json]`, `nixie usb allow <vendor:product[/serial]>` | blocked USB devices; allow one in `hosts/<name>/usb.nix` and commit, then `nixie apply` |
 | `nixie doctor` | TPM, attestation, Secure Boot, key slots, whether the last unlock needed the recovery key, blocked USB devices, guests, backup check, disk space |
+| `nixie report [<file> \| -]` | one file for a bug report: disks, firmware, network, setup's log, this and the last start's journal, failed services and doctor, with recovery, age and private keys blanked; on the installer too, and a failed wizard step offers the same file |
 | `nixie export <instance>` | a `guests.nix` entry for a scratch instance |
 | `nixie declare <instance>` | write that entry into the site's `guests.nix` and apply; the instance keeps running, and the apply adopts it instead of making a second one. The control panel's Declare opens the host page to run this |
 | `nixie menu` | the desktop menu: finish, wallpaper, packages, update, keybinds |

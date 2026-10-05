@@ -3005,3 +3005,26 @@ an activation step blanks any recovery key a log written before holds.
 |---|---|
 | `vm-encryption` (381 s): phase 6's whole output does not contain the recovery key; a setup log planted with the old line holds "[recovery key removed]" and not the key after `activate` | pass |
 | `vm-installer-lan` (phase 6 through the web backend, Finish), `vm-boot-plain`, `boot-and-setup`, `statix`, `fmt`, `deadnix`, `systemd-security` | pass |
+
+## One file for a bug report (2026-10-05)
+
+Every report of a failed install so far arrived as a photo of a screen, and
+each took a reproduction to read. `nixie report [<file> | -]` writes one
+file instead: the machine's disks, firmware entries, TPM and network, what
+setup logged (its log, state and markers), the warnings of this start and
+the errors of the last one, the failed services' logs, the notices and, on
+an installed machine, `nixie doctor`. It runs on the installer image too.
+Recovery keys (systemd's groups of eight), age identities and private keys,
+on one line or across lines, are blanked by their shape; the file is root's
+alone. A failed step in either wizard shows **Save a report** under its
+Details, which serves the same file from the setup backend to a paired
+browser; the backend runs the command, so the wizard does nothing the CLI
+cannot.
+
+| check | result |
+|---|---|
+| `vm-encryption`: on an installed machine after phase 6, `nixie report` writes a bundle with `machine.txt`, `doctor.txt` (its key slots), `setup/setup.log` and this start's journal; a recovery key, an age identity and an OpenSSH private key planted in setup's log, the key once in its own lines and once on one line, are all blanked, and the lines after them survive | pass |
+| `vm-installer-lan`: on the installer, a paired browser downloads the bundle (`machine.txt` inside); without the session cookie the same address answers 401 | pass |
+| review (fm-reviewer, read-only): no secret reaches the bundle (keys files, the attestation secret, the PIN, duress and passphrase files, sops and age keys, the TOTP users file are never read); taken from it: `umask 077`, the one-line key, a test for each blanking rule, a two-minute limit on the wizard's request | done |
+| full gate, one capped build per check, before the last two fixes: 51 of 53 pass; `no-secrets-in-store` found the CLI's own age pattern (the marker it scans for), now written `AGE-SECRET-KEY-[1]…`, and `vm-encryption` expected one space where the inline key's trailing newline leaves two | 51 pass, 2 fixed |
+| after both: `no-secrets-in-store`, `vm-encryption` (427 s), `vm-installer-lan` (245 s), `statix`, `fmt`, `deadnix` | pass |
