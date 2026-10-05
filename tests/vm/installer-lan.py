@@ -18,6 +18,9 @@ def pair():
     assert "Certificate fingerprint" in banner and "https://192.168.1.2:9443" in banner, banner
     assert api("POST", "/api/pair", {"code": code})["ok"]
     client.fail(f"curl -sk -X POST -H 'Content-Type: application/json' -d '{{\"code\": \"{code}\"}}' https://192.168.1.2:9443/api/pair | grep -q ok")  # single use
+    # A burst of guesses from the LAN gets one answer a second; the rest wait.
+    burst = client.succeed("for i in 1 2 3 4 5 6; do curl -sk -o /dev/null -w '%{http_code}\\n' -X POST -H 'Content-Type: application/json' -d '{\"code\": \"000000\"}' https://192.168.1.2:9443/api/pair & done; wait").split()
+    assert burst.count("429") >= 4 and set(burst) <= {"403", "429"}, burst
 
 client.start()
 installer.start()

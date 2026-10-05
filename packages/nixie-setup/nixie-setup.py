@@ -12,6 +12,8 @@ import argparse, base64, hashlib, hmac, http.cookies, http.server, json, os, re,
 ARGS = None
 SESSIONS = set()
 PAIR_CODE = None
+PAIR_LOCK = threading.Lock()
+PAIR_NEXT = 0.0        # monotonic time the next pairing guess is taken
 FINISH_STARTED = None
 SECRETS = {}           # name -> bytes, in memory only
 LOCK = threading.Lock()
@@ -586,13 +588,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
         if u.path == "/api/pair":
-            global PAIR_CODE
+            global PAIR_CODE, PAIR_NEXT
             b = self.body()
-            if PAIR_CODE and hmac.compare_digest(str(b.get("code", "")), PAIR_CODE):
-                PAIR_CODE = None  # single use
+            # One guess a second across every connection: the code has six
+            # digits, so trying them all from the LAN takes days, not minutes.
+            with PAIR_LOCK:
+                now = time.monotonic()
+                if now < PAIR_NEXT:
+                    ok = None
+                elif PAIR_CODE and hmac.compare_digest(str(b.get("code", "")), PAIR_CODE):
+                    ok, PAIR_CODE = True, None  # single use
+                else:
+                    ok, PAIR_NEXT = False, now + 1
+            if ok:
                 # Framed with Content-Length: curl over TLS treats an EOF-delimited
                 # body as an unexpected close and fails the request.
                 return self.send_json({"ok": True}, session=True)
+            if ok is None:
+                return self.send_json({"error": "too many tries; wait a second and try again"}, 429)
             return self.send_json({"error": "wrong or used code"}, 403)
         if not self.session():
             return self.send_json({"error": "not paired"}, 401)

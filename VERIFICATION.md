@@ -2938,3 +2938,21 @@ Not verified here: a "hold" share stopping and starting a real Incus guest
 (the test names the guest; the stop and start are `incus stop --force` and
 `incus start`), and FS-Cache serving a second read from local disk (the test
 shows the cache in use, not a timing).
+
+## Wrong pairing codes, one a second (2026-10-05)
+
+The LAN wizard pairs a browser with a six-digit code printed on the
+machine's screen, and took any number of wrong guesses as fast as they came:
+anyone on the network could try all 900,000 before the owner typed the right
+one, and a paired browser sets the administrator and the keys. Now one guess
+a second is taken across every connection, and the rest are answered 429
+("too many tries; wait a second and try again"); the right code still pairs
+at once and stays single use. At one a second, finding the code takes days on
+average, and pairing ends for good once the owner has paired. A flood of
+guesses can keep the owner's own browser waiting; the machine's own screen
+and the terminal wizard pair without the code.
+
+| check | result |
+|---|---|
+| `vm-installer-lan` (177 s): the right code pairs, the used code is refused, a burst of six wrong guesses from the LAN gets at least four 429s and nothing but 403/429; the install and the continuation after the restart go on as before | pass |
+| baseline gate before the change: 52 checks | pass |
